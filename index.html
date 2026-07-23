@@ -3719,8 +3719,8 @@ async function toggleTaskDone(id){
   }
 }
 
-/** Drive上のTaskファイルの status フィールドだけを書き換える（他フィールド保持） */
-async function updateTaskStatusInDrive(taskId, newStatus){
+/** Drive上のTaskファイルの frontmatter のうち、指定したフィールドだけを書き換える（他フィールド保持） */
+async function updateTaskInDrive(taskId, updates){
   const rootId = await ensureVaultFolder();
   const folderId = await findOrCreateFolder("07_Task", rootId);
   const fileName = `${taskId}.md`;
@@ -3731,10 +3731,28 @@ async function updateTaskStatusInDrive(taskId, newStatus){
 
   const raw = await readDriveFileContent(file.id);
   const { frontmatter: fm, body } = parseFrontmatter(raw);
-  fm.status = newStatus;
+  Object.assign(fm, updates);
 
   const updated = buildFrontmatterFile(fm, body);
   await createOrUpdateFile(fileName, folderId, updated);
+}
+
+/** updateTaskInDrive の薄いラッパー：status 更新用（呼び出し側を読みやすくするため） */
+async function updateTaskStatusInDrive(taskId, newStatus){
+  return updateTaskInDrive(taskId, { status: newStatus });
+}
+
+/** タスク編集をメモリ反映後、Drive に永続化する（fire-and-forget。エラーはコンソールに出すだけ） */
+async function persistTaskChange(taskId, updates){
+  if(!googleAccessToken){
+    console.warn("Drive 未接続：変更はメモリ上のみ。次回リロードで元に戻ります");
+    return;
+  }
+  try{
+    await updateTaskInDrive(taskId, updates);
+  } catch(e){
+    console.error("タスク編集のDrive保存に失敗:", e);
+  }
 }
 /* ============ 放置タスクの見直し（スワイプ Yes/No） ============ */
 // STALE_DAYSはappSettings.staleReviewDaysとして設定画面から変更可能
@@ -3950,20 +3968,28 @@ function openTaskDetail(id){
 }
 function saveTaskTitle(){
   const t = taskById(currentTaskDetailId);
+  if(!t) return;
   t.text = document.getElementById("td-title").value;
+  persistTaskChange(currentTaskDetailId, { text: t.text });
 }
 function saveTaskBody(){
   const t = taskById(currentTaskDetailId);
+  if(!t) return;
   t.body = document.getElementById("td-body").value;
+  persistTaskChange(currentTaskDetailId, { body: t.body });
 }
 function saveDueDate(){
   const t = taskById(currentTaskDetailId);
+  if(!t) return;
   t.due = document.getElementById("td-due").value || null;
+  persistTaskChange(currentTaskDetailId, { due: t.due });
 }
 function clearDueDate(){
   const t = taskById(currentTaskDetailId);
+  if(!t) return;
   t.due = null;
   document.getElementById("td-due").value = "";
+  persistTaskChange(currentTaskDetailId, { due: null });
 }
 function renderTaskDeps(){
   const t = taskById(currentTaskDetailId);
@@ -3978,8 +4004,10 @@ function renderTaskDeps(){
 }
 function removeDep(depId){
   const t = taskById(currentTaskDetailId);
+  if(!t) return;
   t.dependsOn = (t.dependsOn||[]).filter(id=>id!==depId);
   renderTaskDeps();
+  persistTaskChange(currentTaskDetailId, { depends_on: t.dependsOn });
 }
 function renderTaskSearch(){
   const q = document.getElementById("td-search").value.trim();
@@ -3995,10 +4023,12 @@ function renderTaskSearch(){
 }
 function addDep(depId){
   const t = taskById(currentTaskDetailId);
+  if(!t) return;
   if(!t.dependsOn.includes(depId) && depId!==t.id) t.dependsOn.push(depId);
   document.getElementById("td-search").value = "";
   document.getElementById("td-search-results").innerHTML = "";
   renderTaskDeps();
+  persistTaskChange(currentTaskDetailId, { depends_on: t.dependsOn });
 }
 
 /* フォーカス確認カード → 優先順位に反映 */
