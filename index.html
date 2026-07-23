@@ -1244,19 +1244,25 @@ const vaultSeedFiles = [
   <!-- ===== JOURNAL CONFIRM (音声の理解内容を確認・修正) ===== -->
   <div class="screen" id="screen-journal-confirm">
     <div style="display:flex; align-items:center; gap:10px; margin-top:8px; margin-bottom:4px;">
-      <h1 class="page-title" style="margin:0;">内容を確認</h1>
+      <h1 class="page-title" style="margin:0;" id="cc-screen-title">内容を確認</h1>
     </div>
     <p class="page-sub">Claudeが抽出した内容です。問題なければ「保存する」を押してください</p>
 
     <div class="field-label">Note</div>
     <div class="k-card" style="margin-bottom:12px;">
       <div class="title" id="cc-note-title" style="font-size:13px;"></div>
+      <div id="cc-note-url-wrap" style="font-size:10.5px; color:var(--ink-faint); margin-top:4px; word-break:break-all; display:none;">
+        🔗 <a id="cc-note-url" href="#" target="_blank" style="color:var(--primary); text-decoration:underline;"></a>
+      </div>
       <div class="k-meta" id="cc-note-themes" style="margin-top:8px;"></div>
       <div class="summary-preview-text" id="cc-note-summary" style="margin-top:8px; -webkit-line-clamp:6;"></div>
     </div>
 
     <div class="field-label">Knowledge（<span id="cc-knowledge-count">0</span>件）</div>
     <div id="cc-knowledge-list"></div>
+
+    <div class="field-label" id="cc-greatmind-section" style="margin-top:14px; display:none;">Great Mind（<span id="cc-greatmind-count">0</span>件）</div>
+    <div id="cc-greatmind-list"></div>
 
     <div class="field-label" style="margin-top:14px;">Task（<span id="cc-task-count">0</span>件）</div>
     <div id="cc-task-list"></div>
@@ -2265,6 +2271,216 @@ ${candidateBlock}
 ${journalText}`;
 }
 
+/** Source（URL）入力版の抽出プロンプト。ジャーナル版に加え、Great Mind 抽出を含む */
+function buildSourceExtractionPrompt(articleMeta, articleText, candidates, gmCandidates){
+  const candidateBlock = (candidates||[]).length
+    ? candidates.map(k => `- id: ${k.id} / title: ${k.title} / branch: ${k.branch} / themes: ${(k.themes||[]).join(",")} / summary冒頭: ${(k.summary||"").slice(0,100)}`).join("\n")
+    : "（まだKnowledgeは登録されていません）";
+
+  // theme→[branch...] の集約
+  const branchMap = {};
+  (candidates||[]).forEach(k => (k.themes||[]).forEach(t => {
+    if(!branchMap[t]) branchMap[t] = [];
+    if(k.branch && !branchMap[t].includes(k.branch)) branchMap[t].push(k.branch);
+  }));
+  const branchBlock = Object.keys(branchMap).length
+    ? Object.entries(branchMap).map(([t,bs]) => `- ${t}: ${bs.join("／")}`).join("\n")
+    : "（まだ枝の実績がありません）";
+
+  const gmBlock = (gmCandidates||[]).length
+    ? gmCandidates.map(g => `- id: ${g.id} / title: ${g.title} / sage: ${g.sage}`).join("\n")
+    : "（まだ登録されているGreat Mindはありません）";
+
+  return `あなたは「第二の脳」という個人用ナレッジ管理システムのための情報抽出アシスタントです。
+今回の入力は、ユーザーが指定した**記事URL（Source）**です。記事本文を分析し、Knowledge・Task・**Great Mind** を抽出して、以下のJSON形式で**厳密に**出力してください。JSON以外の文章（前置き・説明・コードブロック記号）は一切含めないでください。
+
+# 出力JSON形式
+{
+  "note": {
+    "title": "（20字程度の短いタイトル）",
+    "url": "（入力されたURL）",
+    "themes": ["healthcare"|"business"|"mind"|"relationships" から該当するもの、複数可],
+    "tags": ["（キーワードを2〜5個）"],
+    "summary": "（記事全体の2〜3文の要約）"
+  },
+  "knowledge": [
+    {
+      "action": "new または update_existing",
+      "existing_id": "（action=update_existingの場合のみ）",
+      "title": "（結論形式の短いタイトル）",
+      "summary": "（背景・理由を含む、現時点でのベストな理解）",
+      "themes": ["..."],
+      "branch": "（下記「既存の枝一覧」から選ぶ。どれにも当てはまらなければ新しい枝名を作ってよい）",
+      "branch_is_new": true または false,
+      "confidence": 0から100の数値,
+      "source_quality": "High または Medium または Low",
+      "evidence_note": "（今回の記事から得られた、この気づきの根拠となる一言）"
+    }
+  ],
+  "tasks": [
+    { "type": "action または research", "text": "（タスク内容）", "themes": ["..."] }
+  ],
+  "great_minds": [
+    {
+      "title": "（1つの行動指針・ルール。「〇〇する」のような習慣文）",
+      "sage": "（記事の筆者名、または記事の内容の大本のソースとなった人物名。確定できない場合は「不明」）",
+      "rationale": "（なぜ重要とされているか）",
+      "precondition": "（この教えが有効になる前提条件。なければ空文字）",
+      "sources": [{ "title": "（記事タイトル）", "url": "（URL）" }]
+    }
+  ]
+}
+
+# confidenceの目安
+- 90〜100：高品質ソースで裏付け済み　- 70〜89：比較的信頼できる　- 40〜69：一部推測を含む　- 0〜39：主観・仮説中心
+
+# source_qualityの目安
+- High：学術論文／公的機関／専門書　- Medium：企業ブログ／一般書籍／YouTube　- Low：個人的体験／感想／個人ブログ
+（Source記事の場合は Medium になることが多いはずです）
+
+# 既存の枝（branch）一覧（テーマごと）
+${branchBlock}
+
+# 既存のGreat Mind一覧
+${gmBlock}
+
+# Great Mind抽出の方針（重要）
+- **1記事から複数の Great Mind を抽出してよい**。記事に複数の行動指針・ルールが含まれている場合、それぞれを独立したオブジェクトとして出力してください
+- 記事から読み取れる具体的な行動（「〇〇する」「〇〇を避ける」）を優先
+- 抽象的な哲学よりも、再現可能な行動ルールを重視
+- 同じ Great Mind が既に登録されている場合は、新規抽出はしない（既存Knowledge一覧と照らし合わせる）
+
+# Research Taskの自動生成について
+新規（action: new）で作るKnowledgeのうち、confidenceが**50未満**のものについては、"この知見をさらに深掘りする"という趣旨のResearch Task（type: research）をtasksに自動的に追加してください。
+
+# 既存のKnowledge一覧
+${candidateBlock}
+
+# alignmentフィールドについて
+**Source入力では alignment は付けない**で出力してください。alignment は確認画面でユーザー自身が明示的に選びます（agree / disagree / tension）。
+
+# 入力された記事メタ情報
+タイトル: ${articleMeta?.title || "（不明）"}
+URL: ${articleMeta?.url || "（不明）"}
+
+# 記事本文
+${articleText}`;
+}
+
+/** CORS プロキシ経由でURLから記事本文（HTML）を取得 */
+async function fetchArticleContent(url){
+  // 複数のCORSプロキシを順に試す（可用性対策）
+  const proxies = [
+    u => `https://corsproxy.io/?${encodeURIComponent(u)}`,
+    u => `https://api.allorigins.win/raw?url=${encodeURIComponent(u)}`,
+  ];
+  for(const makeProxyUrl of proxies){
+    try{
+      const proxyUrl = makeProxyUrl(url);
+      const res = await fetch(proxyUrl);
+      if(!res.ok) continue;
+      const html = await res.text();
+      if(!html || html.length < 100) continue;
+      return html;
+    } catch(e){
+      console.warn("CORS プロキシ失敗:", makeProxyUrl(url), e.message);
+    }
+  }
+  throw new Error("記事を取得できませんでした。CORS プロキシ経由でも取得に失敗しました。");
+}
+
+/** 取得したHTMLからタイトルと本文テキストを抽出（簡易実装） */
+function parseArticleHtml(html, sourceUrl){
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(html, "text/html");
+
+  // タイトル：og:title → twitter:title → <title>
+  const title =
+    doc.querySelector('meta[property="og:title"]')?.getAttribute("content") ||
+    doc.querySelector('meta[name="twitter:title"]')?.getAttribute("content") ||
+    doc.querySelector("title")?.textContent ||
+    "";
+
+  // メタ情報
+  const description =
+    doc.querySelector('meta[property="og:description"]')?.getAttribute("content") ||
+    doc.querySelector('meta[name="description"]')?.getAttribute("content") ||
+    "";
+
+  const siteName =
+    doc.querySelector('meta[property="og:site_name"]')?.getAttribute("content") ||
+    new URL(sourceUrl).hostname;
+
+  // 本文：script/style を除いて textContent を抽出
+  const clone = doc.body.cloneNode(true);
+  clone.querySelectorAll("script, style, nav, header, footer, aside").forEach(el => el.remove());
+  const bodyText = (clone.textContent || "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 12000); // Claude に渡す本文は12,000 字まで
+
+  return {
+    title: title.trim(),
+    description: description.trim(),
+    siteName,
+    bodyText,
+  };
+}
+
+/** Source入力のパイプライン開始：URL入力→記事取得→抽出→確認画面 */
+async function startSourceProcessing(){
+  const urlEl = document.querySelector("#capture-source input.url-input");
+  const url = (urlEl?.value || "").trim();
+  const statusEl = document.querySelector("#capture-source .settings-hint, #capture-source #cap-source-status");
+  if(!url){ if(statusEl) statusEl.textContent = "URLを入力してください"; return; }
+  if(!googleAccessToken){ if(statusEl) statusEl.textContent = "先に開発者設定からGoogle Driveと連携してください"; return; }
+
+  if(statusEl) statusEl.textContent = "① 記事を取得中…";
+
+  let articleMeta;
+  try{
+    const html = await fetchArticleContent(url);
+    articleMeta = parseArticleHtml(html, url);
+    if(!articleMeta.bodyText){
+      throw new Error("記事の本文が見つかりませんでした");
+    }
+  } catch(e){
+    if(statusEl) statusEl.innerHTML = `❌ 記事取得エラー：${e.message}<br><br>続行すると、タイトル+URLのみのSourceファイルが作成されます。`;
+    if(!confirm("記事を取得できませんでした。\nタイトル+URLのみ保存しますか？\n（キャンセルで中止）")){
+      if(statusEl) statusEl.textContent = "";
+      return;
+    }
+    articleMeta = { title: url, description: "", siteName: new URL(url).hostname, bodyText: "" };
+  }
+
+  try{
+    if(statusEl) statusEl.textContent = "② 既存Knowledge・Great Mindを確認中…";
+    const [candidates, gmCandidates] = await Promise.all([fetchCandidateKnowledge(), fetchCandidateGreatMinds()]);
+    if(statusEl) statusEl.textContent = `③ Claudeで処理中…（Knowledge候補${candidates.length}件・Great Mind候補${gmCandidates.length}件を参照）`;
+    const prompt = buildSourceExtractionPrompt(articleMeta, articleMeta.bodyText || `（タイトル: ${articleMeta.title}）`, candidates, gmCandidates);
+    const raw = await callClaudeWorker(prompt, 6000);
+
+    let parsed;
+    try{
+      const start = raw.indexOf("{");
+      const end = raw.lastIndexOf("}");
+      if(start === -1 || end === -1 || end < start) throw new Error("JSON部分が見つかりませんでした");
+      parsed = JSON.parse(raw.slice(start, end + 1));
+    } catch(e){
+      console.error("Claudeの生の応答:", raw);
+      if(statusEl) statusEl.innerHTML = `❌ JSON解析エラー：${e.message}<br><br><b>Claudeの応答（生データ）：</b><br><span style="white-space:pre-wrap; word-break:break-all;">${raw.slice(0,1500).replace(/</g,"&lt;")}</span>`;
+      return;
+    }
+
+    pendingCaptureResult = { ...parsed, sourceText: articleMeta.bodyText, sourceMeta: articleMeta, kind: "source" };
+    renderSourceConfirm(pendingCaptureResult);
+    if(statusEl) statusEl.textContent = "";
+    goTo("journal-confirm"); // 同じ確認画面を使う（タイトルで区別）
+  } catch(e){
+    if(statusEl) statusEl.textContent = `❌ エラー：${e.message}`;
+  }
+}
+
 /** Cloudflare Worker経由でClaude APIを呼び、テキスト応答を返す */
 async function callClaudeWorker(promptText, maxTokens){
   const url = appSettings.devWorkerUrl;
@@ -2338,10 +2554,40 @@ async function startJournalProcessing(){
 }
 
 function renderCaptureConfirm(result){
+  const screenTitle = document.getElementById("cc-screen-title");
+  if(screenTitle) screenTitle.textContent = result.kind === "source" ? "ソース入力の確認" : "ジャーナル入力の確認";
   document.getElementById("cc-note-title").textContent = result.note?.title || "（タイトルなし）";
   document.getElementById("cc-note-themes").innerHTML = (result.note?.themes||[]).map(t=>
     `<span class="tag" style="background:${themeColors[t]||primaryColor}22; color:${themeColors[t]||primaryColor}">${t}</span>`).join("");
   document.getElementById("cc-note-summary").textContent = result.note?.summary || "";
+  // URL リンク（Source の場合）
+  const urlWrap = document.getElementById("cc-note-url-wrap");
+  if(urlWrap){
+    urlWrap.style.display = (result.kind === "source" && result.note?.url) ? "" : "none";
+    if(result.note?.url){
+      document.getElementById("cc-note-url").textContent = result.note.url;
+      document.getElementById("cc-note-url").href = result.note.url;
+    }
+  }
+  // Great Mind セクション（Source の場合のみ表示）
+  const gmSection = document.getElementById("cc-greatmind-section");
+  const gmList = document.getElementById("cc-greatmind-list");
+  if(gmSection){
+    if(result.kind === "source" && (result.great_minds||[]).length){
+      gmSection.style.display = "";
+      document.getElementById("cc-greatmind-count").textContent = result.great_minds.length;
+      gmList.innerHTML = result.great_minds.map(g=>`
+        <div class="task-compact-row" style="cursor:default; flex-direction:column; align-items:flex-start; gap:2px;">
+          <div style="display:flex; gap:6px; align-items:center;">
+            <span class="task-type-tag action">Great Mind</span>
+            <span class="dep" style="color:var(--ink);">${g.title}</span>
+          </div>
+          <div style="font-size:10.5px; color:var(--ink-faint);">by ${g.sage||""} ／ ${g.rationale||""}</div>
+        </div>`).join("");
+    } else {
+      gmSection.style.display = "none";
+    }
+  }
 
   const kList = result.knowledge || [];
   document.getElementById("cc-knowledge-count").textContent = kList.length;
@@ -2393,7 +2639,82 @@ function applyBranchChoice(i){
   pendingCaptureResult.knowledge[i].branch_is_new = false;
 }
 
-/** 確認画面の「Driveに保存する」：Note・Knowledge(新規/更新)・Taskを実際にDriveへ書き込む */
+/** Source 入力の確認画面：Knowledge alignment を UI で明示的に選ばせる */
+function renderSourceConfirm(result){
+  // Note 部分（journal-confirm と共通、ID は cc- プレフィックスで揃える）
+  document.getElementById("cc-note-title").textContent = result.note?.title || "（タイトルなし）";
+  document.getElementById("cc-note-url-wrap").style.display = result.note?.url ? "" : "none";
+  document.getElementById("cc-note-url").textContent = result.note?.url || "";
+  document.getElementById("cc-note-url").href = result.note?.url || "#";
+  document.getElementById("cc-note-themes").innerHTML = (result.note?.themes||[]).map(t=>
+    `<span class="tag" style="background:${themeColors[t]||primaryColor}22; color:${themeColors[t]||primaryColor}">${t}</span>`).join("");
+  document.getElementById("cc-note-summary").textContent = result.note?.summary || "";
+
+  const kList = result.knowledge || [];
+  document.getElementById("cc-knowledge-count").textContent = kList.length;
+  document.getElementById("cc-knowledge-list").innerHTML = kList.map((k,i)=>{
+    const branchBadge = k.branch_is_new
+      ? `<span id="cc-branch-badge-${i}" class="tag" style="background:var(--business)22; color:var(--business);">🆕 新しい枝の提案：${k.branch}</span>`
+      : `<span class="tag" style="background:var(--surface2); color:var(--ink-faint);">枝：${k.branch||"未分類"}</span>`;
+    // alignment 選択 UI：Knowledge ごとに、Great Mind を選んで stance を選ばせる
+    const gmOptions = (result.great_minds||[]).map((g,j)=>`<option value="${j}">${g.title}（${g.sage}）</option>`).join("");
+    const alignmentUI = `
+      <div style="margin-top:8px; padding:8px; background:var(--surface2); border-radius:6px;">
+        <div style="font-size:10px; color:var(--ink-faint); margin-bottom:4px;">💬 Great Mind への alignment（任意）</div>
+        <select id="cc-align-gm-${i}" style="width:100%; padding:4px; background:var(--surface); color:var(--ink); border:1px solid var(--border); border-radius:4px; font-size:11px;">
+          <option value="">（つけない）</option>
+          ${gmOptions}
+        </select>
+        <div style="display:flex; gap:4px; margin-top:4px;">
+          <button type="button" class="btn-secondary" style="font-size:10px; padding:4px 8px;" onclick="setAlignmentStance(${i},'agree')">agree</button>
+          <button type="button" class="btn-secondary" style="font-size:10px; padding:4px 8px;" onclick="setAlignmentStance(${i},'disagree')">disagree</button>
+          <button type="button" class="btn-secondary" style="font-size:10px; padding:4px 8px;" onclick="setAlignmentStance(${i},'tension')">tension</button>
+        </div>
+        <div id="cc-align-status-${i}" style="font-size:10px; color:var(--primary); margin-top:4px;"></div>
+      </div>`;
+    return `
+    <div class="task-compact-row" style="cursor:default; flex-direction:column; align-items:flex-start; gap:4px;">
+      <div style="display:flex; width:100%; gap:6px; flex-wrap:wrap; align-items:center;">
+        <span class="task-type-tag ${k.action==='update_existing'?'research':'action'}">${k.action==='update_existing'?'既存を更新':'新規'}</span>
+        <span class="dep" style="color:var(--ink);">${k.title}</span>
+      </div>
+      <div style="font-size:10.5px; color:var(--ink-faint);">${k.summary||""}</div>
+      ${branchBadge}
+      ${alignmentUI}
+    </div>`;
+  }).join("") || `<div class="summary-preview-text" style="color:var(--ink-faint);">抽出されたKnowledgeはありません</div>`;
+
+  const tList = result.tasks || [];
+  document.getElementById("cc-task-count").textContent = tList.length;
+  document.getElementById("cc-task-list").innerHTML = tList.map(t=>`
+    <div class="task-compact-row" style="cursor:default;"><span class="dep" style="color:var(--ink);">${t.text}</span></div>`
+  ).join("") || `<div class="summary-preview-text" style="color:var(--ink-faint);">抽出されたTaskはありません</div>`;
+
+  // Source 入力時のみ Great Mind セクションを表示（renderCaptureConfirm 側で処理する）
+}
+
+/** Source 確認画面の alignment 設定：Great Mind と stance を pendingCaptureResult に保存 */
+function setAlignmentStance(kIdx, stance){
+  const k = pendingCaptureResult.knowledge[kIdx];
+  if(!k) return;
+  const gmSelect = document.getElementById(`cc-align-gm-${kIdx}`);
+  const gmIdx = gmSelect?.value;
+  if(!gmIdx){
+    document.getElementById(`cc-align-status-${kIdx}`).textContent = "↑ まず Great Mind を選んでください";
+    return;
+  }
+  const gm = pendingCaptureResult.great_minds[parseInt(gmIdx)];
+  if(!gm) return;
+  k.alignment = {
+    great_mind_id: gm._proposed_id || null, // 保存時に Great Mind ID に解決する
+    great_mind_title: gm.title, // 提案中の Great Mind を識別する用
+    stance,
+    note: `Source: ${pendingCaptureResult.sourceMeta?.url || ""}`,
+  };
+  document.getElementById(`cc-align-status-${kIdx}`).textContent = `✓ ${gm.title} に対して ${stance}`;
+}
+
+/** 確認画面の「Driveに保存する」：Note・Knowledge(新規/更新)・Task・Great Mind を実際にDriveへ書き込む */
 async function commitCaptureResult(){
   const statusEl = document.getElementById("cc-commit-status");
   if(!pendingCaptureResult){ statusEl.textContent = "保存する内容がありません"; return; }
@@ -2404,6 +2725,37 @@ async function commitCaptureResult(){
     const noteId = genId(pendingCaptureResult.kind === "source" ? "source" : "journal");
     const knowledgeIds = [];
     const taskIds = [];
+    const greatMindIds = []; // Source入力で抽出された Great Mind のIDを保持
+
+    // Great Mind（Source入力のみ）：先に作成してIDを取得し、alignmentの解決に使う
+    if(pendingCaptureResult.kind === "source" && (pendingCaptureResult.great_minds||[]).length){
+      for(let i=0; i<pendingCaptureResult.great_minds.length; i++){
+        const gm = pendingCaptureResult.great_minds[i];
+        const gid = genId("gm");
+        gm._proposed_id = gid; // alignment 解決用
+        const gmFm = {
+          id: gid, schema_version: 1, type: "great_mind",
+          title: gm.title, sage: gm.sage || "不明",
+          sources: gm.sources || [],
+          rationale: gm.rationale || "",
+          precondition: gm.precondition || "",
+          pinned: false,
+          origin_note: noteId,
+          visibility: "private",
+        };
+        const gmBody = `\n# ${gm.title}\n\n**賢者**: ${gm.sage || "不明"}\n\n**根拠**: ${gm.rationale || ""}\n\n**前提条件**: ${gm.precondition || "なし"}\n`;
+        const gmFolder = await findOrCreateFolder("06_GreatMind", rootId);
+        await createOrUpdateFile(`${gid}.md`, gmFolder, buildFrontmatterFile(gmFm, gmBody));
+        greatMindIds.push(gid);
+      }
+      // alignment の great_mind_id を、新しく作成された Great Mind ID に解決
+      (pendingCaptureResult.knowledge||[]).forEach(k => {
+        if(k.alignment && k.alignment.great_mind_title){
+          const matchedGm = pendingCaptureResult.great_minds.find(g => g.title === k.alignment.great_mind_title);
+          if(matchedGm) k.alignment.great_mind_id = matchedGm._proposed_id;
+        }
+      });
+    }
 
     // Knowledge：新規なら作成、既存更新ならevidenceを追記
     for(const k of (pendingCaptureResult.knowledge||[])){
@@ -2444,7 +2796,7 @@ async function commitCaptureResult(){
       taskIds.push(tid);
     }
 
-    // Note：最後に作成（knowledge_refs/task_refsを含めて）
+    // Note：最後に作成（knowledge_refs/task_refs/great_mind_refsを含めて）
     const noteFolder = await findOrCreateFolder(pendingCaptureResult.kind === "source" ? "02_Sources" : "01_Journal", rootId);
     const noteFm = {
       id: noteId, schema_version: 1, type: pendingCaptureResult.kind === "source" ? "source" : "journal",
@@ -2453,10 +2805,14 @@ async function commitCaptureResult(){
       created: today, updated: today, status: "active", visibility: "private",
       related_notes: [], knowledge_refs: knowledgeIds, task_refs: taskIds,
     };
+    if(pendingCaptureResult.kind === "source" && pendingCaptureResult.note?.url){
+      noteFm.url = pendingCaptureResult.note.url;
+    }
+    if(greatMindIds.length) noteFm.great_mind_refs = greatMindIds;
     const noteBody = `\n# ${noteFm.title}\n\n## 要約\n${pendingCaptureResult.note?.summary || ""}\n\n## 元の入力\n${pendingCaptureResult.sourceText || ""}\n`;
     await createOrUpdateFile(`${today}_${noteFm.title.replace(/[\\/:*?"<>|]/g,"")}.md`, noteFolder, buildFrontmatterFile(noteFm, noteBody));
 
-    statusEl.textContent = `✅ 保存しました（Knowledge${knowledgeIds.length}件・Task${taskIds.length}件）`;
+    statusEl.textContent = `✅ 保存しました（Knowledge${knowledgeIds.length}件・Task${taskIds.length}件${greatMindIds.length?`・GreatMind${greatMindIds.length}件`:""}）`;
     pendingCaptureResult = null;
     refreshLibraryFromDrive();
     refreshTasksFromDrive();
@@ -2817,17 +3173,9 @@ function saveDraft(){
   // ストレージに下書きとして保存し、「下書き・進行中」リストに追加する
 }
 
-// URL→要約取得（モック：実際はClaudeが要約を生成してここに表示する）
+// URL→要約取得（実処理版：startSourceProcessing に委譲）
 function fetchSummary(event){
-  const btn = event?.target ?? document.querySelector("#source-url-state .btn-secondary");
-  btn.classList.add("loading");
-  btn.textContent = "要約を取得中…";
-  setTimeout(()=>{
-    btn.classList.remove("loading");
-    btn.textContent = "要約を取得する";
-    document.getElementById("source-url-state").style.display = "none";
-    document.getElementById("source-summary-state").style.display = "";
-  }, 900);
+  return startSourceProcessing();
 }
 
 // 要約状態からURL入力状態に戻る（URLを直したい時）
