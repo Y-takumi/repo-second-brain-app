@@ -1,0 +1,23 @@
+# Claude Code ユーザー固有設定（個人設定のため、トラッキングしない）
+.claude/
+
+# OS 生成物
+.DS_Store
+Thumbs.db
+
+# 一般的な除外
+node_modules/
+*.log
+
+# 環境変数（秘匿情報）
+.env
+.env.local
+
+# エディタの一時ファイル
+*.swp
+*.swo
+.vscode/
+.idea/
+
+# OS のメタデータ
+desktop.ini
