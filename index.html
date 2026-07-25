@@ -1698,6 +1698,11 @@ const vaultSeedFiles = [
       <input class="url-input" type="number" step="0.1" id="dev-weekly-cap" value="1.0" onchange="saveDevSettings()">
 
       <div class="field-label" style="margin-top:14px;">Cloudflare Worker URL</div>
+      <div class="field-label" style="margin-top:14px;">Google OAuth Client ID（Drive 用）</div>
+      <input class="url-input" type="text" id="dev-google-client-id" placeholder="xxxx.apps.googleusercontent.com" onchange="saveDevSettings()">
+      <div class="settings-hint">Google Cloud Console で作成した OAuth クライアント ID（公開情報）。client_id=... .apps.googleusercontent.com 形式</div>
+
+      <div class="field-label" style="margin-top:14px;">Cloudflare Worker URL</div>
       <input class="url-input" type="text" id="dev-worker-url" placeholder="https://xxxx.workers.dev/" onchange="saveDevSettings()">
       <button class="btn-secondary" style="margin-top:10px;" onclick="testWorkerConnection()">🔌 接続テスト</button>
       <div id="dev-worker-test-result" class="settings-hint"></div>
@@ -1917,7 +1922,7 @@ function exportIssueLog(){
 }
 
 /* ============ Google Drive 実接続（OAuth） ============ */
-const GOOGLE_CLIENT_ID = "267201582517-to3h6f4lh3o5u97f5mor3qfqtbne4grc.apps.googleusercontent.com";
+// ※ Google OAuth Client ID は appSettings.googleClientId で管理（コードに直書きしない）
 const GOOGLE_DRIVE_SCOPE = "https://www.googleapis.com/auth/drive.file";
 let googleAccessToken = null;
 let googleTokenClient = null;
@@ -1929,7 +1934,7 @@ function ensureGoogleTokenClient(){
     return null;
   }
   googleTokenClient = google.accounts.oauth2.initTokenClient({
-    client_id: GOOGLE_CLIENT_ID,
+    client_id: appSettings.googleClientId,
     scope: GOOGLE_DRIVE_SCOPE,
     callback: handleGoogleAuthResult,
   });
@@ -3083,12 +3088,15 @@ async function refreshHabitFromDrive(){
 function openDevSettings(){
   document.getElementById("dev-weekly-cap").value = appSettings.devWeeklyCapUSD ?? 1.0;
   document.getElementById("dev-worker-url").value = appSettings.devWorkerUrl || "https://second-brain-proxy.takumi-yasuda-biz.workers.dev/";
+  document.getElementById("dev-google-client-id").value = appSettings.googleClientId || "";
   renderIssueLog();
   goTo("devsettings");
 }
 function saveDevSettings(){
   appSettings.devWeeklyCapUSD = parseFloat(document.getElementById("dev-weekly-cap").value) || 1.0;
   appSettings.devWorkerUrl = document.getElementById("dev-worker-url").value.trim();
+  const cid = document.getElementById("dev-google-client-id").value.trim();
+  if(cid) appSettings.googleClientId = cid;
 }
 
 /** Cloudflare Worker経由でAnthropic APIに簡単なテストメッセージを送り、パイプライン全体が動くか確認する */
@@ -3918,6 +3926,7 @@ const appSettings = {
   themeMode: "auto", // "auto" | "light" | "dark"
   staleReviewDays: 7, // この日数、動きがなければ見直し対象
   userName: "拓弥",
+  googleClientId: "267201582517-tor8cgr18fvnb4dfkrf0908dliira4d5.apps.googleusercontent.com", // Google OAuth Client ID（Drive用・公開情報だが変数化管理）
   devWorkerUrl: "https://second-brain-proxy.takumi-yasuda-biz.workers.dev/",
   devWeeklyCapUSD: 1.0,
 };

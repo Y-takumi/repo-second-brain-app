@@ -20,8 +20,11 @@ Note・Knowledge・Task・GreatMind・Habitは、**1オブジェクト＝1ファ
 06_GreatMind/ 07_Task/ 08_Knowledge/ 09_Habit/ Templates/
 ```
 
-### 3. APIキーの扱い
-AnthropicのAPIキーは**絶対にクライアント側コードに書かない**。必ずCloudflare Worker（`second-brain-proxy-worker.js`、KVでユーザーごとの週次予算も管理）を経由する。Google OAuthのClient IDは秘匿情報ではないのでコードに直書きしてよい。
+### 3. APIキー・認証情報の扱い
+
+- **Anthropic API キー**：**絶対にクライアント側コードに書かない**。必ずCloudflare Worker（`second-brain-proxy-worker.js`、KVでユーザーごとの週次予算も管理）を経由する
+- **OAuth Client ID**（Google Drive 用、YouTube 用）：**秘匿情報ではない**が、**変数として管理**する。`index.html` の `appSettings.googleClientId` で保持し、開発者設定画面で変更可能にする。コードに直接書き込まない（2026-07-26 方針変更：変数化を推奨）
+- **OAuth Client Secret / Refresh Token / API キー類**：**秘匿情報**。Cloudflare Workers の **Secret** として管理し、コードに書かない
 
 ### 4. Great MindのKnowledge alignment
 KnowledgeのGreat Mindへの賛否（alignment）は、**ユーザーが明示的に述べた場合のみ**記録する。AIが文脈から推測して自動判定することは禁止。
