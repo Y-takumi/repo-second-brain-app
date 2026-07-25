@@ -25,6 +25,15 @@ export default {
     if (request.method === "OPTIONS") {
       return new Response(null, { headers: corsHeaders() });
     }
+
+    const url = new URL(request.url);
+
+    // YouTube 字幕取得エンドポイント（GET でクエリパラメータを受ける）
+    if (url.pathname === "/youtube-transcript") {
+      return handleYouTubeTranscript(request, env);
+    }
+
+    // 既存の Anthropic API プロキシ（POST のみ）
     if (request.method !== "POST") {
       return jsonResponse({ error: "POSTのみ対応しています" }, 405);
     }
@@ -132,4 +141,139 @@ function getWeekKey() {
   const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
   const weekNo = Math.ceil(((d - yearStart) / 86400000 + 1) / 7);
   return `${d.getUTCFullYear()}-W${weekNo}`;
+}
+
+/* ============================================================
+ * YouTube 字幕取得エンドポイント（2026-07-25 追加）
+ *
+ * 用途: ブラウザからYouTube URLを受け取り、字幕テキストを返す
+ * 認証: Cloudflare Worker が Cloudflare Secret に保存された
+ *       リフレッシュトークンで自動的にアクセストークンを取得
+ * 必要な Secret:
+ *   - YOUTUBE_CLIENT_ID
+ *   - YOUTUBE_CLIENT_SECRET
+ *   - YOUTUBE_REFRESH_TOKEN
+ * ============================================================ */
+
+/** リフレッシュトークンを使ってアクセストークンを取得 */
+async function getYouTubeAccessToken(env) {
+  const res = await fetch("https://oauth2.googleapis.com/token", {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      client_id: env.YOUTUBE_CLIENT_ID,
+      client_secret: env.YOUTUBE_CLIENT_SECRET,
+      refresh_token: env.YOUTUBE_REFRESH_TOKEN,
+      grant_type: "refresh_token",
+    }),
+  });
+  const data = await res.json();
+  if (!res.ok) {
+    throw new Error(`アクセストークン取得失敗: ${data.error_description || data.error || res.status}`);
+  }
+  return data.access_token;
+}
+
+/** YouTube URL から video ID を抽出 */
+function extractYouTubeId(url) {
+  const patterns = [
+    /[?&]v=([a-zA-Z0-9_-]{11})/,         // https://www.youtube.com/watch?v=VIDEO_ID
+    /youtu\.be\/([a-zA-Z0-9_-]{11})/,    // https://youtu.be/VIDEO_ID
+    /\/shorts\/([a-zA-Z0-9_-]{11})/,     // https://www.youtube.com/shorts/VIDEO_ID
+    /\/embed\/([a-zA-Z0-9_-]{11})/,      // https://www.youtube.com/embed/VIDEO_ID
+  ];
+  for (const p of patterns) {
+    const m = url.match(p);
+    if (m) return m[1];
+  }
+  return null;
+}
+
+/** YouTube URL から動画字幕を取得する */
+async function handleYouTubeTranscript(request, env) {
+  try {
+    const url = new URL(request.url);
+    const videoUrl = url.searchParams.get("url");
+    if (!videoUrl) {
+      return jsonResponse({ error: "url パラメータが必要です" }, 400);
+    }
+
+    if (!env.YOUTUBE_CLIENT_ID || !env.YOUTUBE_CLIENT_SECRET || !env.YOUTUBE_REFRESH_TOKEN) {
+      return jsonResponse(
+        { error: "YOUTUBE_CLIENT_ID / YOUTUBE_CLIENT_SECRET / YOUTUBE_REFRESH_TOKEN のいずれかが未設定です" },
+        500
+      );
+    }
+
+    const videoId = extractYouTubeId(videoUrl);
+    if (!videoId) {
+      return jsonResponse({ error: "YouTube URL から video ID を抽出できませんでした" }, 400);
+    }
+
+    // ① アクセストークンを取得（リフレッシュトークンから自動更新）
+    const accessToken = await getYouTubeAccessToken(env);
+
+    // ② 字幕トラック一覧を取得
+    const captionsListUrl = `https://www.googleapis.com/youtube/v3/captions?part=snippet&videoId=${videoId}`;
+    const captionsRes = await fetch(captionsListUrl, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+    const captionsData = await captionsRes.json();
+
+    if (!captionsRes.ok) {
+      return jsonResponse(
+        {
+          error: "YouTube captions.list API エラー",
+          status: captionsRes.status,
+          detail: captionsData.error?.message || JSON.stringify(captionsData).slice(0, 300),
+        },
+        captionsRes.status
+      );
+    }
+
+    if (!captionsData.items || captionsData.items.length === 0) {
+      return jsonResponse(
+        {
+          videoId,
+          transcript: null,
+          message: "字幕が見つかりませんでした。手動で内容を入力してください。",
+        },
+        404
+      );
+    }
+
+    // 日本語字幕を優先、なければ最初の字幕を使用
+    const jaCaption = captionsData.items.find(c => c.snippet.language === "ja" || c.snippet.language === "ja-JP");
+    const caption = jaCaption || captionsData.items[0];
+
+    // ③ 字幕テキストをダウンロード（format=text でプレーンなテキストを取得）
+    const downloadUrl = `https://www.googleapis.com/youtube/v3/captions/${caption.id}?format=text`;
+    const downloadRes = await fetch(downloadUrl, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+
+    if (!downloadRes.ok) {
+      const errText = await downloadRes.text();
+      return jsonResponse(
+        {
+          videoId,
+          error: `字幕ダウンロード失敗 (${downloadRes.status})`,
+          detail: errText.slice(0, 300),
+        },
+        downloadRes.status
+      );
+    }
+
+    const transcript = await downloadRes.text();
+
+    return jsonResponse({
+      videoId,
+      transcript,
+      language: caption.snippet.language,
+      captionId: caption.id,
+      trackKind: caption.snippet.trackKind,
+    });
+  } catch (err) {
+    return jsonResponse({ error: "Worker内部エラー", detail: String(err && err.message || err) }, 500);
+  }
 }

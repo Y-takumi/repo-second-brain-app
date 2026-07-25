@@ -2427,6 +2427,72 @@ function parseArticleHtml(html, sourceUrl){
   };
 }
 
+/** URL が YouTube 動画 URL かどうかを判定 */
+function isYouTubeUrl(url){
+  return /^(https?:\/\/)?(www\.)?(youtube\.com|youtu\.be)/.test(url);
+}
+
+/** YouTube URL の場合、Cloudflare Worker 経由で字幕を取得し、既存のパイプラインに流す */
+async function startYouTubeProcessing(videoUrl){
+  const statusEl = document.querySelector("#capture-source .settings-hint, #capture-source #cap-source-status");
+  if(statusEl) statusEl.textContent = "① YouTube 字幕を取得中…";
+
+  let data;
+  try{
+    const workerUrl = (appSettings.devWorkerUrl || "").replace(/\/$/, "");
+    if(!workerUrl) throw new Error("開発者設定で Worker URL を設定してください");
+    const res = await fetch(`${workerUrl}/youtube-transcript?url=${encodeURIComponent(videoUrl)}`);
+    data = await res.json();
+    if(!res.ok){
+      throw new Error(data.error || data.detail || `Worker エラー: ${res.status}`);
+    }
+  } catch(e){
+    if(statusEl) statusEl.innerHTML = `❌ YouTube 字幕取得エラー：${e.message}<br><br>字幕がない動画、または Worker 設定に YOUTUBE_REFRESH_TOKEN 等が未設定の可能性があります。`;
+    return;
+  }
+
+  if(!data.transcript){
+    if(statusEl) statusEl.innerHTML = `❌ ${data.message || "字幕が見つかりませんでした"}<br><br>字幕がない動画です。`;
+    return;
+  }
+
+  // 字幕テキストを articleMeta として既存パイプラインに渡す
+  const articleMeta = {
+    title: `YouTube 動画 (${data.videoId})`,
+    description: `言語: ${data.language} ／ トラック: ${data.trackKind || "不明"}`,
+    siteName: "YouTube",
+    bodyText: data.transcript,
+  };
+
+  if(statusEl) statusEl.textContent = "② 既存Knowledge・Great Mindを確認中…";
+
+  try{
+    const [candidates, gmCandidates] = await Promise.all([fetchCandidateKnowledge(), fetchCandidateGreatMinds()]);
+    if(statusEl) statusEl.textContent = `③ Claudeで処理中…（Knowledge候補${candidates.length}件・Great Mind候補${gmCandidates.length}件を参照）`;
+    const prompt = buildSourceExtractionPrompt(articleMeta, articleMeta.bodyText, candidates, gmCandidates);
+    const raw = await callClaudeWorker(prompt, 6000);
+
+    let parsed;
+    try{
+      const start = raw.indexOf("{");
+      const end = raw.lastIndexOf("}");
+      if(start === -1 || end === -1 || end < start) throw new Error("JSON部分が見つかりませんでした");
+      parsed = JSON.parse(raw.slice(start, end + 1));
+    } catch(e){
+      console.error("Claudeの生の応答:", raw);
+      if(statusEl) statusEl.innerHTML = `❌ JSON解析エラー：${e.message}<br><br><b>Claudeの応答（生データ）：</b><br><span style="white-space:pre-wrap; word-break:break-all;">${raw.slice(0,1500).replace(/</g,"&lt;")}</span>`;
+      return;
+    }
+
+    pendingCaptureResult = { ...parsed, sourceText: articleMeta.bodyText, sourceMeta: articleMeta, kind: "source" };
+    renderSourceConfirm(pendingCaptureResult);
+    if(statusEl) statusEl.textContent = "";
+    goTo("journal-confirm");
+  } catch(e){
+    if(statusEl) statusEl.textContent = `❌ エラー：${e.message}`;
+  }
+}
+
 /** Source入力のパイプライン開始：URL入力→記事取得→抽出→確認画面 */
 async function startSourceProcessing(){
   const urlEl = document.querySelector("#capture-source input.url-input");
@@ -2434,6 +2500,11 @@ async function startSourceProcessing(){
   const statusEl = document.querySelector("#capture-source .settings-hint, #capture-source #cap-source-status");
   if(!url){ if(statusEl) statusEl.textContent = "URLを入力してください"; return; }
   if(!googleAccessToken){ if(statusEl) statusEl.textContent = "先に開発者設定からGoogle Driveと連携してください"; return; }
+
+  // YouTube URL の場合は専用処理に分岐
+  if(isYouTubeUrl(url)){
+    return startYouTubeProcessing(url);
+  }
 
   if(statusEl) statusEl.textContent = "① 記事を取得中…";
 
