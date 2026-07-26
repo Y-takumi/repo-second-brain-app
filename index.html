@@ -1941,8 +1941,18 @@ function ensureGoogleTokenClient(){
     client_id: appSettings.googleClientId,
     scope: GOOGLE_DRIVE_SCOPE,
     callback: handleGoogleAuthResult,
+    // prompt: 'select_account' で毎回アカウント選択画面を強制表示
+    // （前回のアカウントが自動選択されるのを防ぐ）
+    prompt: "select_account",
   });
   return googleTokenClient;
+}
+
+function resetDriveButton(){
+  const btn = document.getElementById("drive-connect-btn");
+  if(!btn) return;
+  btn.textContent = googleAccessToken ? "再連携する" : "Google Driveと連携する";
+  btn.disabled = false;
 }
 
 function connectGoogleDrive(){
@@ -1951,20 +1961,34 @@ function connectGoogleDrive(){
   const btn = document.getElementById("drive-connect-btn");
   btn.textContent = "接続中…";
   btn.disabled = true;
-  client.requestAccessToken(); // ここで実際のGoogle同意画面が開く
+  try{
+    client.requestAccessToken(); // ここで実際のGoogle同意画面が開く
+  } catch(e){
+    // requestAccessToken が throw した場合の保険
+    document.getElementById("drive-hint").textContent = `接続を開始できませんでした：${e.message}`;
+    resetDriveButton();
+  }
 }
 
 async function handleGoogleAuthResult(tokenResponse){
   const btn = document.getElementById("drive-connect-btn");
   if(tokenResponse.error){
-    document.getElementById("drive-hint").textContent = `接続に失敗しました：${tokenResponse.error}`;
-    btn.textContent = "Google Driveと連携する";
-    btn.disabled = false;
+    // エラー時：理由をユーザーに表示し、ボタンを元に戻す
+    const hintEl = document.getElementById("drive-hint");
+    let message = `接続に失敗しました：${tokenResponse.error}`;
+    if(tokenResponse.error === "popup_closed_by_user"){
+      message = "OAuth 画面が閉じられました。もう一度「Google Driveと連携する」をクリックして、表示されるアカウント選択画面で `takumi.yasuda.biz@gmail.com` を選んでください。";
+    } else if(tokenResponse.error === "access_denied"){
+      message = "アクセスが拒否されました。OAuth 同意画面で「許可」を選んでください。";
+    }
+    if(hintEl) hintEl.textContent = message;
+    resetDriveButton();
     return;
   }
   googleAccessToken = tokenResponse.access_token;
   document.getElementById("drive-status-dot").style.background = "var(--healthcare)";
   document.getElementById("drive-status-text").textContent = "連携済み（接続確認中…）";
+  // ボタンのテキストは resetDriveButton が呼ばないよう、ここで直接更新
   btn.textContent = "再連携する";
   btn.disabled = false;
 
