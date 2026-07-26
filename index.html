@@ -1702,6 +1702,10 @@ const vaultSeedFiles = [
       <input class="url-input" type="text" id="dev-google-client-id" placeholder="xxxx.apps.googleusercontent.com" onchange="saveDevSettings()">
       <div class="settings-hint">Google Cloud Console で作成した OAuth クライアント ID（公開情報）。client_id=... .apps.googleusercontent.com 形式</div>
 
+      <div class="field-label" style="margin-top:14px;">Google OAuth Client ID（YouTube 用）</div>
+      <input class="url-input" type="text" id="dev-youtube-client-id" placeholder="xxxx.apps.googleusercontent.com" onchange="saveDevSettings()">
+      <div class="settings-hint">YouTube 字幕取得用の OAuth クライアント ID（公開情報）。wrangler.toml の [vars] にも同じ値を記載</div>
+
       <div class="field-label" style="margin-top:14px;">Cloudflare Worker URL</div>
       <input class="url-input" type="text" id="dev-worker-url" placeholder="https://xxxx.workers.dev/" onchange="saveDevSettings()">
       <button class="btn-secondary" style="margin-top:10px;" onclick="testWorkerConnection()">🔌 接続テスト</button>
@@ -3089,6 +3093,7 @@ function openDevSettings(){
   document.getElementById("dev-weekly-cap").value = appSettings.devWeeklyCapUSD ?? 1.0;
   document.getElementById("dev-worker-url").value = appSettings.devWorkerUrl || "https://second-brain-proxy.takumi-yasuda-biz.workers.dev/";
   document.getElementById("dev-google-client-id").value = appSettings.googleClientId || "";
+  document.getElementById("dev-youtube-client-id").value = appSettings.youtubeClientId || "";
   renderIssueLog();
   goTo("devsettings");
 }
@@ -3097,6 +3102,8 @@ function saveDevSettings(){
   appSettings.devWorkerUrl = document.getElementById("dev-worker-url").value.trim();
   const cid = document.getElementById("dev-google-client-id").value.trim();
   if(cid) appSettings.googleClientId = cid;
+  const yid = document.getElementById("dev-youtube-client-id").value.trim();
+  if(yid) appSettings.youtubeClientId = yid;
 }
 
 /** Cloudflare Worker経由でAnthropic APIに簡単なテストメッセージを送り、パイプライン全体が動くか確認する */
@@ -3926,7 +3933,8 @@ const appSettings = {
   themeMode: "auto", // "auto" | "light" | "dark"
   staleReviewDays: 7, // この日数、動きがなければ見直し対象
   userName: "拓弥",
-  googleClientId: "267201582517-tor8cgr18fvnb4dfkrf0908dliira4d5.apps.googleusercontent.com", // Google OAuth Client ID（Drive用・公開情報だが変数化管理）
+  googleClientId: "267201582517-tor8cgr18fvnb4dfkrf0908dliira4d5.apps.googleusercontent.com", // Google OAuth Client ID（Drive 用・公開情報だが変数化管理）
+  youtubeClientId: "267201582517-rindnlorj84ba12l256k6g442n9jsbmj.apps.googleusercontent.com", // Google OAuth Client ID（YouTube 用・公開情報だが変数化管理。Worker の wrangler.toml [vars] にも同じ値を記載）
   devWorkerUrl: "https://second-brain-proxy.takumi-yasuda-biz.workers.dev/",
   devWeeklyCapUSD: 1.0,
 };

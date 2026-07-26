@@ -93,13 +93,17 @@ id = "cb82b52f36f14cb9bedb89d4aa365765"              # Cloudflare 上の KV の 
 
 **Secret（秘匿情報）は wrangler.toml に書いてはいけません**：
 
-| 値 | wrangler.toml | Cloudflare Workers Secret |
+| 値 | wrangler.toml `[vars]` | Cloudflare Workers Secret |
 |---|---|---|
-| `WEEKLY_CAP_USD = "1.0"` | ✅ OK | ❌ 不要（秘匿情報ではない） |
+| `WEEKLY_CAP_USD = "1.0"` | ✅ OK | ❌ 不要（公開情報） |
+| `YOUTUBE_CLIENT_ID`（公開情報） | ✅ OK | ❌ 不要 |
 | `ANTHROPIC_API_KEY` | ❌ 絶対 NG | ✅ Secret として設定 |
-| `YOUTUBE_CLIENT_ID` | ❌ 絶対 NG | ✅ Secret として設定 |
 | `YOUTUBE_CLIENT_SECRET` | ❌ 絶対 NG | ✅ Secret として設定 |
 | `YOUTUBE_REFRESH_TOKEN` | ❌ 絶対 NG | ✅ Secret として設定 |
+
+**Variable vs Secret の使い分け**：
+- **公開情報**（URL、ID、数値）→ `wrangler.toml` の `[vars]`（平文。Worker から `env.<NAME>` でアクセス）
+- **秘匿情報**（API キー、トークン、シークレット）→ Cloudflare Workers Secret（暗号化）
 
 Secret の値を確認するコマンド：
 
@@ -114,6 +118,10 @@ wrangler secret put <SECRET_NAME>
 # プロンプトに値を入力
 ```
 
+Variable を追加する方法：
+- `wrangler.toml` の `[vars]` に追加して `wrangler deploy`
+- または、Cloudflare Dashboard → Worker → Settings → Variables で **Type: Plain text** として追加
+
 ---
 
 ## 4. 各種値の管理場所まとめ（2026-07-26 確定）
@@ -121,12 +129,13 @@ wrangler secret put <SECRET_NAME>
 | 値 | 保管場所 | 理由 |
 |---|---|---|
 | **Anthropic API キー** | Cloudflare Workers Secret | 秘匿情報 |
-| **OAuth Client ID**（Drive 用、YouTube 用） | `index.html` の `appSettings.googleClientId` | 公開情報。変数化管理 |
-| **OAuth Client Secret**（YouTube 用） | Cloudflare Workers Secret | 秘匿情報 |
-| **OAuth Refresh Token**（YouTube 用） | Cloudflare Workers Secret | 秘匿情報 |
-| **`WEEKLY_CAP_USD`**（週次予算 USD） | wrangler.toml `[vars]` | 公開情報 |
-| **KV Namespace binding** | wrangler.toml `[[kv_namespaces]]` | 公開情報 |
-| **`compatibility_date`** | wrangler.toml | 公開情報 |
+| **OAuth Client ID（Drive 用）** | `index.html` の `appSettings.googleClientId` | 公開情報（ブラウザで動く OAuth のため） |
+| **OAuth Client ID（YouTube 用）** | `wrangler.toml` の `[vars]`（Variable） | 公開情報（Worker が参照する必要があるため） |
+| **OAuth Client Secret（YouTube 用）** | Cloudflare Workers Secret | 秘匿情報 |
+| **OAuth Refresh Token（YouTube 用）** | Cloudflare Workers Secret | 秘匿情報 |
+| **`WEEKLY_CAP_USD`**（週次予算 USD） | `wrangler.toml` の `[vars]`（Variable） | 公開情報 |
+| **KV Namespace binding** | `wrangler.toml` の `[[kv_namespaces]]` | Cloudflare 内部 ID |
+| **`compatibility_date`** | `wrangler.toml` | 公開情報 |
 
 ---
 

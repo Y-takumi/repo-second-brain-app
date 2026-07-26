@@ -5,6 +5,9 @@ compatibility_date = "2026-07-26"
 # 環境変数（秘匿情報ではない）
 [vars]
 WEEKLY_CAP_USD = "1.0"
+# YouTube 用 OAuth クライアント ID（公開情報）。
+# Drive 用の Client ID は index.html の appSettings.googleClientId で管理（ブラウザで動く OAuth のため）。
+YOUTUBE_CLIENT_ID = "267201582517-rindnlorj84ba12l256k6g442n9jsbmj.apps.googleusercontent.com"
 
 # KV Namespace バインディング（ユーザーごとの週次予算管理用）
 [[kv_namespaces]]
@@ -12,8 +15,8 @@ binding = "USAGE_KV"
 id = "cb82b52f36f14cb9bedb89d4aa365765"
 
 # 【重要】Secret は wrangler.toml に書かないこと
-# Secret の管理:
+# Secret の管理（Cloudflare Workers Secret）：
 #   - ANTHROPIC_API_KEY: wrangler secret put ANTHROPIC_API_KEY
-#   - YOUTUBE_CLIENT_ID: wrangler secret put YOUTUBE_CLIENT_ID
 #   - YOUTUBE_CLIENT_SECRET: wrangler secret put YOUTUBE_CLIENT_SECRET
 #   - YOUTUBE_REFRESH_TOKEN: wrangler secret put YOUTUBE_REFRESH_TOKEN
+# YOUTUBE_CLIENT_ID は [vars] で公開情報として管理（Secret ではない）
