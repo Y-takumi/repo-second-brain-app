@@ -135,6 +135,7 @@ compatibility_date = "2026-07-26"                    # 互換性日付
 # 環境変数（秘匿情報ではない）
 [vars]
 WEEKLY_CAP_USD = "1.0"
+YOUTUBE_CLIENT_ID = "267201582517-rindnlorj84ba12l256k6g442n9jsbmj.apps.googleusercontent.com"
 
 # KV Namespace バインディング
 [[kv_namespaces]]
@@ -153,6 +154,57 @@ id = "cb82b52f36f14cb9bedb89d4aa365765"              # Cloudflare 上の KV の 
 | `ANTHROPIC_API_KEY` | ❌ 絶対 NG | ✅ Secret として設定 |
 | `YOUTUBE_CLIENT_SECRET` | ❌ 絶対 NG | ✅ Secret として設定 |
 | `YOUTUBE_REFRESH_TOKEN` | ❌ 絶対 NG | ✅ Secret として設定 |
+
+### ⚠️ wrangler.toml に値を登録した変数は Dashboard 設定が重複になる
+
+`wrangler.toml` の `[vars]` に **値を書いて deploy した場合**、Cloudflare Dashboard で同じ変数を設定していても **`wrangler deploy` 時に上書き** される：
+
+| 状況 | 書き方 | Dashboard 設定 |
+|---|---|---|
+| **値を `wrangler.toml` に書く**（シンプル） | `YOUTUBE_CLIENT_ID = "..."` | 不要（重複になる） |
+| **変数名だけ `wrangler.toml` に書く**（環境ごとに値が違う場合） | `# YOUTUBE_CLIENT_ID`（コメント） | 必要 |
+
+つまり：
+- **同じ値が両方にあれば問題なし**（`wrangler.toml` の値で上書きされるだけ）
+- **違う値があると、`wrangler deploy` 後に Dashboard の値が消える**（注意が必要）
+
+## 3.5 appSettings のイメージ（ブラウザ側の設定）
+
+`appSettings` は **`index.html` の中の JavaScript オブジェクト**。ブラウザの `localStorage` に保存される：
+
+```javascript
+const appSettings = {
+  googleClientId: "267201582517-...",  // ← ブラウザが使う値
+  youtubeClientId: "267201582517-...",
+  devWorkerUrl: "https://second-brain-proxy.takumi-yasuda-biz.workers.dev/",
+  ...
+};
+```
+
+### 保存場所と値の参照
+
+```
+[開発者設定画面]（index.html の screen-devsettings）
+  ├─ 「Google OAuth Client ID（Drive 用）」入力欄
+  ├─ 「Google OAuth Client ID（YouTube 用）」入力欄
+  └─ 「Cloudflare Worker URL」入力欄
+      ↓ （値を入力 → saveDevSettings()）
+[localStorage に保存]
+  ├─ googleClientId: "..."
+  ├─ youtubeClientId: "..."
+  └─ devWorkerUrl: "..."
+      ↓ （次回アプリ起動時に復元）
+[ブラウザで動く JavaScript が appSettings.X で参照]
+```
+
+### wrangler.toml との比較
+
+| 項目 | `wrangler.toml` | `appSettings` |
+|---|---|---|
+| **誰が読むか** | Cloudflare Worker | ブラウザの JavaScript |
+| **保存場所** | Cloudflare Workers 環境 | ブラウザの `localStorage` |
+| **値の変更** | `wrangler deploy` が必要 | 開発者設定画面で即座に変更可能 |
+| **ユーザーごと** | ❌ 同じ Worker を全員で共有 | ✅ ユーザーごとに異なる値を持てる |
 
 **Variable vs Secret の使い分け**：
 - **公開情報**（URL、ID、数値）→ `wrangler.toml` の `[vars]`（平文。Worker から `env.<NAME>` でアクセス）
