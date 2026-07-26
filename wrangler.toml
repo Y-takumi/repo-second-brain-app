@@ -1,0 +1,19 @@
+name = "second-brain-proxy"
+main = "second-brain-proxy-worker.js"
+compatibility_date = "2026-07-26"
+
+# 環境変数（秘匿情報ではない）
+[vars]
+WEEKLY_CAP_USD = "1.0"
+
+# KV Namespace バインディング（ユーザーごとの週次予算管理用）
+[[kv_namespaces]]
+binding = "USAGE_KV"
+id = "cb82b52f36f14cb9bedb89d4aa365765"
+
+# 【重要】Secret は wrangler.toml に書かないこと
+# Secret の管理:
+#   - ANTHROPIC_API_KEY: wrangler secret put ANTHROPIC_API_KEY
+#   - YOUTUBE_CLIENT_ID: wrangler secret put YOUTUBE_CLIENT_ID
+#   - YOUTUBE_CLIENT_SECRET: wrangler secret put YOUTUBE_CLIENT_SECRET
+#   - YOUTUBE_REFRESH_TOKEN: wrangler secret put YOUTUBE_REFRESH_TOKEN

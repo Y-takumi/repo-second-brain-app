@@ -1,6 +1,9 @@
 # Claude Code ユーザー固有設定（個人設定のため、トラッキングしない）
 .claude/
 
+# wrangler のキャッシュ・ログ（デプロイ時に自動生成される）
+.wrangler/
+
 # OS 生成物
 .DS_Store
 Thumbs.db
