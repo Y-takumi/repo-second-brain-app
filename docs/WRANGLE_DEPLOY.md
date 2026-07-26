@@ -11,6 +11,59 @@
 
 ---
 
+## 0. wrangler.toml の役割（最初に理解する）
+
+`wrangler.toml` は **Cloudflare Worker 専用の設定ファイル**。Worker の動作に必要な値を宣言する：
+
+```toml
+name = "second-brain-proxy"                    # Worker の名前
+main = "second-brain-proxy-worker.js"          # 実行する JavaScript ファイル
+compatibility_date = "2026-07-26"              # Cloudflare の互換性日付
+
+[vars]                                         # Worker から env.<NAME> でアクセスできる変数
+WEEKLY_CAP_USD = "1.0"
+YOUTUBE_CLIENT_ID = "267201582517-..."
+
+[[kv_namespaces]]                               # Worker から env.USAGE_KV でアクセスできる KV
+binding = "USAGE_KV"
+id = "cb82b52f36f14cb9bedb89d4aa365765"
+```
+
+`wrangler deploy` を実行すると、`wrangler.toml` の内容が **Cloudflare Workers 環境設定** として反映される。
+
+### wrangler.toml と appSettings の使い分け
+
+| 項目 | `wrangler.toml` | `appSettings`（`index.html`） |
+|---|---|---|
+| **誰が読むか** | Cloudflare Worker（サーバー側） | ブラウザの JavaScript |
+| **何を書くか** | Worker の動作に必要な値 | フロントエンドの動作に必要な値 |
+| **どこに保存されるか** | Cloudflare Workers 環境 | ブラウザの `localStorage` |
+| **誰が変更するか** | 開発者（`wrangler deploy` が必要） | ユーザー（開発者設定画面で変更可能） |
+| **ユーザーごと** | ❌ 同じ Worker を全員で共有 | ✅ ユーザーごとに異なる値を持てる |
+
+### OAuth Client ID を 2 つの場所で管理する理由
+
+OAuth Client ID が **どこで動くか** によって、管理場所が変わる：
+
+```
+DRIVE 用 Client ID → ブラウザの GIS ライブラリが使う
+                    → index.html の appSettings.googleClientId で管理
+
+YOUTUBE 用 Client ID → Worker が OAuth トークン更新に使う
+                      → wrangler.toml [vars] で管理
+                      (Worker は env.YOUTUBE_CLIENT_ID で参照)
+```
+
+**Worker が必要とする値は `wrangler.toml` に書く必要がある**：
+- OAuth トークン更新リクエストには `client_id` が必要
+- Worker は `env.YOUTUBE_CLIENT_ID` で参照する
+
+**Worker が参照しない値は `wrangler.toml` 不要**：
+- DRIVE 用 Client ID は ブラウザの `GIS` が直接使う
+- Worker は OAuth フローに介在しないため、`wrangler.toml` には書かなくてよい
+
+---
+
 ## 1. wrangler の設定システム：3 つの層
 
 Cloudflare Workers の設定は 3 つの層で管理されます：
