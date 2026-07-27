@@ -102,6 +102,56 @@
 
 ---
 
+## 2026-07-28 セッション（OAuth 問題完全解消）
+
+### Task 59: Drive 用 OAuth Client を新規作成と差し替え
+- **状態**: completed（部分的に成功）
+- **完了評価**: 部分的成功（同じ Consent Screen 共有のためエラー解消せず）
+- **備考**: Drive 用 OAuth Client を新規作成したが、OAuth Consent Screen のスコープは依然として youtube.force-ssl が登録されていたため、`cannot be requested together` エラーが継続。
+- **コミット**: なし
+
+### Task 60: OAuth 解消の経緯をドキュメント・メモリに記録
+- **状態**: completed
+- **完了評価**: 成功
+- **備考**: 解消記録の準備として予定。Task 65 で最終的に完了。
+- **コミット**: なし
+
+### Task 61: Phase 7 Cloudflare Workers 設定更新
+- **状態**: completed
+- **完了評価**: 成功
+- **備考**: `wrangler.toml` の `YOUTUBE_CLIENT_ID` を新 YouTube 用 Client ID に更新、`YOUTUBE_CLIENT_SECRET` と `YOUTUBE_REFRESH_TOKEN` を `wrangler secret put` で設定、`npx wrangler deploy` で再デプロイ。
+- **コミット**: なし
+
+### Task 62: Phase 8 appSettings.googleClientId 更新
+- **状態**: completed
+- **完了評価**: 成功
+- **備考**: `index.html` の `appSettings` 初期値（3960 行目）を新 GCP プロジェクトの Drive 用 Client ID に更新。同様に youtubeClientId も更新。
+- **コミット**: あり
+
+### Task 63: Phase 9 OAuth テスト
+- **状態**: completed
+- **完了評価**: 成功
+- **備考**: Google アカウント（`takumi.yasuda.biz@gmail.com`）の権限管理（https://myaccount.google.com/permissions）から旧 `second-brain-app` のアクセス権を全て削除したことで、`youtube.force-ssl` の incremental authorization が阻止され、`drive.file` のみの OAuth フローが成功。
+- **コミット**: なし
+
+### Task 64: OAuth エラー根本原因の最終特定
+- **状態**: completed
+- **完了評価**: 成功
+- **備考**: `appSettings.googleClientId` の値を確認することで、古い GCP プロジェクトの Client ID が使用されていたことを特定。次に Google アカウントの権限管理が原因であることを特定。
+- **コミット**: なし
+
+### Task 65: OAuth 解決経緯をドキュメント・メモリに記録
+- **状態**: completed
+- **完了評価**: 成功
+- **備考**: 
+  - `docs/OAUTH_DEBUG_HANDBOOK.md` を新規作成（再発防止のための詳細ガイド、5 レイヤー構造の説明、判断ミス一覧を含む）
+  - `docs/OAUTH_TROUBLESHOOTING.md` の修正履歴セクションに詳細を追加
+  - `memory/second-brain-2026-07-28-oauth-resolved.md` を新規作成
+  - `docs/TASK_HISTORY.md` の Task 59〜65 を記録
+- **コミット**: あり
+
+---
+
 ## 2026-07-25 朝セッション（OAuth 設定サポート）
 
 ### Task 26: OAuth 設定スクリプト作成

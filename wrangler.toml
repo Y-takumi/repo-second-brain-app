@@ -7,7 +7,7 @@ compatibility_date = "2026-07-26"
 WEEKLY_CAP_USD = "1.0"
 # YouTube 用 OAuth クライアント ID（公開情報）。
 # Drive 用の Client ID は index.html の appSettings.googleClientId で管理（ブラウザで動く OAuth のため）。
-YOUTUBE_CLIENT_ID = "267201582517-rindnlorj84ba12l256k6g442n9jsbmj.apps.googleusercontent.com"
+YOUTUBE_CLIENT_ID = "3872463289-sc9di6miu96ilk98qpgv59v1u94o4ucr.apps.googleusercontent.com"
 
 # KV Namespace バインディング（ユーザーごとの週次予算管理用）
 [[kv_namespaces]]

@@ -183,5 +183,88 @@ OAuth consent screen → 「ブランディング」で：
 | 2026-07-25 | OAuth Client にスコープ設定がある | 実際：OAuth Client には名前、JavaScript origins、redirect URIs のみ |
 | 2026-07-25 | OAuth 同意画面から削除すれば OK | 実際：反映に時間がかかる、Production 要件も絡む |
 | 2026-07-26 | OAuth Consent Screen の Status が Testing のままだと思っていた | 実際：**Production になっており、ブランディングが必須** |
+| 2026-07-27 | Drive 用 OAuth Client を新規作成すれば「scopes that cannot be requested together」エラーが解決する | 実際：同じ Consent Screen を共有するため解決せず |
+| 2026-07-28 | 新 GCP プロジェクトを作成すれば「scopes that cannot be requested together」エラーが解決する | 実際：`appSettings.googleClientId` の初期値が古い GCP プロジェクトの Client ID のままだったため解決せず |
+| 2026-07-28 | OAuth Consent Screen のスコープを確認すれば十分 | 実際：**Google アカウントの権限管理**（https://myaccount.google.com/permissions）も独立したレイヤー。incremental authorization により、過去に許可したスコープが OAuth フローに自動含まれる |
 
 OAuth のスコープ管理、検証モードの管理など、UI 上のどこで何が設定できるかは実装で確認しないと正確には分からない。**推測ではなく、Google Cloud Console の実際のスクリーンショット通りの状態を確認してから報告する**ことを徹底する。
+
+---
+
+## 7. OAuth 問題の 5 レイヤー構造（重要）
+
+2026-07-28 の解決を通じて、OAuth フローには **5 つの独立したレイヤー** があることが判明した。各レイヤーを独立して診断する必要がある。
+
+| レイヤー | 場所 | 確認方法 |
+|---|---|---|
+| 1. コード | `index.html` の `initTokenClient` | `scope` パラメータが意図通りか確認 |
+| 2. アプリ設定 | `appSettings.googleClientId` (localStorage / 初期値) | F12 Console で `appSettings.googleClientId` の値を確認 |
+| 3. OAuth Client | Google Cloud Console「認証情報」 | JavaScript 生成元、リダイレクト URI、スコープ設定 |
+| 4. OAuth Consent Screen | Google Cloud Console「OAuth 同意画面」 | スコープリスト、テストユーザー、Publishing status |
+| 5. **Google アカウントの権限管理** | https://myaccount.google.com/permissions | 過去に許可したスコープの履歴 |
+
+**重要**：OAuth Consent Screen のスコープリスト（Layer 4）をいくら調整しても、Google アカウント側に過去のスコープ許可履歴（Layer 5）があれば incremental authorization で自動追加される。
+
+詳細ガイドは `docs/OAUTH_DEBUG_HANDBOOK.md` を参照。
+
+---
+
+## 8. 2026-07-28 OAuth 問題完全解消の経緯
+
+### 症状（再発）
+
+新 GCP プロジェクト（project ID: `3872463289-`）を作成し、すべての OAuth Client を再作成しても、依然として以下のエラーが出る：
+
+```
+This request contains scopes that cannot be requested together : 
+[https://www.googleapis.com/auth/drive.file, 
+ https://www.googleapis.com/auth/youtube.force-ssl]
+```
+
+### 試した対処（全て失敗）
+
+1. **OAuth Consent Screen のスコープ削除**：UI 上は `drive.file` のみだが、依然エラー
+2. **Drive 用 OAuth Client を新規作成**：同じ Consent Screen 共有のため解決せず
+3. **新 GCP プロジェクト作成**：Client ID が古いままだったため解決せず
+4. **`appSettings.googleClientId` の初期値を更新**：`index.html` の 3960 行目を新しい Client ID に書き換えても、依然エラー
+
+### 根本原因
+
+**Google アカウント（`takumi.yasuda.biz@gmail.com`）の権限管理に、過去に `youtube.force-ssl` を `second-brain-app`（旧 GCP プロジェクト）で許可した履歴が残っていた**。
+
+OAuth の incremental authorization（段階的認可）により、過去に許可したスコープが新しい OAuth フローにも自動的に含まれる。
+
+### 最終的な修正
+
+1. **https://myaccount.google.com/permissions** を開く
+2. **`second-brain-app`** のアクセス権を **全て削除**
+3. **5 分待つ**（OAuth サーバー側キャッシュ反映）
+4. **ブラウザキャッシュ完全クリア**（`Ctrl + Shift + Delete`）
+5. OAuth フロー再テスト → **drive.file のみ要求され、Drive 連携成功！** 🎉
+
+### 完了した作業（Phase 1〜9）
+
+- **Phase 1**：新 GCP プロジェクト作成（project ID: `3872463289-`）
+- **Phase 2**：Google Drive API、YouTube Data API v3 を有効化
+- **Phase 3**：OAuth Consent Screen 新規作成（External、Test users 追加、`drive.file` のみ）
+- **Phase 4**：Drive 用 OAuth Client 作成（Client ID: `3872463289-5ra0lvuimkang4nolgd4r9ef6ur9c6ut...`）
+- **Phase 5**：YouTube 用 OAuth Client 作成（Client ID: `3872463289-sc9di6miu96ilk98qpgv59v1u94o4ucr...`、Client Secret 取得）
+- **Phase 6**：YouTube リフレッシュトークン再取得（`docs/OAUTH_SETUP.md` の手順で）
+- **Phase 7**：Cloudflare Workers 設定更新
+  - `wrangler.toml` の `YOUTUBE_CLIENT_ID` を新 Client ID に更新
+  - `YOUTUBE_CLIENT_SECRET`、`YOUTUBE_REFRESH_TOKEN` を `wrangler secret put` で設定
+  - `npx wrangler deploy` で再デプロイ
+- **Phase 8**：`index.html` の `appSettings` 初期値を新 Client ID に更新（3960〜3961 行目）
+- **Phase 9**：Google アカウントの権限管理から旧 `second-brain-app` のアクセス権を削除 → **OAuth 成功！**
+
+### 変更したファイル
+
+- **`wrangler.toml`**：`YOUTUBE_CLIENT_ID` を新 Client ID に更新
+- **`index.html`**：`appSettings.googleClientId` と `appSettings.youtubeClientId` の初期値を新 Client ID に更新
+
+### 作成・更新したドキュメント
+
+- **`docs/OAUTH_DEBUG_HANDBOOK.md`**（新規）：再発防止のための詳細ガイド
+- **`docs/OAUTH_TROUBLESHOOTING.md`**（本ファイル）：修正履歴セクションに詳細追記
+- **`docs/TASK_HISTORY.md`**：Task 59〜65 を記録
+- **`memory/second-brain-2026-07-28-oauth-resolved.md`**（新規）：次セッション参照用

@@ -67,6 +67,11 @@ Drive OAuth・Vault読み込みパーサー（Library/Task/Knowledge/GreatMind/H
 - **ユーザーから提供された情報を最優先**：「画面を見た」「セクションがない」「設定項目がない」など、ユーザーの直接確認情報は最も正確。推測より信頼する
 - **複数のソースで確認**：コード・ドキュメント・ユーザー観察のうち、最低 2 つで確認する
 
+### Context7 による最新ドキュメント確認
+外部ライブラリ・API・クラウドサービスの仕様を扱う時は、記憶で判断せず必ず Context7 で最新ドキュメントを確認してからコーディングやユーザーへの指示を行うこと。
+- セットアップ：`npx ctx7 setup --claude`（サインアップ不要の自動セットアップ）または API キー版 `claude mcp add --scope user --header "CONTEXT7_API_KEY: YOUR_API_KEY" --transport http context7 https://mcp.context7.com/mcp`
+- 公式：https://github.com/upstash/context7
+
 ### 修正履歴の記録
 重要な設計判断（OAuth、Worker、ファイル構造など）で誤った認識を伝えた場合、`docs/` 配下の該当ドキュメントに「修正履歴」セクションを追加する。例：`docs/OAUTH_AND_STORAGE.md` に「2026-07-26: OAuth Client のスコープ設定について誤った情報を提供。後日ユーザー観察により訂正」のような記述を追加。
 
