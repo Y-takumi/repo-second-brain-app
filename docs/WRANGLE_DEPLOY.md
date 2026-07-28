@@ -22,7 +22,7 @@ compatibility_date = "2026-07-26"              # Cloudflare の互換性日付
 
 [vars]                                         # Worker から env.<NAME> でアクセスできる変数
 WEEKLY_CAP_USD = "1.0"
-YOUTUBE_CLIENT_ID = "267201582517-..."
+YOUTUBE_CLIENT_ID = "3872463289-sc9di6miu96ilk98qpgv59v1u94o4ucr.apps.googleusercontent.com"
 
 [[kv_namespaces]]                               # Worker から env.USAGE_KV でアクセスできる KV
 binding = "USAGE_KV"
@@ -135,7 +135,7 @@ compatibility_date = "2026-07-26"                    # 互換性日付
 # 環境変数（秘匿情報ではない）
 [vars]
 WEEKLY_CAP_USD = "1.0"
-YOUTUBE_CLIENT_ID = "267201582517-rindnlorj84ba12l256k6g442n9jsbmj.apps.googleusercontent.com"
+YOUTUBE_CLIENT_ID = "3872463289-sc9di6miu96ilk98qpgv59v1u94o4ucr.apps.googleusercontent.com"
 
 # KV Namespace バインディング
 [[kv_namespaces]]
