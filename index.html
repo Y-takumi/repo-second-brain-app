@@ -3997,10 +3997,12 @@ function habitCheckTimeChip(h){
       <span class="${h.checkTime==='night'?'active':''}" onclick="setHabitCheckTime('${h.id}','night')">🌙 夜</span>
     </div>`;
 }
-function setHabitCheckTime(id, time){
+async function setHabitCheckTime(id, time){
   const h = habitData.find(x=>x.id===id);
   h.checkTime = time;
   renderDailyHabitList();
+  // Drive に永続化（fire-and-forget）。check_time は YAML 側で snake_case
+  persistHabitChange(h.id, { check_time: time });
 }
 /** Tasksタブ「Daily」：起床・就寝・ウェイトトレーニングなど、毎日の決まりごとの14日間実績を表示（読み取り専用） */
 function renderDailyHabitList(){
@@ -4214,6 +4216,37 @@ async function persistTaskChange(taskId, updates){
     console.error("タスク編集のDrive保存に失敗:", e);
   }
 }
+
+/** Drive上のHabitファイルの frontmatter のうち、指定したフィールドだけを書き換える（他フィールド保持） */
+async function updateHabitInDrive(habitId, updates){
+  const rootId = await ensureVaultFolder();
+  const folderId = await findOrCreateFolder("09_Habit", rootId);
+  const fileName = `${habitId}.md`;
+
+  const files = await listDriveFolderFiles(folderId);
+  const file = files.find(f => f.name === fileName);
+  if(!file) throw new Error(`Habitファイルが見つかりません: ${fileName}`);
+
+  const raw = await readDriveFileContent(file.id);
+  const { frontmatter: fm, body } = parseFrontmatter(raw);
+  Object.assign(fm, updates);
+
+  const updated = buildFrontmatterFile(fm, body);
+  await createOrUpdateFile(fileName, folderId, updated);
+}
+
+/** Habit変更をメモリ反映後、Drive に永続化する（fire-and-forget。エラーはコンソールに出すだけ） */
+async function persistHabitChange(habitId, updates){
+  if(!googleAccessToken){
+    console.warn("Drive 未接続：Habit変更はメモリ上のみ。次回リロードで元に戻ります");
+    return;
+  }
+  try{
+    await updateHabitInDrive(habitId, updates);
+  } catch(e){
+    console.error("Habit変更のDrive保存に失敗:", e);
+  }
+}
 /* ============ 放置タスクの見直し（スワイプ Yes/No） ============ */
 // STALE_DAYSはappSettings.staleReviewDaysとして設定画面から変更可能
 function getStaleQueue(){
@@ -4343,13 +4376,21 @@ function staleTapDecide(stillImportant){
 }
 function staleDecide(id, stillImportant){
   const t = taskById(id);
-  t.lastConfirmed = APP_TODAY.toISOString().slice(0,10);
+  const today = APP_TODAY.toISOString().slice(0,10);
+  const updates = { last_confirmed: today };
   if(!stillImportant){
-    t.status = "someday"; // 一旦保留（アーカイブ）
-    t.archivedAt = APP_TODAY.toISOString().slice(0,10);
+    updates.status = "someday"; // 一旦保留（アーカイブ）
+    updates.archived_at = today;
   }
+  // ① まずメモリ上を更新して UI 再描画（即座に反映）
+  //    メモリ上はキャメルケース（taskData プロパティ）のまま保持するため、
+  //    キャメル/スネーク両方のキーを更新する
+  const memUpdates = camelizeKeys(updates);
+  Object.assign(t, memUpdates);
   const activeTab = document.querySelector("#screen-tasks .gtab.active");
   renderTasks(activeTab?.dataset.theme || "all");
+  // ② Drive に永続化（fire-and-forget）。Drive 側はスネークケース
+  persistTaskChange(t.id, updates);
 }
 
 /**
@@ -4360,12 +4401,30 @@ function reviveTask(id){
   const t = taskById(id);
   const sameTheme = taskData.filter(x=>x.status==="open" && (x.themes||[]).includes((t.themes||[])[0]));
   const minPriority = sameTheme.length ? Math.min(...sameTheme.map(x=>x.priority)) : 1;
-  t.status = "open";
-  t.archivedAt = null;
-  t.lastConfirmed = APP_TODAY.toISOString().slice(0,10);
-  t.priority = minPriority - 1; // 他より少し高い優先度
+  const today = APP_TODAY.toISOString().slice(0,10);
+  const updates = {
+    status: "open",
+    archived_at: null,
+    last_confirmed: today,
+    priority: minPriority - 1, // 他より少し高い優先度
+  };
+  // ① メモリ反映 + UI 再描画（キャメルケースで保持）
+  const memUpdates = camelizeKeys(updates);
+  Object.assign(t, memUpdates);
   const activeTab = document.querySelector("#screen-tasks .gtab.active");
   renderTasks(activeTab?.dataset.theme || "all");
+  // ② Drive 永続化（スネークケースで書き出し）
+  persistTaskChange(t.id, updates);
+}
+
+/** snake_case のキーからなるオブジェクトを camelCase に変換する（メモリ上はキャメル保持のため） */
+function camelizeKeys(obj){
+  const out = {};
+  for(const [k, v] of Object.entries(obj)){
+    const camel = k.replace(/_([a-z])/g, (_, c) => c.toUpperCase());
+    out[camel] = v;
+  }
+  return out;
 }
 function renderArchive(){
   const archived = taskData.filter(t=>t.status==="someday");
@@ -4499,24 +4558,26 @@ function parseTimeToday(hhmm){
   return new Date(now.getFullYear(), now.getMonth(), now.getDate(), hh, mm, 0);
 }
 /** 起床/就寝の判定と記録だけを行う（見せ方はそれぞれの画面側で担当する） */
-function doGreetAction(kind){
+async function doGreetAction(kind){
   const now = new Date();
+  let h, ok;
   if(kind === "wake"){
     const target = parseTimeToday(appSettings.targetWakeTime);
     const windowEnd = new Date(target.getTime() + 30*60000);
-    const ok = now >= target && now <= windowEnd;
-    const h = habitData.find(x=>x.special==="wake");
+    ok = now >= target && now <= windowEnd;
+    h = habitData.find(x=>x.special==="wake");
     h.log[d(0)] = ok;
-    return ok;
   } else {
     const target = parseTimeToday(appSettings.targetSleepTime);
     const windowStart = new Date(target.getTime() - 60*60000);
     const windowEnd = new Date(target.getTime() - 30*60000);
-    const ok = now >= windowStart && now <= windowEnd;
-    const h = habitData.find(x=>x.special==="sleep");
+    ok = now >= windowStart && now <= windowEnd;
+    h = habitData.find(x=>x.special==="sleep");
     h.log[d(0)] = ok;
-    return ok;
   }
+  // Drive に永続化（fire-and-forget）
+  if(h) persistHabitChange(h.id, { log: h.log });
+  return ok;
 }
 
 /* ---- 朝の門番画面 ---- */
@@ -4572,8 +4633,8 @@ function spawnBurstElements(){
   }
 }
 
-function dismissMorningGate(){
-  doGreetAction("wake");
+async function dismissMorningGate(){
+  await doGreetAction("wake");
   hasGreetedToday = true;
   renderDailyHabitList();
 
@@ -4741,8 +4802,8 @@ const goodnightMessages = [
   "頑張った自分を、少しだけ労ってあげてください。",
   "今日の自分は、明日の自分への一番の投資です。おやすみなさい。",
 ];
-function openGoodnight(){
-  doGreetAction("sleep");
+async function openGoodnight(){
+  await doGreetAction("sleep");
   renderStaleReview();
 
   const doneCount = taskData.filter(t=>t.status==="done").length;

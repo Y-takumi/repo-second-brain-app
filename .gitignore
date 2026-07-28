@@ -24,3 +24,6 @@ node_modules/
 
 # OS のメタデータ
 desktop.ini
+
+# Playwright（自動テスト時に生成されるログ・スナップショット）
+test-output/

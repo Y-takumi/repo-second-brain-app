@@ -4,7 +4,7 @@
 
 別のセッションで作業中に問題が発生した場合、このファイルを開いて **直近のタスク実施状況** を確認することで、類似の問題や関連する変更を把握できます。
 
-最終更新：2026-07-28（新セッション開始時の全体状況確認）
+最終更新：2026-07-28（YouTube テスト試行 / Task 見直し・Habit の Drive 永続化 / snake_case 統一 / 通常 Habit check_time 永続化）
 
 ---
 
@@ -169,6 +169,85 @@
 - **完了評価**: 成功
 - **備考**: OAuth 完全解消、Zed 検証が直近で決定済みの次作業であることを確認。製品本体では YouTube 字幕取得の実機テスト、Habit の Drive 永続化、Task 見直し操作の Drive 永続化が次の有力候補。`TASK_HISTORY.md`・OAuth 文書・仕様書の一部に古い記述が残っていることも確認。
 - **コミット**: なし（状況確認と本履歴更新のみ）
+
+---
+
+## 2026-07-28 新セッション（YouTube 字幕テスト試行）
+
+### Task 68: YouTube 字幕取得の実機テスト
+- **状態**: 保留
+- **完了評価**: 保留（環境制約で実施不可）
+- **備考**:
+  - ユーザー指示：「YouTube 字幕取得のテストをしたい。Playwright 使用できる？ http://localhost:8000 でアプリを起動してから、Source 入力タブで YouTube URL を投入して字幕が取れるか確認して」
+  - **実施できたところまで**：
+    - Microsoft Store 版 Python stub が動かず、Node.js で `.tmp-http-server.js`（簡易 HTTP サーバ、python -m http.server 相当）を書いて `localhost:8000` で配信開始（200 OK 確認済み）
+    - Playwright で `http://localhost:8000/` を開き、ページタイトル「第二の脳 — アプリUIモックアップ」を確認
+  - **判明した環境制約**：
+    - Playwright の Chromium で以下 3 つの外部 CDN が `net::ERR_BLOCKED_BY_CLIENT` でブロックされ、アプリが完全に起動しない
+      - `https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js`
+      - `https://cdnjs.cloudflare.com/ajax/libs/js-yaml/4.1.0/js-yaml.min.js`
+      - `https://accounts.google.com/gsi/client`（Google Identity Services）
+    - 結果：`ReferenceError: d3 is not defined` で `buildGraph` が失敗
+    - GSI が読み込めないため OAuth 初期化もできず、YouTube 字幕テストに到達できない
+  - **ユーザー判断**：「テスト中止・現状を記録」を選択
+  - **代替案（今回は未着手）**：
+    - D3 / js-yaml を curl で `vendor/` にダウンロードして相対パスで読み込む
+    - GSI は Google ドメインのため別対処要（オフライン環境なら OAuth も不可）
+- **コミット**: なし（記録のみ）
+- **関連メモ**: `memory/second-brain-2026-07-28-youtube-test-blocked.md`（詳細）
+
+---
+
+## 2026-07-28 新セッション（実装：見直し・Habit wake/sleep の Drive 永続化）
+
+### Task 69: staleDecide / reviveTask の Drive 永続化
+- **状態**: completed
+- **完了評価**: 成功
+- **備考**:
+  - ユーザー：「一旦実装を進めよう。席外すので、できるところまで進めておいて」
+  - `staleDecide(id, stillImportant)`：`lastConfirmed` を今日に更新し、`stillImportant=false` の場合のみ `status="someday"` / `archivedAt=今日` を追加
+  - `reviveTask(id)`：`status="open"` / `archivedAt=null` / `lastConfirmed=今日` / `priority=同テーマ open タスクの min-1` を updates として一括 Drive 書き戻し
+  - いずれも `persistTaskChange` パターンを流用（先にメモリ反映 → UI 再描画 → fire-and-forget で Drive 同期）
+  - 設計判断を仕様書 4.4.3 節に記録
+- **コミット**: 未 commit
+
+### Task 70: Habit wake/sleep (doGreetAction) の Drive 永続化
+- **状態**: completed
+- **完了評価**: 成功
+- **備考**:
+  - `updateHabitInDrive` / `persistHabitChange` を新設（`persistTaskChange` と同型、`09_Habit/{id}.md` を対象）
+  - `doGreetAction(kind)` を async 化し、`h.log[d(0)] = ok` の後に `persistHabitChange(h.id, { log: h.log })` を呼ぶ
+  - `dismissMorningGate` / `openGoodnight` も async 化（`doGreetAction` の await が必要なため）
+  - 設計判断を仕様書 4.4.4 節に記録
+- **コミット**: 未 commit
+
+### Task 71: CLAUDE.md / 仕様書の最終更新日更新
+- **状態**: completed
+- **完了評価**: 成功
+- **備考**: CLAUDE.md と 00_処理ロジック仕様書.md の冒頭に「最終更新日」を追記。
+- **コミット**: 未 commit
+
+### Task 72: snake_case 統一（staleDecide / reviveTask）
+- **状態**: completed
+- **完了評価**: 成功
+- **備考**:
+  - ユーザー判断：「snake にしましょう」→ 既存パターン（addDep が `dependsOn` → `depends_on` に変換）に合わせる
+  - `staleDecide`: `lastConfirmed` → `last_confirmed`, `archivedAt` → `archived_at`
+  - `reviveTask`: 同様に snake_case に統一
+  - メモリ反映時は `camelizeKeys` ヘルパーでキャメルケースに戻して `Object.assign`（既存パターン「メモリ上キャメル / YAML 上スネーク」維持）
+  - 仕様書 4.4.3 節の設計判断に追記（既存実装 → snake_case 統一版に変更された経緯）
+- **コミット**: 未 commit
+
+### Task 73: 通常 Habit check_time 切替の Drive 永続化
+- **状態**: 部分完了（最小実装のみ）
+- **完了評価**: 成功（最小実装）
+- **備考**:
+  - ユーザー判断：「着手をお願いします」
+  - 現状確認で判明：`renderDailyHabitList` は読み取り専用表示のみ、Yes/No フリック UI（仕様書 2.11）は未実装
+  - **最小実装として**：`setHabitCheckTime` を async 化し、`persistHabitChange(h.id, { check_time: time })` を呼ぶ
+  - **保留（設計判断が大きいフリック UI 実装）**：次回セッションで設計確認してから着手予定
+  - 仕様書 4.4.5 節を新設
+- **コミット**: 未 commit
 
 ---
 
@@ -350,9 +429,9 @@
 - **状態**: 未着手
 - **備考**: YouTube 字幕取得が動いた後の追加機能
 
-### 通常 Habit 機能
+### 通常 Habit 機能（フリック UI）
 - **状態**: 未着手
-- **備考**: 仕様書 2.11〜2.12 で「本命機能」と位置付け。wake/sleep の Drive 永続化も含めて着手優先度高
+- **備考**: 仕様書 2.11〜2.12 で「本命機能」と位置付け。wake/sleep の Drive 永続化（Task 70）、check_time 切替の Drive 永続化（Task 73）は完了。**Yes/No フリック UI（カードスタック＋スワイプ）の実装が残っている**。次回セッションで設計確認後着手予定
 
 ### Explore グラフパーサー
 - **状態**: 未着手
@@ -363,8 +442,8 @@
 - **備考**: 仕様書 4.7.1 で別バッチ処理として切り出し予定
 
 ### Task 見直し（stale review / revive）の Drive 永続化
-- **状態**: 未着手
-- **備考**: `persistTaskChange` パターンを `persistHabitChange` として流用可能。メモリ上のみでリロードで消える
+- **状態**: ✅ 完了（2026-07-28, Task 69）
+- **備考**: `persistTaskChange` パターンを流用して Drive 永続化。仕様書 4.4.3 節に記録。
 
 ### OAuth スコープエラーの解消 ✅ 完了（2026-07-28）
 - 解消経緯: `memory/second-brain-2026-07-28-oauth-resolved.md` を参照

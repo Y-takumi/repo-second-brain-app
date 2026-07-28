@@ -1,6 +1,6 @@
 # CLAUDE.md — 第二の脳 PKMアプリ
 
-最終更新：2026-07-28（OAuth 問題完全解消 + セッションケア強化）
+最終更新：2026-07-28（OAuth 問題完全解消 + セッションケア強化 + Task 見直し・Habit の Drive 永続化 + snake_case 統一 + 通常 Habit check_time 永続化）
 
 ## プロジェクト概要
 個人用ナレッジ管理（PKM）Webアプリ「第二の脳」。リレーショナルDBを持たず、Google Drive上のMarkdown（YAML frontmatter付き）ファイル群だけで動作する。音声/URL入力→Claude APIで抽出→Driveに構造化ファイルとして保存、が中核フロー。
