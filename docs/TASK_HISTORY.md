@@ -262,7 +262,18 @@
   - 仕様書 2.10.5 節の「残った未確定項目」を「確定済み5件」テーブル＋「将来構想：リズム可視化」セクションに置き換え
   - **副作用修正**：前回の Edit で残った古い 2.10.5 節（line 326-369）の重複を削除
   - メモリ habit-vision に確定内容反映
-- **コミット**: 未 commit
+- **コミット**: 2f7d8a2（push 済み）
+
+### Task 75: Phase 1, 2 実装 + プラン策定
+- **状態**: completed
+- **完了評価**: 成功
+- **備考**:
+  - ユーザー：「今日はもう寝るから、できるだけ実装と仕様検討を進めておいて。動作テストもやった方がいいよね？そのあたりもプランニングお願いします」
+  - **Phase 1 実装**：renderDailyHabitList に「完了」チェックボックスを追加（リスト形式シンプル、wake/sleep は除外）。toggleHabitDone で log[d(0)] を更新、persistHabitChange で Drive 同期。CSS .habit-check-label 追加
+  - **Phase 2 実装**：loadHabitFromDrive に wakeTime / sleepPlannedTime 読み込み追加（camelizeKeys パターン）。サンプルデータ（h-wake, h-sleep）に 6 日分の wake_time / sleep_planned_time サンプル追加
+  - **docs/IMPLEMENTATION_PLAN.md 新規作成**：Phase 1〜6 の実装順序、Phase 3, 4 は明日セッションで詳細詰め、Phase 5.5 で Playwright 自動テスト再開条件を整理
+  - **docs/TESTING.md 新規作成**：手動テスト手順、Phase 1, 2 のテストケース、トラブルシューティング、Phase 5.5 で CDN ローカル化作業手順
+- **コミット**: 9be6cda（push 済み）
 
 ---
 
