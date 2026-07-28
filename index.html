@@ -232,6 +232,9 @@
   .habit-time-toggle{display:flex; gap:4px; margin-left:auto;}
   .habit-time-toggle span{font-size:10px; padding:4px 9px; border-radius:20px; border:1px solid var(--border); color:var(--ink-faint); cursor:pointer;}
   .habit-time-toggle span.active{background:var(--business); border-color:var(--business); color:#14101f; font-weight:600;}
+  .habit-check-label{display:inline-flex; align-items:center; gap:6px; font-size:11px; color:var(--ink); cursor:pointer; padding:6px 10px; border-radius:8px; background:var(--surface); border:1px solid var(--border); margin-top:8px;}
+  .habit-check-label input[type="checkbox"]{width:15px; height:15px; accent-color:var(--healthcare); cursor:pointer;}
+  .habit-check-label:has(input:checked){background:var(--healthcare)22; border-color:var(--healthcare); color:var(--healthcare); font-weight:600;}
 
   .habit-step-input-row{display:flex; gap:8px; margin-top:10px;}
   .habit-step-avgs{display:flex; gap:8px; margin-top:12px;}
@@ -3097,6 +3100,8 @@ async function loadHabitFromDrive(){
       checkTime: fm.check_time,
       themes: fm.themes || [],
       log: fm.log || {},
+      wakeTime: fm.wake_time || {},        // 起床時刻ログ（{ "YYYY-MM-DD": "HH:MM" }）
+      sleepPlannedTime: fm.sleep_planned_time || {},  // 就寝予定時刻ログ（{ "YYYY-MM-DD": "HH:MM" }）
     });
   }
   return items;
@@ -3965,9 +3970,11 @@ const appSettings = {
 
 const habitData = [
   { id:"h-wake", title:"起床", special:"wake", themes:["healthcare"],
-    log:{ [d(-6)]:true, [d(-5)]:true, [d(-4)]:true, [d(-3)]:false, [d(-2)]:true, [d(-1)]:true } },
+    log:{ [d(-6)]:true, [d(-5)]:true, [d(-4)]:true, [d(-3)]:false, [d(-2)]:true, [d(-1)]:true },
+    wakeTime:{ [d(-6)]:"05:20", [d(-5)]:"05:25", [d(-4)]:"05:30", [d(-3)]:"05:45", [d(-2)]:"05:28", [d(-1)]:"05:35" } },
   { id:"h-sleep", title:"就寝", special:"sleep", themes:["healthcare"],
-    log:{ [d(-6)]:true, [d(-5)]:false, [d(-4)]:true, [d(-3)]:true, [d(-2)]:true, [d(-1)]:true } },
+    log:{ [d(-6)]:true, [d(-5)]:false, [d(-4)]:true, [d(-3)]:true, [d(-2)]:true, [d(-1)]:true },
+    sleepPlannedTime:{ [d(-6)]:"22:30", [d(-5)]:"22:30", [d(-4)]:"22:30", [d(-3)]:"23:00", [d(-2)]:"22:30", [d(-1)]:"22:30" } },
   { id:"h-weight", title:"ウェイトトレーニング", special:"weight_training", checkTime:"morning", themes:["healthcare"],
     log:{ [d(-6)]:true, [d(-5)]:true, [d(-4)]:false, [d(-3)]:true, [d(-2)]:true, [d(-1)]:true } },
   { id:"h3", title:"1日1回は体を動かす", checkTime:"night", themes:["healthcare"],
@@ -4004,17 +4011,27 @@ async function setHabitCheckTime(id, time){
   // Drive に永続化（fire-and-forget）。check_time は YAML 側で snake_case
   persistHabitChange(h.id, { check_time: time });
 }
-/** Tasksタブ「Daily」：起床・就寝・ウェイトトレーニングなど、毎日の決まりごとの14日間実績を表示（読み取り専用） */
+/** Tasksタブ「Daily」：起床・就寝・ウェイトトレーニングなど、毎日の決まりごとの14日間実績を表示。
+ * wake/sleep は読み取り専用（doGreetAction 経由で記録）、それ以外の Habit は「完了」ボタンで記録可能 */
 function renderDailyHabitList(){
   const el = document.getElementById("daily-habit-list");
   if(!el) return;
+  const today = d(0);
   el.innerHTML = habitData.map(h=>{
     const streak = habitStreak(h);
+    const isDone = h.log[today] === true;
     const specialBadge = h.special ? `<span class="habit-special-badge">基本の習慣</span>` : "";
     const timeInfo = h.special==="wake" ? `<div class="habit-target-time">☀️ 目標 ${appSettings.targetWakeTime} ・ 30分以内に「おはよう」でクリア</div>`
                     : h.special==="sleep" ? `<div class="habit-target-time">🌙 目標 ${appSettings.targetSleepTime} ・ 30〜60分前に「おやすみ」でクリア</div>`
                     : h.special==="weight_training" ? `<div class="habit-target-time">🏋️ トレーニング記録アプリと連携予定（今はサンプル）</div>`
                     : "";
+    // wake/sleep は doGreetAction 経由なのでチェック UI なし、それ以外は「完了」ボタン
+    const isAutoHabit = h.special === "wake" || h.special === "sleep";
+    const checkUI = isAutoHabit ? "" :
+      `<label class="habit-check-label">
+        <input type="checkbox" ${isDone ? "checked" : ""} onclick="event.stopPropagation(); toggleHabitDone('${h.id}')">
+        <span class="habit-check-text">${isDone ? "完了" : "完了する"}</span>
+      </label>`;
     return `
     <div class="gm-card habit-card">
       <div class="gm-card-top">
@@ -4022,10 +4039,27 @@ function renderDailyHabitList(){
         <span class="habit-streak-badge">🔥 ${streak}日</span>
       </div>
       <div class="gm-card-bottom" style="margin-bottom:2px;">${specialBadge}${habitCheckTimeChip(h)}</div>
+      ${checkUI}
       ${timeInfo}
       ${habitCalRow(h)}
     </div>`;
   }).join("");
+}
+
+/** Daily サブタブの「完了」チェックボックスをタップした時の処理。
+ * メモリ上の log を更新 → UI 再描画 → Drive 永続化（fire-and-forget） */
+async function toggleHabitDone(habitId){
+  const h = habitData.find(x=>x.id===habitId);
+  if(!h) return;
+  const today = d(0);
+  const wasDone = h.log[today] === true;
+  if(wasDone){
+    delete h.log[today]; // 取り消し
+  } else {
+    h.log[today] = true; // 完了
+  }
+  renderDailyHabitList();
+  persistHabitChange(h.id, { log: h.log });
 }
 renderDailyHabitList();
 
