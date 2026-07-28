@@ -4,7 +4,7 @@
 
 別のセッションで作業中に問題が発生した場合、このファイルを開いて **直近のタスク実施状況** を確認することで、類似の問題や関連する変更を把握できます。
 
-最終更新：2026-07-28（YouTube テスト試行 / Task 見直し・Habit の Drive 永続化 / snake_case 統一 / 通常 Habit check_time 永続化 / 習慣記録フロー設計ビジョン記録）
+最終更新：2026-07-29（Phase 1 リロード後 UX 修正：Drive 未連携時のチェックボックス disabled）
 
 ---
 
@@ -274,6 +274,16 @@
   - **docs/IMPLEMENTATION_PLAN.md 新規作成**：Phase 1〜6 の実装順序、Phase 3, 4 は明日セッションで詳細詰め、Phase 5.5 で Playwright 自動テスト再開条件を整理
   - **docs/TESTING.md 新規作成**：手動テスト手順、Phase 1, 2 のテストケース、トラブルシューティング、Phase 5.5 で CDN ローカル化作業手順
 - **コミット**: 9be6cda（push 済み）
+
+### Task 76: 動作テストで発見した問題の修正
+- **状態**: completed
+- **完了評価**: 成功
+- **備考**:
+  - ユーザー動作テストで「F5リロード後 Drive 連携が外れ、完了するチェックボックスが押せてしまう。persistHabitChange で『Drive 未接続』警告。リロード後に Drive 連携してもチェック復元せず」報告
+  - **原因**：googleAccessToken はメモリ上のみで保持。リロード時に null に戻る（仕様）。リロード直後・Drive 再連携前に「完了する」を押すと永続化されずに消える
+  - **修正**：renderDailyHabitList で googleAccessToken をチェックし、未連携時はチェックボックスを disabled にする。「Drive 連携が必要」テキスト表示、opacity:0.5 でグレーアウト、title 属性で「Drive 未連携：リロードすると変更は失われます」と案内
+  - ユーザー選択：「Drive 未連携時はチェックボックスを disabled にする（推奨）」
+- **コミット**: 未 commit
 
 ---
 

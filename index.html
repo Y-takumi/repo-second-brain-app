@@ -235,6 +235,8 @@
   .habit-check-label{display:inline-flex; align-items:center; gap:6px; font-size:11px; color:var(--ink); cursor:pointer; padding:6px 10px; border-radius:8px; background:var(--surface); border:1px solid var(--border); margin-top:8px;}
   .habit-check-label input[type="checkbox"]{width:15px; height:15px; accent-color:var(--healthcare); cursor:pointer;}
   .habit-check-label:has(input:checked){background:var(--healthcare)22; border-color:var(--healthcare); color:var(--healthcare); font-weight:600;}
+  .habit-check-label.disabled{opacity:0.5; cursor:not-allowed; background:var(--surface2);}
+  .habit-check-label.disabled input[type="checkbox"]{cursor:not-allowed;}
 
   .habit-step-input-row{display:flex; gap:8px; margin-top:10px;}
   .habit-step-avgs{display:flex; gap:8px; margin-top:12px;}
@@ -4027,10 +4029,11 @@ function renderDailyHabitList(){
                     : "";
     // wake/sleep は doGreetAction 経由なのでチェック UI なし、それ以外は「完了」ボタン
     const isAutoHabit = h.special === "wake" || h.special === "sleep";
+    const isConnected = !!googleAccessToken;
     const checkUI = isAutoHabit ? "" :
-      `<label class="habit-check-label">
-        <input type="checkbox" ${isDone ? "checked" : ""} onclick="event.stopPropagation(); toggleHabitDone('${h.id}')">
-        <span class="habit-check-text">${isDone ? "完了" : "完了する"}</span>
+      `<label class="habit-check-label ${isConnected ? "" : "disabled"}" title="${isConnected ? "" : "Drive 未連携：リロードすると変更は失われます"}">
+        <input type="checkbox" ${isDone ? "checked" : ""} ${isConnected ? "" : "disabled"} onclick="event.stopPropagation(); toggleHabitDone('${h.id}')">
+        <span class="habit-check-text">${isConnected ? (isDone ? "完了" : "完了する") : "Drive 連携が必要"}</span>
       </label>`;
     return `
     <div class="gm-card habit-card">
