@@ -3970,18 +3970,11 @@ const appSettings = {
   devWeeklyCapUSD: 1.0,
 };
 
-const habitData = [
-  { id:"h-wake", title:"起床", special:"wake", themes:["healthcare"],
-    log:{ [d(-6)]:true, [d(-5)]:true, [d(-4)]:true, [d(-3)]:false, [d(-2)]:true, [d(-1)]:true },
-    wakeTime:{ [d(-6)]:"05:20", [d(-5)]:"05:25", [d(-4)]:"05:30", [d(-3)]:"05:45", [d(-2)]:"05:28", [d(-1)]:"05:35" } },
-  { id:"h-sleep", title:"就寝", special:"sleep", themes:["healthcare"],
-    log:{ [d(-6)]:true, [d(-5)]:false, [d(-4)]:true, [d(-3)]:true, [d(-2)]:true, [d(-1)]:true },
-    sleepPlannedTime:{ [d(-6)]:"22:30", [d(-5)]:"22:30", [d(-4)]:"22:30", [d(-3)]:"23:00", [d(-2)]:"22:30", [d(-1)]:"22:30" } },
-  { id:"h-weight", title:"ウェイトトレーニング", special:"weight_training", checkTime:"morning", themes:["healthcare"],
-    log:{ [d(-6)]:true, [d(-5)]:true, [d(-4)]:false, [d(-3)]:true, [d(-2)]:true, [d(-1)]:true } },
-  { id:"h3", title:"1日1回は体を動かす", checkTime:"night", themes:["healthcare"],
-    log:{ [d(-6)]:true, [d(-5)]:true, [d(-4)]:true, [d(-3)]:true, [d(-2)]:true, [d(-1)]:true } },
-];
+// 全ての Habit は 09_Habit/{id}.md から読み込む。サンプルデータは廃止（2026-07-29）。
+// 起床/就寝の Habit はメモリ上で別途管理（Phase 3, 4 で Habit 自動作成として正式仕様化予定）。
+const habitData = [];
+const wakeHabit = { id:"h-wake", title:"起床", special:"wake", themes:["healthcare"], log:{}, wakeTime:{}, checkTime:null };
+const sleepHabit = { id:"h-sleep", title:"就寝", special:"sleep", themes:["healthcare"], log:{}, sleepPlannedTime:{}, checkTime:null };
 
 function habitStreak(h){
   let streak = 0;
@@ -4644,17 +4637,18 @@ async function doGreetAction(kind){
     const target = parseTimeToday(appSettings.targetWakeTime);
     const windowEnd = new Date(target.getTime() + 30*60000);
     ok = now >= target && now <= windowEnd;
-    h = habitData.find(x=>x.special==="wake");
+    h = wakeHabit;
     h.log[d(0)] = ok;
   } else {
     const target = parseTimeToday(appSettings.targetSleepTime);
     const windowStart = new Date(target.getTime() - 60*60000);
     const windowEnd = new Date(target.getTime() - 30*60000);
     ok = now >= windowStart && now <= windowEnd;
-    h = habitData.find(x=>x.special==="sleep");
+    h = sleepHabit;
     h.log[d(0)] = ok;
   }
-  // Drive に永続化（fire-and-forget）
+  // Drive に永続化（fire-and-forget）。wakeHabit/sleepHabit はサンプルデータ削除後も
+  // メモリ上は存在するため、persistHabitChange はそのまま動作する。
   if(h) persistHabitChange(h.id, { log: h.log });
   return ok;
 }

@@ -4,7 +4,7 @@
 
 別のセッションで作業中に問題が発生した場合、このファイルを開いて **直近のタスク実施状況** を確認することで、類似の問題や関連する変更を把握できます。
 
-最終更新：2026-07-29（Phase 1 リロード後 UX 修正 / .gitignore 更新 / docs/TESTING.md に既存実装テストケース追加）
+最終更新：2026-07-29（Habit ファイル自動作成 / サンプル 4 件削除 / wake-sleep メモリ管理分離）
 
 ---
 
@@ -306,6 +306,18 @@
   - **修正**：`updateHabitInDrive` を修正、ファイル不在時は `createHabitInDrive` 経由で新規作成。`snakeizeKeys` ヘルパー追加（camelizeKeys の逆変換）
   - Task 側（`updateTaskInDrive`）は throw のまま：Task は Capture 経由で必ず作成されるため、ファイル不在＝想定外エラー
   - 仕様書 4.4.6 節を新設
+- **コミット**: efe37e2（push 済み）
+
+### Task 79: サンプル Habit 4 件削除 + wake/sleep メモリ管理
+- **状態**: completed
+- **完了評価**: 成功
+- **備考**:
+  - ユーザー：「チェックが復元されました！少し反映までにタイムラグがありました。そして起床と就寝のカードも消えたけど、これは想定通りですか？」
+  - **起床/就寝が消えた原因**：refreshHabitFromDrive が Drive に存在する Habit だけメモリを上書きする動作。h3 だけ作成・他は未作成のため、h-wake/h-sleep/h-weight が消えた
+  - ユーザー選択：「サンプル 4 件を削除する（推奨）」
+  - **修正**：habitData 配列を空に。起床/就寝の Habit は wakeHabit / sleepHabit としてメモリ上別管理（Phase 3, 4 で Habit 自動作成として正式仕様化予定）
+  - doGreetAction を wakeHabit / sleepHabit 参照に修正
+  - **注意点**：wakeHabit / sleepHabit はメモリ上のみ。リロードで起床/就寝の log は消える。Phase 3, 4 で正式仕様化時に Vault 永続化対応予定
 - **コミット**: 未 commit
 
 ---
