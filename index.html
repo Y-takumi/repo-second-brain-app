@@ -4826,7 +4826,7 @@ function getJournalHints(){
   const unexaminedGm = greatMindData.find(g=>gmComputedStance(g)==="unexamined");
   if(unexaminedGm) hints.push({icon:"💬", text:`「${unexaminedGm.title}」というマインドセット、自分にはどう当てはまりそうか話してみる`});
 
-  const staleHabitList = getStaleQueue();
+  const staleHabitList = getUnfinishedQueue();
   if(staleHabitList.length){
     hints.push({icon:"💬", text:`「${staleHabitList[0].text}」、最近ずっと動きがないので、今どう感じているか話してみる`});
   } else {
