@@ -4211,6 +4211,7 @@ function renderTasks(theme, event){
       || `<div class="summary-preview-text" style="color:var(--ink-faint); margin-top:12px;">このテーマにはまだTaskがありません</div>`;
   }
   renderArchive();
+  updateTaskBadge();
 }
 function toggleTaskAccordion(accId){
   const acc = document.getElementById(accId);
@@ -4530,6 +4531,9 @@ function staleDecide(id, keepGoing){
   renderTasks(activeTab?.dataset.theme || "all");
   // ② Drive に永続化（fire-and-forget）。Drive 側はスネークケース
   persistTaskChange(t.id, updates);
+  // ③ 次のカードを表示 + バッジ更新
+  renderStaleReview();
+  updateTaskBadge();
 }
 
 /**
