@@ -294,6 +294,18 @@
   - docs/TESTING.md に既存実装（完了操作 C.1〜C.5、編集系 E.1〜E.7、wake/sleep W.1〜W.5、stale review S.1〜S.4、revive R.1〜R.2、check_time 切替 H.1〜H.2）のテストケースを追加
   - **リファクタリング（persistTaskChange / persistHabitChange 統合）は保留**：リスク vs 効果で見送り。Phase 3, 4 で新規実装が増えるため、先にそちらを優先
   - **Phase 3, 4 は保留**：UI 変更が大きく設計判断が必要なため、明日のセッションで確認してから着手
+- **コミット**: fd84ad8（push 済み）
+
+### Task 78: Habit ファイル自動作成の実装
+- **状態**: completed
+- **完了評価**: 成功
+- **備考**:
+  - ユーザー：「1〜4 は問題ないけど 5 はチェックが復元されません」
+  - 原因確認：`09_Habit/` フォルダはあるが中身が空、コンソールに「Habit変更のDrive保存に失敗」出力
+  - **根本原因**：Habit はサンプルデータとしてメモリ上のみ存在し、初回「完了する」タップで初めて Drive に書き出されるべきだがそのパスがなかった。`updateHabitInDrive` は `if(!file) throw` で更新対象の存在を要求
+  - **修正**：`updateHabitInDrive` を修正、ファイル不在時は `createHabitInDrive` 経由で新規作成。`snakeizeKeys` ヘルパー追加（camelizeKeys の逆変換）
+  - Task 側（`updateTaskInDrive`）は throw のまま：Task は Capture 経由で必ず作成されるため、ファイル不在＝想定外エラー
+  - 仕様書 4.4.6 節を新設
 - **コミット**: 未 commit
 
 ---

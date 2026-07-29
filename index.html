@@ -4254,7 +4254,35 @@ async function persistTaskChange(taskId, updates){
   }
 }
 
-/** Drive上のHabitファイルの frontmatter のうち、指定したフィールドだけを書き換える（他フィールド保持） */
+/** Drive上にHabit ファイルが存在しない場合、メモリ上の habitData から新規作成する。
+ * 初回「完了する」タップ時など、まだ Drive 上に Habit ファイルがない場面で使われる。 */
+async function createHabitInDrive(habitId){
+  const h = habitData.find(x => x.id === habitId);
+  if(!h) throw new Error(`Habit が見つかりません: ${habitId}`);
+
+  const rootId = await ensureVaultFolder();
+  const folderId = await findOrCreateFolder("09_Habit", rootId);
+  const fileName = `${habitId}.md`;
+
+  // メモリ上キャメル → YAML 上 snake_case に変換して新規ファイル作成
+  const fm = {
+    type: "habit",
+    id: h.id,
+    title: h.title,
+    special: h.special || null,
+    check_time: h.checkTime || null,
+    themes: h.themes || [],
+    log: h.log || {},
+    wake_time: h.wakeTime || {},
+    sleep_planned_time: h.sleepPlannedTime || {},
+  };
+  const body = `\n# ${h.title}\n`;
+  const content = buildFrontmatterFile(fm, body);
+  await createOrUpdateFile(fileName, folderId, content);
+}
+
+/** Drive上のHabitファイルの frontmatter のうち、指定したフィールドだけを書き換える（他フィールド保持）。
+ * ファイルが存在しない場合は自動作成する（createHabitInDrive） */
 async function updateHabitInDrive(habitId, updates){
   const rootId = await ensureVaultFolder();
   const folderId = await findOrCreateFolder("09_Habit", rootId);
@@ -4262,7 +4290,11 @@ async function updateHabitInDrive(habitId, updates){
 
   const files = await listDriveFolderFiles(folderId);
   const file = files.find(f => f.name === fileName);
-  if(!file) throw new Error(`Habitファイルが見つかりません: ${fileName}`);
+  if(!file){
+    // 初回「完了する」タップ時、まだ Drive 上に Habit ファイルがないので新規作成
+    await createHabitInDrive(habitId);
+    return;
+  }
 
   const raw = await readDriveFileContent(file.id);
   const { frontmatter: fm, body } = parseFrontmatter(raw);
@@ -4460,6 +4492,16 @@ function camelizeKeys(obj){
   for(const [k, v] of Object.entries(obj)){
     const camel = k.replace(/_([a-z])/g, (_, c) => c.toUpperCase());
     out[camel] = v;
+  }
+  return out;
+}
+
+/** camelCase のキーからなるオブジェクトを snake_case に変換する（YAML 書き出し時） */
+function snakeizeKeys(obj){
+  const out = {};
+  for(const [k, v] of Object.entries(obj)){
+    const snake = k.replace(/[A-Z]/g, (c) => "_" + c.toLowerCase());
+    out[snake] = v;
   }
   return out;
 }
