@@ -27,3 +27,6 @@ desktop.ini
 
 # Playwright（自動テスト時に生成されるログ・スナップショット）
 test-output/
+
+# テスト用一時 HTTP サーバ（python -m http.server の代替、Node.js で実装）
+.tmp-http-server.js

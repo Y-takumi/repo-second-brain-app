@@ -4,7 +4,7 @@
 
 別のセッションで作業中に問題が発生した場合、このファイルを開いて **直近のタスク実施状況** を確認することで、類似の問題や関連する変更を把握できます。
 
-最終更新：2026-07-29（Phase 1 リロード後 UX 修正：Drive 未連携時のチェックボックス disabled）
+最終更新：2026-07-29（Phase 1 リロード後 UX 修正 / .gitignore 更新 / docs/TESTING.md に既存実装テストケース追加）
 
 ---
 
@@ -283,6 +283,17 @@
   - **原因**：googleAccessToken はメモリ上のみで保持。リロード時に null に戻る（仕様）。リロード直後・Drive 再連携前に「完了する」を押すと永続化されずに消える
   - **修正**：renderDailyHabitList で googleAccessToken をチェックし、未連携時はチェックボックスを disabled にする。「Drive 連携が必要」テキスト表示、opacity:0.5 でグレーアウト、title 属性で「Drive 未連携：リロードすると変更は失われます」と案内
   - ユーザー選択：「Drive 未連携時はチェックボックスを disabled にする（推奨）」
+- **コミット**: 770b4ce（push 済み）
+
+### Task 77: .gitignore 更新 + docs/TESTING.md に既存実装テストケース追加
+- **状態**: completed
+- **完了評価**: 成功
+- **備考**:
+  - ユーザー：「また席外すので、できるところまで進めておいて。ここまでの開発をプッシュコミットしておいて」
+  - .gitignore に `.tmp-http-server.js` を追加（テスト用一時ファイルを除外）
+  - docs/TESTING.md に既存実装（完了操作 C.1〜C.5、編集系 E.1〜E.7、wake/sleep W.1〜W.5、stale review S.1〜S.4、revive R.1〜R.2、check_time 切替 H.1〜H.2）のテストケースを追加
+  - **リファクタリング（persistTaskChange / persistHabitChange 統合）は保留**：リスク vs 効果で見送り。Phase 3, 4 で新規実装が増えるため、先にそちらを優先
+  - **Phase 3, 4 は保留**：UI 変更が大きく設計判断が必要なため、明日のセッションで確認してから着手
 - **コミット**: 未 commit
 
 ---
