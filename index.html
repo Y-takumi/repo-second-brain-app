@@ -55,6 +55,7 @@
   }
   .tab{flex:1; display:flex; flex-direction:column; align-items:center; gap:4px; cursor:pointer; color:var(--ink-faint); font-size:10.5px;}
   .tab.active{color:var(--primary);}
+  .tab-badge{position:absolute; top:3px; right:8px; background:var(--business); color:#fff; font-size:9px; font-weight:700; padding:2px 5px; border-radius:10px; min-width:16px; text-align:center; line-height:1.2; box-shadow:0 1px 3px rgba(0,0,0,0.25);}
   .tab .icon{width:22px;height:22px;}
   .dev-fab{
     position:absolute; top:2px; right:6px; width:16px; height:16px; font-size:11px;
@@ -1529,6 +1530,7 @@ const vaultSeedFiles = [
 
     <!-- Ad Hoc：これまでのTasks機能一式 -->
     <div id="tasks-adhoc-pane" style="display:none;">
+      <div id="stale-review-area"></div>
       <div class="graph-tabs">
         <div class="gtab active" data-theme="all" onclick="renderTasks('all', event)">すべて</div>
         <div class="gtab" data-theme="healthcare" onclick="renderTasks('healthcare', event)">Health</div>
@@ -1595,7 +1597,7 @@ const vaultSeedFiles = [
 
   <!-- ===== GOODNIGHT（おやすみボタンから遷移する締めくくり画面） ===== -->
   <div class="screen" id="screen-goodnight">
-    <div id="stale-review-area"></div>
+    <div id="goodnight-stale-review-area"></div>
 
     <div class="goodnight-hero">
       <div class="goodnight-icon">🌙</div>
@@ -1623,33 +1625,22 @@ const vaultSeedFiles = [
   <!-- ===== SETTINGS ===== -->
   <div class="screen" id="screen-settings">
     <h1 class="page-title">設定</h1>
-    <p class="page-sub">チェックのタイミングや目標値を調整できます</p>
+    <p class="page-sub">基本の習慣のタイミングや目標値を調整できます</p>
 
-    <div class="field-label">Task 見直しタイム — 朝チェック時刻</div>
-    <input class="url-input" type="time" id="set-task-morning" onchange="saveSettings()">
-
-    <div class="field-label" style="margin-top:16px;">Task 見直しタイム — 夜チェック時刻</div>
-    <input class="url-input" type="time" id="set-task-night" onchange="saveSettings()">
-
-    <div class="field-label" style="margin-top:22px;">起床・就寝の目標時刻</div>
-    <div class="settings-row-2col">
-      <div class="settings-col">
-        <div class="settings-col-label">☀️ 起床</div>
-        <input class="url-input" type="time" id="set-wake-time" onchange="saveSettings()">
-      </div>
-      <div class="settings-col">
-        <div class="settings-col-label">🛏️ 就寝</div>
-        <input class="url-input" type="time" id="set-sleep-time" onchange="saveSettings()">
-      </div>
-    </div>
-    <div class="settings-hint">起床：目標時刻から30分以内に「おはよう」でクリア　／　就寝：目標時刻の30〜60分前に「おやすみ」でクリア</div>
-
-    <div class="field-label" style="margin-top:22px;">基本の習慣（プリセット）</div>
+    <div class="field-label">基本の習慣（プリセット）</div>
     <div class="settings-hint" style="margin-bottom:8px;">全ユーザーに推奨する習慣。Daily タブに表示するかどうかを切り替えられます</div>
     <label class="preset-toggle">
       <input type="checkbox" id="set-show-wake" onchange="saveSettings()">
       <span>☀️ 起床</span>
     </label>
+    <div class="settings-row-2col" style="margin-top:6px;">
+      <div class="settings-col">
+        <input class="url-input" type="time" id="set-wake-time" onchange="saveSettings()">
+      </div>
+      <div class="settings-col">
+        <input class="url-input" type="time" id="set-sleep-time" onchange="saveSettings()">
+      </div>
+    </div>
     <label class="preset-toggle">
       <input type="checkbox" id="set-show-sleep" onchange="saveSettings()">
       <span>🛏️ 就寝</span>
@@ -1671,7 +1662,8 @@ const vaultSeedFiles = [
     </div>
     <div class="settings-hint">自動：朝5時〜夕方17時はライト、それ以外はダーク</div>
 
-    <div class="field-label" style="margin-top:22px;">Taskの見直し間隔</div>
+    <div class="field-label" style="margin-top:22px;">Task 見直しタイム（一番下）</div>
+    <div class="settings-hint">設定した日数、動きがない open タスクを自動で表示。Tasks タブに通知アイコンが出て、ポップアップからカードフリックで整理できます</div>
     <div class="settings-row-2col">
       <input class="url-input" type="number" id="set-stale-days" min="1" max="30" onchange="saveSettings()">
       <div class="settings-col-label" style="margin:0; align-self:center; flex:none;">日、動きがなければ見直し対象に</div>
@@ -1860,6 +1852,7 @@ const vaultSeedFiles = [
     <div class="tab" data-screen="tasks" onclick="openTasksTab()">
       <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="4" y="4" width="16" height="16" rx="3"/><path d="M8 12l2.5 2.5L16 9"/></svg>
       Tasks
+      <span class="tab-badge" id="task-badge" style="display:none;">0</span>
     </div>
     <div class="tab" data-screen="settings" onclick="openSettings()">
       <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09a1.65 1.65 0 00-1-1.51 1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09a1.65 1.65 0 001.51-1 1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
@@ -1873,8 +1866,6 @@ const vaultSeedFiles = [
 <script>
 const tabScreens = ["todaybrief","capture","explore","tasks","settings"];
 function openSettings(){
-  document.getElementById("set-task-morning").value = appSettings.taskReviewMorningTime;
-  document.getElementById("set-task-night").value = appSettings.taskReviewNightTime;
   document.getElementById("set-wake-time").value = appSettings.targetWakeTime;
   document.getElementById("set-sleep-time").value = appSettings.targetSleepTime;
   document.getElementById("set-username").value = appSettings.userName;
@@ -1889,8 +1880,6 @@ function openSettings(){
   goTo("settings");
 }
 function saveSettings(){
-  appSettings.taskReviewMorningTime = document.getElementById("set-task-morning").value || appSettings.taskReviewMorningTime;
-  appSettings.taskReviewNightTime = document.getElementById("set-task-night").value || appSettings.taskReviewNightTime;
   appSettings.targetWakeTime = document.getElementById("set-wake-time").value || appSettings.targetWakeTime;
   appSettings.targetSleepTime = document.getElementById("set-sleep-time").value || appSettings.targetSleepTime;
   appSettings.userName = document.getElementById("set-username").value || appSettings.userName;
@@ -3983,8 +3972,6 @@ const APP_TODAY = new Date("2026-07-08"); // アプリ内の「今日」
 /* ============ Habit（毎日の習慣） ============ */
 function d(offset){ const x=new Date(APP_TODAY); x.setDate(x.getDate()+offset); return x.toISOString().slice(0,10); }
 const appSettings = {
-  taskReviewMorningTime: "08:00",
-  taskReviewNightTime: "20:00",
   targetWakeTime: "05:30",
   targetSleepTime: "22:00",
   themeMode: "auto", // "auto" | "light" | "dark"
@@ -4351,37 +4338,45 @@ async function persistHabitChange(habitId, updates){
     console.error("Habit変更のDrive保存に失敗:", e);
   }
 }
-/* ============ 放置タスクの見直し（スワイプ Yes/No） ============ */
-// STALE_DAYSはappSettings.staleReviewDaysとして設定画面から変更可能
-function getStaleQueue(){
+/* ============ 未完了タスクの整理（スワイプ Yes/No） ============ */
+// 完了していない open タスクを 1 件ずつカード表示。スワイプ（外部タップ）で「継続」/「完了」判定。
+// 2026-07-29 仕様変更：staleReviewDays 経過の絞り込みを廃止し、「未完了（open）タスク全て」に対象を拡大。
+// 設定画面の Task 見直しタイム間隔は無関係になったが、互換性のため appSettings.staleReviewDays は残す。
+function getUnfinishedQueue(){
   return taskData.filter(t=>{
     if(t.status!=="open") return false;
-    if(isBlocked(t)) return false; // 保留中(依存待ち)は見直し不要
-    const base = t.lastConfirmed || t.created;
-    return daysSince(base) >= appSettings.staleReviewDays;
-  }).sort((a,b)=>daysSince(b.lastConfirmed||b.created) - daysSince(a.lastConfirmed||a.created));
+    if(isBlocked(t)) return false; // 依存待ちタスクは整理対象外
+    return true;
+  }).sort((a,b)=>{
+    // 優先度（priority）が小さい順 → 古い順
+    const pa = a.priority ?? 99;
+    const pb = b.priority ?? 99;
+    if(pa !== pb) return pa - pb;
+    return (a.created || "").localeCompare(b.created || "");
+  });
 }
 
 let staleDragStartX = null;
 
-function renderStaleReview(){
-  const area = document.getElementById("stale-review-area");
-  const queue = getStaleQueue();
+function renderStaleReview(targetId = "stale-review-area"){
+  const area = document.getElementById(targetId);
+  if(!area) return;
+  const queue = getUnfinishedQueue();
   if(!queue.length){ area.innerHTML = ""; return; }
   const t = queue[0];
-  const days = daysSince(t.lastConfirmed || t.created);
+  const days = daysSince(t.created || t.lastConfirmed);
 
   area.innerHTML = `
-    <div class="stale-review-label">🔁 見直しタイム（登録から${days}日、動きがないタスクが${queue.length}件）</div>
+    <div class="stale-review-label">📝 未完了タスクを整理（残り${queue.length}件）</div>
     <div class="stale-review-wrap">
-      <div class="stale-rail left" onclick="staleTapDecide(false)"><span class="chev">‹‹</span><span>アーカイブ</span></div>
-      <div class="stale-rail right" onclick="staleTapDecide(true)"><span>キープ</span><span class="chev">››</span></div>
+      <div class="stale-rail left" onclick="staleTapDecide(false)"><span class="chev">‹‹</span><span>完了</span></div>
+      <div class="stale-rail right" onclick="staleTapDecide(true)"><span>続ける</span><span class="chev">››</span></div>
       <div class="stale-card" id="stale-card">
-        <span class="stale-hint-no" id="stale-hint-no">アーカイブする</span>
-        <span class="stale-hint-yes" id="stale-hint-yes">キープする</span>
-        <div class="stale-card-q">このタスク、まだ重要ですか？</div>
+        <span class="stale-hint-no" id="stale-hint-no">完了にする</span>
+        <span class="stale-hint-yes" id="stale-hint-yes">続ける</span>
+        <div class="stale-card-q">このタスク、どうする？</div>
         <div class="stale-card-text">${t.text}</div>
-        <div class="stale-card-days">登録から${days}日経過</div>
+        <div class="stale-card-days">優先度: ${t.priority ?? "未設定"}${days > 0 ? ` / ${days}日前から` : ""}</div>
       </div>
     </div>`;
 
@@ -4478,13 +4473,13 @@ function staleTapDecide(stillImportant){
   card.style.opacity = "0";
   setTimeout(()=>staleDecide(t.id, stillImportant), 180);
 }
-function staleDecide(id, stillImportant){
+function staleDecide(id, keepGoing){
   const t = taskById(id);
   const today = APP_TODAY.toISOString().slice(0,10);
   const updates = { last_confirmed: today };
-  if(!stillImportant){
-    updates.status = "someday"; // 一旦保留（アーカイブ）
-    updates.archived_at = today;
+  if(!keepGoing){
+    // 「完了」→ タスクを完了状態に
+    updates.status = "done";
   }
   // ① まずメモリ上を更新して UI 再描画（即座に反映）
   //    メモリ上はキャメルケース（taskData プロパティ）のまま保持するため、
@@ -4562,14 +4557,29 @@ renderTasks("all"); // 全定義が揃った後で初回描画
 
 /** Tasksタブを開く：現在表示中のサブタブ(Daily/Ad Hoc)を最新化してから開く */
 function openTasksTab(){
+  updateTaskBadge();
   const dailyActive = document.getElementById("tasksub-daily")?.classList.contains("active");
   if(dailyActive === false){
     const activeTab = document.querySelector("#tasks-adhoc-pane .gtab.active");
     renderTasks(activeTab?.dataset.theme || "all");
+    renderStaleReview(); // 未完了レビューをアドホックタブ上部に表示
   } else {
     renderDailyHabitList();
   }
   goTo("tasks");
+}
+
+/** Tasks タブのバッジを更新（未完了タスク数） */
+function updateTaskBadge(){
+  const badge = document.getElementById("task-badge");
+  if(!badge) return;
+  const count = getUnfinishedQueue().length;
+  if(count > 0){
+    badge.textContent = count;
+    badge.style.display = "";
+  } else {
+    badge.style.display = "none";
+  }
 }
 
 /** TasksタブのDaily/Ad Hocサブタブ切り替え */
@@ -4579,6 +4589,11 @@ function setTasksSubTab(tab){
   document.getElementById("tasks-daily-pane").style.display = tab==="daily" ? "" : "none";
   document.getElementById("tasks-adhoc-pane").style.display = tab==="adhoc" ? "" : "none";
   if(tab==="daily") renderDailyHabitList();
+  else {
+    const activeTab = document.querySelector("#tasks-adhoc-pane .gtab.active");
+    renderTasks(activeTab?.dataset.theme || "all");
+    renderStaleReview();
+  }
   else { const activeTab = document.querySelector("#tasks-adhoc-pane .gtab.active"); renderTasks(activeTab?.dataset.theme || "all"); }
 }
 
@@ -4919,7 +4934,7 @@ const goodnightMessages = [
 ];
 async function openGoodnight(){
   await doGreetAction("sleep");
-  renderStaleReview();
+  renderStaleReview("goodnight-stale-review-area");
 
   const doneCount = taskData.filter(t=>t.status==="done").length;
   const openCount = taskData.filter(t=>t.status==="open" && !isBlocked(t)).length;

@@ -334,7 +334,42 @@
     - CSS `.preset-toggle` 追加
     - saveSettings() で toggle 値保存 + 即時 `renderDailyHabitList()` 呼び出し
   - 仕様書 4.4.7 節新設、4.5 節の重複タイトル削除
+- **コミット**: 2fe8e4d（push 済み）
+
+### Task 81: 設定画面レイアウト再構成 + タスク見直しタイム時間設定廃止
+- **状態**: completed
+- **完了評価**: 成功
+- **備考**:
+  - ユーザー：「基本の習慣のところに、時間の設定項目も一緒に表示してしまいましょう。Task見直しタイムは一番下にしちゃっていいかな。というかこの機能はどこで使うんだっけ」
+  - **実装**：
+    - 設定画面を「基本の習慣（プリセット）」→「アカウント名」→「テーマ」→「Task見直しタイム（一番下）」の順に再構成
+    - 「基本の習慣」セクションに起床時刻・就寝時刻を統合（`settings-row-2col` で 2 カラム）
+    - `taskReviewMorningTime` / `taskReviewNightTime` を appSettings と openSettings/saveSettings から削除（時間設定廃止）
+    - `staleReviewDays` 設定は互換性のため残す（ただしロジックからは使わなくなる）
 - **コミット**: 未 commit
+
+### Task 82: 未完了レビューへの進化 + Tasks バッジ
+- **状態**: completed
+- **完了評価**: 成功
+- **備考**:
+  - ユーザー：「タスク見直しタイムはカードをフリックする奴だったと思うけど、これはアドホックタスクの方で使うんだよね。時間の設定は不要で、いつでもカードフリックでタスク整理できた方がいい」
+  - ユーザー：「Taskタブに通知アイコンを出して、Tasksタブ遷移後の画面の上部にポップアップで[実行出来てないタスクがあるので確認して！]みたいな表示を出して、タップでアドホックタグに遷移させて、そこでカードフリックで整理するイメージかな」
+  - **実装**：
+    - `getStaleQueue` → `getUnfinishedQueue` にリネーム。ロジック：`status === "open"` && !isBlocked
+    - `staleReviewDays` 経過の絞り込みを廃止
+    - `staleDecide(keepGoing=true)` ＝ 「続ける」→ `lastConfirmed` 更新
+    - `staleDecide(keepGoing=false)` ＝ 「完了」→ `status: "done"` に変更（someday アーカイブではない）
+    - カード文言：「このタスク、どうする？」/「続ける」/「完了」
+    - Tasks タブにバッジ（未完了タスク数、赤丸）
+    - `updateTaskBadge()` 関数新設、openTasksTab 内に呼び出し
+    - Tasks タブ Ad Hoc ペインに「未完了タスクを整理」セクションを新設
+    - `renderStaleReview(targetId)` に signature 変更（Tasks タブと goodnight 両方で使えるように）
+  - 仕様書 4.4.3.1 節新設
+- **コミット**: 未 commit
+
+### Task 83: 上記 81, 82 をまとめてコミット&プッシュ
+- **状態**: 進行中
+- **備考**: 設定画面レイアウト + 未完了レビュー + Tasks バッジ
 
 ---
 
