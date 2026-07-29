@@ -4413,7 +4413,7 @@ function staleCommitOrReset(dx){
   const card = document.getElementById("stale-card");
   if(!card) return;
   card.style.transition = "transform .2s, opacity .2s";
-  const queue = getStaleQueue();
+  const queue = getUnfinishedQueue();
   if(!queue.length) return;
   const t = queue[0];
   if(dx > 110){ card.style.transform = `translateX(400px) rotate(20deg)`; card.style.opacity = "0"; setTimeout(()=>staleDecide(t.id,true),180); }
@@ -4465,7 +4465,7 @@ function staleMouseStart(e){
 /** 外側の「アーカイブ」「キープ」の文字（レール）をタップした時：スワイプと同じ結果になる */
 function staleTapDecide(stillImportant){
   const card = document.getElementById("stale-card");
-  const queue = getStaleQueue();
+  const queue = getUnfinishedQueue();
   if(!queue.length || !card) return;
   const t = queue[0];
   card.style.transition = "transform .2s, opacity .2s";
