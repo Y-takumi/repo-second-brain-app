@@ -53,7 +53,7 @@
     backdrop-filter:blur(10px); border-top:1px solid var(--border);
     display:flex; align-items:flex-start; padding-top:10px; z-index:10;
   }
-  .tab{flex:1; display:flex; flex-direction:column; align-items:center; gap:4px; cursor:pointer; color:var(--ink-faint); font-size:10.5px;}
+  .tab{flex:1; display:flex; flex-direction:column; align-items:center; gap:4px; cursor:pointer; color:var(--ink-faint); font-size:10.5px; position:relative;}
   .tab.active{color:var(--primary);}
   .tab-badge{position:absolute; top:3px; right:8px; background:var(--business); color:#fff; font-size:9px; font-weight:700; padding:2px 5px; border-radius:10px; min-width:16px; text-align:center; line-height:1.2; box-shadow:0 1px 3px rgba(0,0,0,0.25);}
   .tab .icon{width:22px;height:22px;}
@@ -241,6 +241,9 @@
   .preset-toggle{display:flex; align-items:center; gap:8px; font-size:11.5px; cursor:pointer; padding:6px 0; color:var(--ink);}
   .preset-toggle input[type="checkbox"]{width:15px; height:15px; accent-color:var(--healthcare); cursor:pointer; flex-shrink:0;}
   .preset-toggle:has(input:checked) span{font-weight:600; color:var(--healthcare);}
+  .preset-toggle-row{display:flex; align-items:center; gap:8px; padding:2px 0;}
+  .preset-toggle-row .preset-toggle{flex:1; padding:6px 0;}
+  .preset-time-input{font-size:11px; padding:6px 10px; max-width:120px; flex:none; margin-left:auto;}
 
   .habit-step-input-row{display:flex; gap:8px; margin-top:10px;}
   .habit-step-avgs{display:flex; gap:8px; margin-top:12px;}
@@ -1629,26 +1632,26 @@ const vaultSeedFiles = [
 
     <div class="field-label">基本の習慣（プリセット）</div>
     <div class="settings-hint" style="margin-bottom:8px;">全ユーザーに推奨する習慣。Daily タブに表示するかどうかを切り替えられます</div>
-    <label class="preset-toggle">
-      <input type="checkbox" id="set-show-wake" onchange="saveSettings()">
-      <span>☀️ 起床</span>
-    </label>
-    <div class="settings-row-2col" style="margin-top:6px;">
-      <div class="settings-col">
-        <input class="url-input" type="time" id="set-wake-time" onchange="saveSettings()">
-      </div>
-      <div class="settings-col">
-        <input class="url-input" type="time" id="set-sleep-time" onchange="saveSettings()">
-      </div>
+    <div class="preset-toggle-row">
+      <label class="preset-toggle">
+        <input type="checkbox" id="set-show-wake" onchange="saveSettings()">
+        <span>☀️ 起床</span>
+      </label>
+      <input class="url-input preset-time-input" type="time" id="set-wake-time" onchange="saveSettings()">
     </div>
-    <label class="preset-toggle">
-      <input type="checkbox" id="set-show-sleep" onchange="saveSettings()">
-      <span>🛏️ 就寝</span>
-    </label>
-    <label class="preset-toggle">
-      <input type="checkbox" id="set-show-training" onchange="saveSettings()">
-      <span>🏋️ ウェイト</span>
-    </label>
+    <div class="preset-toggle-row">
+      <label class="preset-toggle">
+        <input type="checkbox" id="set-show-sleep" onchange="saveSettings()">
+        <span>🛏️ 就寝</span>
+      </label>
+      <input class="url-input preset-time-input" type="time" id="set-sleep-time" onchange="saveSettings()">
+    </div>
+    <div class="preset-toggle-row">
+      <label class="preset-toggle">
+        <input type="checkbox" id="set-show-training" onchange="saveSettings()">
+        <span>🏋️ ウェイト</span>
+      </label>
+    </div>
 
     <div class="field-label" style="margin-top:22px;">アカウント名</div>
     <input class="url-input" type="text" id="set-username" placeholder="表示する名前" onchange="saveSettings()">
@@ -4240,7 +4243,40 @@ async function toggleTaskDone(id){
   }
 }
 
-/** Drive上のTaskファイルの frontmatter のうち、指定したフィールドだけを書き換える（他フィールド保持） */
+/** Drive上にTaskファイルが存在しない場合、メモリ上の taskData から新規作成する。
+ * 初回完了操作や編集時、まだ Drive 上に Task ファイルがない場面で使われる。 */
+async function createTaskInDrive(taskId){
+  const t = taskById(taskId);
+  if(!t) throw new Error(`タスクが見つかりません: ${taskId}`);
+
+  const rootId = await ensureVaultFolder();
+  const folderId = await findOrCreateFolder("07_Task", rootId);
+  const fileName = `${taskId}.md`;
+
+  // メモリ上キャメル → YAML 上 snake_case に変換して新規ファイル作成
+  const fm = {
+    type: "task",
+    id: t.id,
+    schema_version: 1,
+    text: t.text,
+    body: t.body || "",
+    type_of_task: t.type || "action",
+    themes: t.themes || [],
+    priority: t.priority ?? 1,
+    status: t.status || "open",
+    depends_on: t.dependsOn || [],
+    created: t.created || APP_TODAY.toISOString().slice(0,10),
+    last_confirmed: t.lastConfirmed || null,
+    archived_at: t.archivedAt || null,
+  };
+  if(t.due) fm.due = t.due;
+  const body = `\n# ${t.text}\n`;
+  const content = buildFrontmatterFile(fm, body);
+  await createOrUpdateFile(fileName, folderId, content);
+}
+
+/** Drive上のTaskファイルの frontmatter のうち、指定したフィールドだけを書き換える（他フィールド保持）。
+ * ファイルが存在しない場合は自動作成する（createTaskInDrive） */
 async function updateTaskInDrive(taskId, updates){
   const rootId = await ensureVaultFolder();
   const folderId = await findOrCreateFolder("07_Task", rootId);
@@ -4248,7 +4284,11 @@ async function updateTaskInDrive(taskId, updates){
 
   const files = await listDriveFolderFiles(folderId);
   const file = files.find(f => f.name === fileName);
-  if(!file) throw new Error(`タスクファイルが見つかりません: ${fileName}`);
+  if(!file){
+    // 初回操作時、まだ Drive 上に Task ファイルがないので新規作成
+    await createTaskInDrive(taskId);
+    return;
+  }
 
   const raw = await readDriveFileContent(file.id);
   const { frontmatter: fm, body } = parseFrontmatter(raw);

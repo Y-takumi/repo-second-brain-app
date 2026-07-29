@@ -4,7 +4,7 @@
 
 別のセッションで作業中に問題が発生した場合、このファイルを開いて **直近のタスク実施状況** を確認することで、類似の問題や関連する変更を把握できます。
 
-最終更新：2026-07-29（Habit ファイル自動作成 / サンプル 4 件削除 / wake-sleep メモリ管理分離）
+最終更新：2026-07-29（Task ファイル自動作成 / 基本の習慣 UI レイアウト / Tasks バッジ位置修正）
 
 ---
 
@@ -368,8 +368,37 @@
 - **コミット**: 未 commit
 
 ### Task 83: 上記 81, 82 をまとめてコミット&プッシュ
-- **状態**: 進行中
+- **状態**: 完了
 - **備考**: 設定画面レイアウト + 未完了レビュー + Tasks バッジ
+- **コミット**: f21c07d（push 済み）
+
+### Task 84: 構文エラー修正（setTasksSubTab 重複 else）
+- **状態**: completed
+- **完了評価**: 成功
+- **備考**: ユーザー「アプリが動かなくなったよ。Uncaught SyntaxError: Unexpected token 'else' (at (index):4597:3)」
+- 修正：line 4597 の重複 else ブロック削除
+- **コミット**: 41e97a2（push 済み）
+
+### Task 85: リネーム漏れ修正（getStaleQueue → getUnfinishedQueue）
+- **状態**: completed
+- **完了評価**: 成功
+- **備考**: ユーザー「おはよう画面がループするようになりました。Uncaught ReferenceError: getStaleQueue is not defined」
+- 修正：staleCommitOrReset / staleTapDecide / getJournalHints 内の 3 箇所 + 残り 1 箇所 の合計 4 箇所
+- **コミット**: 4802630, 9d16df3（push 済み）
+
+### Task 86: Task 自動作成 + Tasks バッジ位置 + 基本の習慣 UI レイアウト
+- **状態**: 進行中
+- **備考**:
+  - ユーザー：
+    1. タスク振り分け失敗（t-vision.md が見つからない）
+    2. 設定タブのアイコンに通知バッジがついている（Tasks タブに移動すべき）
+    3. チェックボックスと時刻設定の位置がずれている
+  - 修正：
+    - `createTaskInDrive` 新設、`updateTaskInDrive` から呼び出し
+    - `.tab` に `position: relative` 追加、バッジがタブ内に正しく表示されるように
+    - 設定画面のプリセットレイアウト：起床チェックの右に起床時間、就寝チェックの右に就寝時間
+    - CSS `.preset-toggle-row` / `.preset-time-input` 追加
+- **コミット**: 未 commit
 
 ---
 
