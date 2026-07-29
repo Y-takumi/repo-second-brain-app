@@ -4,7 +4,7 @@
 
 別のセッションで作業中に問題が発生した場合、このファイルを開いて **直近のタスク実施状況** を確認することで、類似の問題や関連する変更を把握できます。
 
-最終更新：2026-07-29（Task ファイル自動作成 / 基本の習慣 UI レイアウト / Tasks バッジ位置修正 / 続けるバグ修正 / LocalStorage 永続化）
+最終更新：2026-07-30（Phase 3-6 実装：朝のフロー / 夜のフロー / CDN ローカル化 / リズム可視化）
 
 ---
 
@@ -426,6 +426,49 @@
   - `saveSettingsToLocalStorage` / `loadSettingsFromLocalStorage` 関数新設
   - 起動時に `loadSettingsFromLocalStorage()` を `renderTasks("all")` の前に呼ぶ
   - 仕様書 4.4.8 節新設
+- **コミット**: dbfea4d（push 済み）
+
+### Task 90: Phase 3 朝のフロー実装
+- **状態**: completed
+- **完了評価**: 成功
+- **備考**:
+  - ホームタブ（Today Brief）に「今日の起床・就寝」セクション追加
+  - `doGreetAction` 内で wake_time / sleep_planned_time を 5 分刻みで自動記録
+  - `updateWakeTimeNow` / `updateSleepPlannedTimeNow` 関数で手動編集対応
+  - `roundTo5Min` ヘルパー（5分区切り）
+  - Drive 永続化：wake_time / sleep_planned_time も persistHabitChange で同期
+- **コミット**: 未 commit
+
+### Task 91: Phase 4 夜のフロー実装
+- **状態**: completed
+- **完了評価**: 成功
+- **備考**:
+  - ホームタブ右上に「今日はお休み」ボタン追加（19時以降活性化）
+  - 夜の門番画面（goodnight）に就寝予定時刻入力、最終ジャーナル入力（任意）を追加
+  - 「今日はお休み」ボタンでホームに戻る
+  - `computeDefaultSleepPlannedTime` ヘルパー（5 分刻みの近い未来）
+  - `finishGoodnight` / `saveGoodnightJournal` 関数
+  - 既存 goodnight-streaks にプリセット Habit も表示
+- **コミット**: 未 commit
+
+### Task 92: Phase 5.5 CDN ローカル化
+- **状態**: completed
+- **完了評価**: 成功
+- **備考**:
+  - vendor/ ディレクトリ作成
+  - d3.min.js、js-yaml.min.js を cdnjs.cloudflare.com から curl でダウンロード
+  - index.html の script src を vendor/ 相対パスに変更
+  - Playwright 環境で ERR_BLOCKED_BY_CLIENT が出なくなるはず
+- **コミット**: 未 commit
+
+### Task 93: Phase 6 リズム可視化（骨格のみ）
+- **状態**: completed
+- **完了評価**: 成功
+- **備考**:
+  - 探索タブに「生活リズム（過去 30 日）」セクション追加
+  - 平均起床・平均就寝表示
+  - Canvas 実装のグラフ（起床：青、実線 / 就寝：紫、点線）
+  - 骨格のみ：散布図、曜日別平均などは将来追加
 - **コミット**: 未 commit
 
 ---

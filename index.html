@@ -8,9 +8,9 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#0f1115">
 <title>第二の脳 — アプリUIモックアップ</title>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+<script src="vendor/d3.min.js"></script>
 <script src="https://accounts.google.com/gsi/client" async defer></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/js-yaml/4.1.0/js-yaml.min.js"></script>
+<script src="vendor/js-yaml.min.js"></script>
 <style>
   :root{
     --bg:#242230; --surface:#2f2c3c; --surface2:#3a3649; --border:#4c4759;
@@ -369,6 +369,13 @@
   .brief-workout-item .name{font-size:12.5px; color:var(--ink); flex:1;}
   .brief-workout-item .detail{font-size:10px; color:var(--ink-faint); font-family:var(--mono);}
   .brief-workout-note{font-size:10px; color:var(--ink-faint); margin:2px 0 4px; line-height:1.6;}
+  .brief-wake-sleep-row{display:flex; align-items:center; gap:10px; padding:6px 0; font-size:12px; color:var(--ink);}
+  .brief-wake-sleep-row input[type="time"]{font-size:11px; padding:5px 8px; max-width:120px;}
+  .brief-wake-sleep-label{font-weight:600;}
+  .brief-wake-sleep-status{font-size:10.5px; color:var(--ink-faint); margin-left:auto;}
+  .brief-goodnight-btn{position:absolute; top:14px; right:14px; background:var(--surface); color:var(--primary); border:1px solid var(--primary); border-radius:20px; padding:6px 14px; font-size:11px; font-weight:600; cursor:pointer; box-shadow:0 2px 8px rgba(0,0,0,0.15); z-index:5;}
+  .brief-goodnight-btn:disabled{opacity:0.4; cursor:not-allowed; border-color:var(--border); color:var(--ink-faint); background:var(--surface2); box-shadow:none;}
+  .brief-goodnight-btn:not(:disabled):hover{background:var(--primary); color:#fff;}
   .brief-journal-hint{
     display:flex; gap:10px; padding:12px 14px; background:linear-gradient(135deg, var(--primary-soft), transparent);
     border:1px solid var(--primary); border-radius:12px; margin-bottom:8px; font-size:12px; color:var(--ink); line-height:1.6;
@@ -493,6 +500,10 @@
 
   .gm-candidate{background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:12px 14px; margin-bottom:8px;}
   .gm-candidate-head{display:flex; align-items:flex-start; gap:10px; cursor:pointer;}
+  .rhythm-summary{display:flex; gap:8px; margin-top:6px;}
+  .rhythm-stat{flex:1; background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:8px 10px; text-align:center;}
+  .rhythm-stat-label{font-size:10px; color:var(--ink-faint); margin-bottom:4px;}
+  .rhythm-stat-value{font-size:14px; font-weight:600; color:var(--primary); font-family:var(--mono);}
   .gm-candidate-check{width:18px;height:18px;border-radius:5px;border:1.5px solid var(--ink-faint); flex-shrink:0; margin-top:1px;}
   .gm-candidate-check.checked{background:var(--primary); border-color:var(--primary);}
   .gm-candidate-title{font-size:12.5px; color:var(--ink); flex:1;}
@@ -1398,6 +1409,20 @@ const vaultSeedFiles = [
     <h1 class="page-title">探索</h1>
     <p class="page-sub">気になることを聞くか、ノードをタップしてください</p>
 
+    <div class="section-label">生活リズム（過去 30 日）</div>
+    <div class="rhythm-summary">
+      <div class="rhythm-stat">
+        <div class="rhythm-stat-label">平均起床</div>
+        <div class="rhythm-stat-value" id="rhythm-avg-wake">--:--</div>
+      </div>
+      <div class="rhythm-stat">
+        <div class="rhythm-stat-label">平均就寝</div>
+        <div class="rhythm-stat-value" id="rhythm-avg-sleep">--:--</div>
+      </div>
+    </div>
+    <canvas id="rhythm-canvas" width="350" height="160" style="width:100%; max-width:350px; background:var(--surface); border:1px solid var(--border); border-radius:12px; margin-top:8px;"></canvas>
+    <div class="settings-hint" style="margin-top:4px;">折れ線：起床（左軸）／点線：就寝予定（右軸）</div>
+
     <div class="search-row">
       <input class="url-input" id="graph-search-input" placeholder="今気になることを入力・検索する" style="margin:0;">
       <button class="mic-btn-small" onclick="voiceSearch()" aria-label="音声で検索">
@@ -1582,6 +1607,10 @@ const vaultSeedFiles = [
       <h1 class="page-title" id="brief-title">おはようございます</h1>
       <p class="page-sub" id="brief-date"></p>
     </div>
+    <button class="brief-goodnight-btn" id="brief-goodnight-btn" onclick="openGoodnight()">🌙 今日はお休み</button>
+
+    <div class="section-label">今日の起床・就寝</div>
+    <div id="brief-wake-sleep"></div>
 
     <div class="section-label">今日の筋トレメニュー <span class="brief-ext-badge">外部ツール連携予定</span></div>
     <div id="brief-workout"></div>
@@ -1608,6 +1637,13 @@ const vaultSeedFiles = [
       <p class="page-sub">今日も一日、よく頑張りましたね</p>
     </div>
 
+    <div class="section-label">就寝予定時刻</div>
+    <div class="brief-wake-sleep-row">
+      <span class="brief-wake-sleep-label">🛏️ 今夜</span>
+      <input type="time" step="300" id="goodnight-sleep-time" onchange="updateSleepPlannedTimeNow(this.value)">
+      <span class="brief-wake-sleep-status" id="goodnight-default-sleep-hint"></span>
+    </div>
+
     <div class="section-label">今日の振り返り</div>
     <div id="goodnight-tasks"></div>
 
@@ -1620,9 +1656,14 @@ const vaultSeedFiles = [
       <div class="l">に起きましょう</div>
     </div>
 
+    <div class="section-label">最後のジャーナル（任意）</div>
+    <textarea class="url-input textarea" id="goodnight-journal-input" placeholder="今日あったこと・思ったことを短く..." style="min-height:60px;"></textarea>
+    <button class="btn-secondary" style="margin-top:6px; font-size:11px;" onclick="saveGoodnightJournal()">ジャーナル保存</button>
+
     <div class="goodnight-message" id="goodnight-message"></div>
 
-    <button class="btn-secondary" style="margin-top:20px;" onclick="goTo('capture')">アプリを閉じる</button>
+    <button class="btn-primary" style="margin-top:20px;" onclick="finishGoodnight()">今日はお休み</button>
+    <button class="btn-secondary" style="margin-top:6px;" onclick="goTo('capture')">キャンセル</button>
   </div>
 
   <!-- ===== SETTINGS ===== -->
@@ -3444,8 +3485,104 @@ function radiusBase(d){
   return d.type==="branch" ? 12 : (d.type==="insight"||d.type==="experiment") ? (9+(d.occ?(d.occ-1)*2:0)) : (5+((d.confidence||50)/100)*4);
 }
 
+/** 過去 30 日の起床時刻／就寝予定時刻の推移グラフ（Canvas 実装、骨格のみ） */
+function renderRhythmChart(){
+  const canvas = document.getElementById("rhythm-canvas");
+  if(!canvas) return;
+  const ctx = canvas.getContext("2d");
+  const W = canvas.width = 350;
+  const H = canvas.height = 160;
+  ctx.clearRect(0, 0, W, H);
+
+  // 過去 30 日のデータ収集
+  const wakeData = [];
+  const sleepData = [];
+  let wakeSum = 0, wakeCount = 0;
+  let sleepSum = 0, sleepCount = 0;
+  for(let i = 29; i >= 0; i--){
+    const k = d(-i);
+    const wt = wakeHabit.wakeTime[k];
+    const st = sleepHabit.sleepPlannedTime[k];
+    const idx = 29 - i;
+    if(wt){
+      const [hh, mm] = wt.split(":").map(Number);
+      const minutes = hh * 60 + mm;
+      wakeData.push({ idx, minutes });
+      wakeSum += minutes; wakeCount++;
+    }
+    if(st){
+      const [hh, mm] = st.split(":").map(Number);
+      const minutes = hh * 60 + mm;
+      sleepData.push({ idx, minutes });
+      sleepSum += minutes; sleepCount++;
+    }
+  }
+
+  // 平均値の表示
+  const avgWake = wakeCount > 0 ? `${Math.floor(wakeSum/wakeCount/60).toString().padStart(2,"0")}:${Math.floor((wakeSum/wakeCount)%60).toString().padStart(2,"0")}` : "--:--";
+  const avgSleep = sleepCount > 0 ? `${Math.floor(sleepSum/sleepCount/60).toString().padStart(2,"0")}:${Math.floor((sleepSum/sleepCount)%60).toString().padStart(2,"0")}` : "--:--";
+  document.getElementById("rhythm-avg-wake").textContent = avgWake;
+  document.getElementById("rhythm-avg-sleep").textContent = avgSleep;
+
+  if(!wakeData.length && !sleepData.length){
+    ctx.fillStyle = "#888";
+    ctx.font = "11px var(--serif, sans-serif)";
+    ctx.textAlign = "center";
+    ctx.fillText("起床・就寝のデータがありません", W/2, H/2);
+    return;
+  }
+
+  // 軸：起床は 4:00-9:00 (240-540 分)、就寝は 21:00-25:00 (1260-1500 分)
+  const wakeMin = 4 * 60, wakeMax = 9 * 60;
+  const sleepMin = 21 * 60, sleepMax = 27 * 60; // 25:00 = 翌日 1:00
+  const yWakeToCanvas = (m) => 30 + (1 - (m - wakeMin) / (wakeMax - wakeMin)) * (H - 60);
+  const ySleepToCanvas = (m) => 30 + (1 - (m - sleepMin) / (sleepMax - sleepMin)) * (H - 60);
+  const xToCanvas = (idx) => 30 + (idx / 29) * (W - 60);
+
+  // 起床ライン（青）
+  if(wakeData.length >= 1){
+    ctx.strokeStyle = "#5a8fcf";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    wakeData.forEach((p, i) => {
+      const x = xToCanvas(p.idx);
+      const y = yWakeToCanvas(p.minutes);
+      if(i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    });
+    ctx.stroke();
+    wakeData.forEach(p => {
+      ctx.fillStyle = "#5a8fcf";
+      ctx.beginPath();
+      ctx.arc(xToCanvas(p.idx), yWakeToCanvas(p.minutes), 3, 0, Math.PI*2);
+      ctx.fill();
+    });
+  }
+
+  // 就寝ライン（紫）
+  if(sleepData.length >= 1){
+    ctx.strokeStyle = "#a87fcf";
+    ctx.lineWidth = 2;
+    ctx.setLineDash([4, 2]);
+    ctx.beginPath();
+    sleepData.forEach((p, i) => {
+      const x = xToCanvas(p.idx);
+      const y = ySleepToCanvas(p.minutes);
+      if(i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    });
+    ctx.stroke();
+    ctx.setLineDash([]);
+    sleepData.forEach(p => {
+      ctx.fillStyle = "#a87fcf";
+      ctx.beginPath();
+      ctx.arc(xToCanvas(p.idx), ySleepToCanvas(p.minutes), 3, 0, Math.PI*2);
+      ctx.fill();
+    });
+  }
+}
+
 /** テーマ切り替え時だけ呼ぶ。新しいノード集合でレイアウトを1から組み直す */
 function renderGraph(theme, event){
+  renderRhythmChart();
   currentTheme = theme;
   currentFocus = null;
   document.querySelectorAll(".gtab").forEach(t=>t.classList.toggle("active", t===event?.currentTarget || t.dataset.theme===theme));
@@ -4755,24 +4892,50 @@ function parseTimeToday(hhmm){
 async function doGreetAction(kind){
   const now = new Date();
   let h, ok;
+  const todayKey = d(0);
+  // 5 分刻みに丸める（HH:MM 形式）
+  const roundTo5Min = (date) => {
+    const hh = date.getHours().toString().padStart(2,"0");
+    const mm = Math.floor(date.getMinutes()/5)*5;
+    return `${hh}:${mm.toString().padStart(2,"0")}`;
+  };
   if(kind === "wake"){
     const target = parseTimeToday(appSettings.targetWakeTime);
     const windowEnd = new Date(target.getTime() + 30*60000);
     ok = now >= target && now <= windowEnd;
     h = wakeHabit;
-    h.log[d(0)] = ok;
+    h.log[todayKey] = ok;
+    h.wakeTime[todayKey] = roundTo5Min(now);
   } else {
     const target = parseTimeToday(appSettings.targetSleepTime);
     const windowStart = new Date(target.getTime() - 60*60000);
     const windowEnd = new Date(target.getTime() - 30*60000);
     ok = now >= windowStart && now <= windowEnd;
     h = sleepHabit;
-    h.log[d(0)] = ok;
+    h.log[todayKey] = ok;
+    h.sleepPlannedTime[todayKey] = roundTo5Min(now);
   }
-  // Drive に永続化（fire-and-forget）。wakeHabit/sleepHabit はサンプルデータ削除後も
-  // メモリ上は存在するため、persistHabitChange はそのまま動作する。
-  if(h) persistHabitChange(h.id, { log: h.log });
+  // Drive に永続化（fire-and-forget）。wakeHabit/sleepHabit はメモリ上のみのため
+  // 初回は createHabitInDrive 経由で自動生成される。
+  if(h) persistHabitChange(h.id, { log: h.log, wake_time: h.wakeTime, sleep_planned_time: h.sleepPlannedTime });
   return ok;
+}
+
+/** ホームタブの起床時間編集（H:00 形式のバリデーション後に更新） */
+function updateWakeTimeNow(hhmm){
+  if(!hhmm || !/^\d{2}:\d{2}$/.test(hhmm)) return;
+  const todayKey = d(0);
+  wakeHabit.wakeTime[todayKey] = hhmm;
+  renderTodayBrief();
+  persistHabitChange(wakeHabit.id, { wake_time: wakeHabit.wakeTime });
+}
+/** ホームタブの就寝予定時刻編集 */
+function updateSleepPlannedTimeNow(hhmm){
+  if(!hhmm || !/^\d{2}:\d{2}$/.test(hhmm)) return;
+  const todayKey = d(0);
+  sleepHabit.sleepPlannedTime[todayKey] = hhmm;
+  renderTodayBrief();
+  persistHabitChange(sleepHabit.id, { sleep_planned_time: sleepHabit.sleepPlannedTime });
 }
 
 /* ---- 朝の門番画面 ---- */
@@ -4915,6 +5078,22 @@ function renderTodayBrief(){
   document.getElementById("brief-date").textContent =
     new Date().toLocaleDateString("ja-JP", {month:"long", day:"numeric", weekday:"long"});
 
+  // 今日の起床・就寝（5 分刻み編集可能）
+  const todayKey = d(0);
+  const wakeTime = wakeHabit.wakeTime[todayKey];
+  const sleepPlanned = sleepHabit.sleepPlannedTime[todayKey];
+  document.getElementById("brief-wake-sleep").innerHTML = `
+    <div class="brief-wake-sleep-row">
+      <span class="brief-wake-sleep-label">☀️ 起床</span>
+      <input type="time" step="300" value="${wakeTime || ""}" onchange="updateWakeTimeNow(this.value)">
+      <span class="brief-wake-sleep-status">${wakeTime ? `${wakeTime} に起床済み` : "未記録（おはようボタンで自動記録）"}</span>
+    </div>
+    <div class="brief-wake-sleep-row">
+      <span class="brief-wake-sleep-label">🛏️ 就寝予定</span>
+      <input type="time" step="300" value="${sleepPlanned || ""}" onchange="updateSleepPlannedTimeNow(this.value)">
+      <span class="brief-wake-sleep-status">${sleepPlanned ? `${sleepPlanned} に就寝予定` : "未記録（おやすみボタンで自動記録）"}</span>
+    </div>`;
+
   document.getElementById("brief-workout").innerHTML =
     workoutProgress.map(w=>{
       const t = computeSetTargets(w.base, w.increment, w.level);
@@ -4997,16 +5176,63 @@ const goodnightMessages = [
   "頑張った自分を、少しだけ労ってあげてください。",
   "今日の自分は、明日の自分への一番の投資です。おやすみなさい。",
 ];
+/** 就寝予定時刻のデフォルト値を計算：目標就寝時刻（過ぎていれば今から 5 分刻みの近い未来） */
+function computeDefaultSleepPlannedTime(){
+  const now = new Date();
+  const target = parseTimeToday(appSettings.targetSleepTime);
+  if(now < target) return appSettings.targetSleepTime;
+  const t = new Date(now);
+  t.setSeconds(0, 0);
+  const min = t.getMinutes();
+  const addMin = (5 - (min % 5)) % 5;
+  t.setMinutes(min + addMin);
+  const hh = t.getHours().toString().padStart(2,"0");
+  const mm = t.getMinutes().toString().padStart(2,"0");
+  return `${hh}:${mm}`;
+}
+
+/** 夜の門番画面のジャーナル入力を保存（簡易：メモリ上のみ、Vault 永続化は将来） */
+function saveGoodnightJournal(){
+  const input = document.getElementById("goodnight-journal-input");
+  if(!input || !input.value.trim()) return;
+  // 現状はメモのみ。EventNote 的な仕組みは Phase 3 以降で実装。
+  console.log("Goodnight journal saved:", input.value);
+  input.value = "";
+  input.placeholder = "保存しました";
+  setTimeout(()=>{ input.placeholder = "今日あったこと・思ったことを短く..."; }, 2000);
+}
+
+/** 「今日はお休み」ボタン：ホームに戻る + 完了マーク */
+function finishGoodnight(){
+  hasGreetedToday = true;
+  goTo("todaybrief");
+  renderTodayBrief();
+}
+
 async function openGoodnight(){
   await doGreetAction("sleep");
   renderStaleReview("goodnight-stale-review-area");
+
+  // 就寝予定時刻：今日未記録ならデフォルト値を設定
+  const todayKey = d(0);
+  if(!sleepHabit.sleepPlannedTime[todayKey]){
+    sleepHabit.sleepPlannedTime[todayKey] = computeDefaultSleepPlannedTime();
+    persistHabitChange(sleepHabit.id, { sleep_planned_time: sleepHabit.sleepPlannedTime });
+  }
+  document.getElementById("goodnight-sleep-time").value = sleepHabit.sleepPlannedTime[todayKey] || computeDefaultSleepPlannedTime();
+  document.getElementById("goodnight-default-sleep-hint").textContent = `目標 ${appSettings.targetSleepTime} (現在時刻ベース)`;
 
   const doneCount = taskData.filter(t=>t.status==="done").length;
   const openCount = taskData.filter(t=>t.status==="open" && !isBlocked(t)).length;
   document.getElementById("goodnight-tasks").innerHTML = `
     <div class="k-card"><div class="title" style="font-size:13px;">✅ 完了済み ${doneCount}件 ・ 残り ${openCount}件</div></div>`;
 
-  document.getElementById("goodnight-streaks").innerHTML = habitData
+  // プリセット Habit（wake/sleep/weight）と habitData を結合
+  const presetHabits = [];
+  if(appSettings.showWakeHabit) presetHabits.push(wakeHabit);
+  if(appSettings.showSleepHabit) presetHabits.push(sleepHabit);
+  if(appSettings.showTrainingHabit) presetHabits.push(weightHabit);
+  document.getElementById("goodnight-streaks").innerHTML = [...presetHabits, ...habitData]
     .filter(h=>h.special!=="steps")
     .map(h=>{
       const streak = habitStreak(h);
