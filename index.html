@@ -237,6 +237,9 @@
   .habit-check-label:has(input:checked){background:var(--healthcare)22; border-color:var(--healthcare); color:var(--healthcare); font-weight:600;}
   .habit-check-label.disabled{opacity:0.5; cursor:not-allowed; background:var(--surface2);}
   .habit-check-label.disabled input[type="checkbox"]{cursor:not-allowed;}
+  .preset-toggle{display:flex; align-items:center; gap:8px; font-size:11.5px; cursor:pointer; padding:6px 0; color:var(--ink);}
+  .preset-toggle input[type="checkbox"]{width:15px; height:15px; accent-color:var(--healthcare); cursor:pointer; flex-shrink:0;}
+  .preset-toggle:has(input:checked) span{font-weight:600; color:var(--healthcare);}
 
   .habit-step-input-row{display:flex; gap:8px; margin-top:10px;}
   .habit-step-avgs{display:flex; gap:8px; margin-top:12px;}
@@ -1641,6 +1644,21 @@ const vaultSeedFiles = [
     </div>
     <div class="settings-hint">起床：目標時刻から30分以内に「おはよう」でクリア　／　就寝：目標時刻の30〜60分前に「おやすみ」でクリア</div>
 
+    <div class="field-label" style="margin-top:22px;">基本の習慣（プリセット）</div>
+    <div class="settings-hint" style="margin-bottom:8px;">全ユーザーに推奨する習慣。Daily タブに表示するかどうかを切り替えられます</div>
+    <label class="preset-toggle">
+      <input type="checkbox" id="set-show-wake" onchange="saveSettings()">
+      <span>☀️ 起床</span>
+    </label>
+    <label class="preset-toggle">
+      <input type="checkbox" id="set-show-sleep" onchange="saveSettings()">
+      <span>🛏️ 就寝</span>
+    </label>
+    <label class="preset-toggle">
+      <input type="checkbox" id="set-show-training" onchange="saveSettings()">
+      <span>🏋️ ウェイト</span>
+    </label>
+
     <div class="field-label" style="margin-top:22px;">アカウント名</div>
     <input class="url-input" type="text" id="set-username" placeholder="表示する名前" onchange="saveSettings()">
     <div class="settings-hint">アプリ内の挨拶などに使われます</div>
@@ -1861,6 +1879,9 @@ function openSettings(){
   document.getElementById("set-sleep-time").value = appSettings.targetSleepTime;
   document.getElementById("set-username").value = appSettings.userName;
   document.getElementById("set-stale-days").value = appSettings.staleReviewDays;
+  document.getElementById("set-show-wake").checked = appSettings.showWakeHabit;
+  document.getElementById("set-show-sleep").checked = appSettings.showSleepHabit;
+  document.getElementById("set-show-training").checked = appSettings.showTrainingHabit;
   document.querySelectorAll("#set-theme-toggle span").forEach((el,i)=>{
     const modes = ["auto","light","dark"];
     el.classList.toggle("active", modes[i]===appSettings.themeMode);
@@ -1874,7 +1895,12 @@ function saveSettings(){
   appSettings.targetSleepTime = document.getElementById("set-sleep-time").value || appSettings.targetSleepTime;
   appSettings.userName = document.getElementById("set-username").value || appSettings.userName;
   appSettings.staleReviewDays = parseInt(document.getElementById("set-stale-days").value, 10) || appSettings.staleReviewDays;
+  appSettings.showWakeHabit = document.getElementById("set-show-wake").checked;
+  appSettings.showSleepHabit = document.getElementById("set-show-sleep").checked;
+  appSettings.showTrainingHabit = document.getElementById("set-show-training").checked;
   updateGreeting();
+  // プリセットの表示/非表示変更を即時反映
+  if(typeof renderDailyHabitList === "function") renderDailyHabitList();
 }
 function setThemeMode(mode){
   appSettings.themeMode = mode;
@@ -3964,6 +3990,9 @@ const appSettings = {
   themeMode: "auto", // "auto" | "light" | "dark"
   staleReviewDays: 7, // この日数、動きがなければ見直し対象
   userName: "拓弥",
+  showWakeHabit: true,       // プリセット：起床（基本の習慣）。Daily タブに表示
+  showSleepHabit: true,      // プリセット：就寝（基本の習慣）。Daily タブに表示
+  showTrainingHabit: true,   // プリセット：ウェイトトレーニング（基本の習慣、別アプリ連携予定）。Daily タブに表示
   googleClientId: "3872463289-5ra0lvuimkang4nolgd4r9ef6ur9c6ut.apps.googleusercontent.com", // Google OAuth Client ID（Drive 用・公開情報だが変数化管理）
   youtubeClientId: "3872463289-sc9di6miu96ilk98qpgv59v1u94o4ucr.apps.googleusercontent.com", // Google OAuth Client ID（YouTube 用・公開情報だが変数化管理。Worker の wrangler.toml [vars] にも同じ値を記載）
   devWorkerUrl: "https://second-brain-proxy.takumi-yasuda-biz.workers.dev/",
@@ -3971,10 +4000,11 @@ const appSettings = {
 };
 
 // 全ての Habit は 09_Habit/{id}.md から読み込む。サンプルデータは廃止（2026-07-29）。
-// 起床/就寝の Habit はメモリ上で別途管理（Phase 3, 4 で Habit 自動作成として正式仕様化予定）。
+// 起床/就寝/ウェイトは「基本の習慣」としてプリセット。設定画面の toggle で表示/非表示切り替え。
 const habitData = [];
 const wakeHabit = { id:"h-wake", title:"起床", special:"wake", themes:["healthcare"], log:{}, wakeTime:{}, checkTime:null };
 const sleepHabit = { id:"h-sleep", title:"就寝", special:"sleep", themes:["healthcare"], log:{}, sleepPlannedTime:{}, checkTime:null };
+const weightHabit = { id:"h-weight", title:"ウェイトトレーニング", special:"weight_training", themes:["healthcare"], log:{}, checkTime:"morning" };
 
 function habitStreak(h){
   let streak = 0;
@@ -4007,20 +4037,32 @@ async function setHabitCheckTime(id, time){
   persistHabitChange(h.id, { check_time: time });
 }
 /** Tasksタブ「Daily」：起床・就寝・ウェイトトレーニングなど、毎日の決まりごとの14日間実績を表示。
+ * プリセット Habit（wake/sleep/weight）は設定 toggle で表示/非表示、通常 Habit は Vault から読み込み。
  * wake/sleep は読み取り専用（doGreetAction 経由で記録）、それ以外の Habit は「完了」ボタンで記録可能 */
 function renderDailyHabitList(){
   const el = document.getElementById("daily-habit-list");
   if(!el) return;
   const today = d(0);
-  el.innerHTML = habitData.map(h=>{
+
+  // プリセット Habit（設定 toggle に応じて追加）
+  const presetHabits = [];
+  if(appSettings.showWakeHabit) presetHabits.push(wakeHabit);
+  if(appSettings.showSleepHabit) presetHabits.push(sleepHabit);
+  if(appSettings.showTrainingHabit) presetHabits.push(weightHabit);
+
+  // プリセット + ユーザー作成 Habit を結合
+  const allHabits = [...presetHabits, ...habitData];
+
+  el.innerHTML = allHabits.map(h=>{
     const streak = habitStreak(h);
     const isDone = h.log[today] === true;
+    const isPreset = (h === wakeHabit || h === sleepHabit || h === weightHabit);
     const specialBadge = h.special ? `<span class="habit-special-badge">基本の習慣</span>` : "";
     const timeInfo = h.special==="wake" ? `<div class="habit-target-time">☀️ 目標 ${appSettings.targetWakeTime} ・ 30分以内に「おはよう」でクリア</div>`
                     : h.special==="sleep" ? `<div class="habit-target-time">🌙 目標 ${appSettings.targetSleepTime} ・ 30〜60分前に「おやすみ」でクリア</div>`
                     : h.special==="weight_training" ? `<div class="habit-target-time">🏋️ トレーニング記録アプリと連携予定（今はサンプル）</div>`
                     : "";
-    // wake/sleep は doGreetAction 経由なのでチェック UI なし、それ以外は「完了」ボタン
+    // wake/sleep は doGreetAction 経由なのでチェック UI なし、weight_training と通常 Habit は「完了」ボタン
     const isAutoHabit = h.special === "wake" || h.special === "sleep";
     const isConnected = !!googleAccessToken;
     const checkUI = isAutoHabit ? "" :

@@ -318,6 +318,22 @@
   - **修正**：habitData 配列を空に。起床/就寝の Habit は wakeHabit / sleepHabit としてメモリ上別管理（Phase 3, 4 で Habit 自動作成として正式仕様化予定）
   - doGreetAction を wakeHabit / sleepHabit 参照に修正
   - **注意点**：wakeHabit / sleepHabit はメモリ上のみ。リロードで起床/就寝の log は消える。Phase 3, 4 で正式仕様化時に Vault 永続化対応予定
+- **コミット**: 01f260c（push 済み）
+
+### Task 80: 基本の習慣（プリセット）の実装
+- **状態**: completed
+- **完了評価**: 成功
+- **備考**:
+  - ユーザー：「ちょっと待って。起床、就寝、トレーニングは基本の習慣だから、プリセットでいいんだよ。すべてのユーザーにこの習慣は行ってほしいから」
+  - 提案：「設定画面に起床時間、就寝時間を登録できるようになってますよね。ここに、Dailyタスクに追加するというトグルを設けて、TrueのときにTasksにカードを表示することにしましょう。デフォルトはTrueで。同じようにトレーニングも同じように設定画面に表示してください」
+  - **実装**：
+    - `appSettings` に `showWakeHabit` / `showSleepHabit` / `showTrainingHabit` を追加（デフォルト true）
+    - 設定画面に「基本の習慣（プリセット）」セクションを追加、toggle UI 3 つ
+    - `wakeHabit` / `sleepHabit` / `weightHabit` をメモリ上固定オブジェクトとして定義
+    - `renderDailyHabitList` で toggle に応じてプリセットを `habitData` の前に結合表示
+    - CSS `.preset-toggle` 追加
+    - saveSettings() で toggle 値保存 + 即時 `renderDailyHabitList()` 呼び出し
+  - 仕様書 4.4.7 節新設、4.5 節の重複タイトル削除
 - **コミット**: 未 commit
 
 ---
