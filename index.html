@@ -1893,6 +1893,8 @@ function saveSettings(){
   updateGreeting();
   // プリセットの表示/非表示変更を即時反映
   if(typeof renderDailyHabitList === "function") renderDailyHabitList();
+  // LocalStorage に保存（リロード後も設定維持）
+  saveSettingsToLocalStorage();
 }
 function setThemeMode(mode){
   appSettings.themeMode = mode;
@@ -3989,6 +3991,22 @@ const appSettings = {
   devWeeklyCapUSD: 1.0,
 };
 
+/** 2026-07-29 追加：appSettings を LocalStorage に保存 / 復元。リロード後もユーザー設定を維持 */
+function saveSettingsToLocalStorage(){
+  try{
+    localStorage.setItem("sb_appSettings", JSON.stringify(appSettings));
+  } catch(e){ console.warn("設定の LocalStorage 保存に失敗:", e); }
+}
+function loadSettingsFromLocalStorage(){
+  try{
+    const raw = localStorage.getItem("sb_appSettings");
+    if(raw){
+      const saved = JSON.parse(raw);
+      Object.assign(appSettings, saved);
+    }
+  } catch(e){ console.warn("設定の LocalStorage 読み込みに失敗:", e); }
+}
+
 // 全ての Habit は 09_Habit/{id}.md から読み込む。サンプルデータは廃止（2026-07-29）。
 // 起床/就寝/ウェイトは「基本の習慣」としてプリセット。設定画面の toggle で表示/非表示切り替え。
 const habitData = [];
@@ -4380,13 +4398,16 @@ async function persistHabitChange(habitId, updates){
   }
 }
 /* ============ 未完了タスクの整理（スワイプ Yes/No） ============ */
-// 完了していない open タスクを 1 件ずつカード表示。スワイプ（外部タップ）で「継続」/「完了」判定。
+// 完了していない open タスクを 1 件ずつカード表示。スワイプ（外部タップ）で「続ける」/「完了」判定。
 // 2026-07-29 仕様変更：staleReviewDays 経過の絞り込みを廃止し、「未完了（open）タスク全て」に対象を拡大。
+// 2026-07-29 修正：今日すでに整理したタスク（lastConfirmed === 今日）は本日の整理対象から除外。
 // 設定画面の Task 見直しタイム間隔は無関係になったが、互換性のため appSettings.staleReviewDays は残す。
 function getUnfinishedQueue(){
+  const today = APP_TODAY.toISOString().slice(0,10);
   return taskData.filter(t=>{
     if(t.status!=="open") return false;
     if(isBlocked(t)) return false; // 依存待ちタスクは整理対象外
+    if(t.lastConfirmed === today) return false; // 今日すでに整理したタスクは除外
     return true;
   }).sort((a,b)=>{
     // 優先度（priority）が小さい順 → 古い順
@@ -4597,6 +4618,7 @@ function renderArchive(){
     </div>`;
 }
 
+loadSettingsFromLocalStorage(); // 2026-07-29 追加：保存済み設定を復元
 renderTasks("all"); // 全定義が揃った後で初回描画
 
 /** Tasksタブを開く：現在表示中のサブタブ(Daily/Ad Hoc)を最新化してから開く */
