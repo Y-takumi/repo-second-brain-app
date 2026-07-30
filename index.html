@@ -3485,101 +3485,6 @@ function radiusBase(d){
   return d.type==="branch" ? 12 : (d.type==="insight"||d.type==="experiment") ? (9+(d.occ?(d.occ-1)*2:0)) : (5+((d.confidence||50)/100)*4);
 }
 
-/** 過去 30 日の起床時刻／就寝予定時刻の推移グラフ（Canvas 実装、骨格のみ） */
-function renderRhythmChart(){
-  const canvas = document.getElementById("rhythm-canvas");
-  if(!canvas) return;
-  const ctx = canvas.getContext("2d");
-  const W = canvas.width = 350;
-  const H = canvas.height = 160;
-  ctx.clearRect(0, 0, W, H);
-
-  // 過去 30 日のデータ収集
-  const wakeData = [];
-  const sleepData = [];
-  let wakeSum = 0, wakeCount = 0;
-  let sleepSum = 0, sleepCount = 0;
-  for(let i = 29; i >= 0; i--){
-    const k = d(-i);
-    const wt = wakeHabit.wakeTime[k];
-    const st = sleepHabit.sleepPlannedTime[k];
-    const idx = 29 - i;
-    if(wt){
-      const [hh, mm] = wt.split(":").map(Number);
-      const minutes = hh * 60 + mm;
-      wakeData.push({ idx, minutes });
-      wakeSum += minutes; wakeCount++;
-    }
-    if(st){
-      const [hh, mm] = st.split(":").map(Number);
-      const minutes = hh * 60 + mm;
-      sleepData.push({ idx, minutes });
-      sleepSum += minutes; sleepCount++;
-    }
-  }
-
-  // 平均値の表示
-  const avgWake = wakeCount > 0 ? `${Math.floor(wakeSum/wakeCount/60).toString().padStart(2,"0")}:${Math.floor((wakeSum/wakeCount)%60).toString().padStart(2,"0")}` : "--:--";
-  const avgSleep = sleepCount > 0 ? `${Math.floor(sleepSum/sleepCount/60).toString().padStart(2,"0")}:${Math.floor((sleepSum/sleepCount)%60).toString().padStart(2,"0")}` : "--:--";
-  document.getElementById("rhythm-avg-wake").textContent = avgWake;
-  document.getElementById("rhythm-avg-sleep").textContent = avgSleep;
-
-  if(!wakeData.length && !sleepData.length){
-    ctx.fillStyle = "#888";
-    ctx.font = "11px var(--serif, sans-serif)";
-    ctx.textAlign = "center";
-    ctx.fillText("起床・就寝のデータがありません", W/2, H/2);
-    return;
-  }
-
-  // 軸：起床は 4:00-9:00 (240-540 分)、就寝は 21:00-25:00 (1260-1500 分)
-  const wakeMin = 4 * 60, wakeMax = 9 * 60;
-  const sleepMin = 21 * 60, sleepMax = 27 * 60; // 25:00 = 翌日 1:00
-  const yWakeToCanvas = (m) => 30 + (1 - (m - wakeMin) / (wakeMax - wakeMin)) * (H - 60);
-  const ySleepToCanvas = (m) => 30 + (1 - (m - sleepMin) / (sleepMax - sleepMin)) * (H - 60);
-  const xToCanvas = (idx) => 30 + (idx / 29) * (W - 60);
-
-  // 起床ライン（青）
-  if(wakeData.length >= 1){
-    ctx.strokeStyle = "#5a8fcf";
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    wakeData.forEach((p, i) => {
-      const x = xToCanvas(p.idx);
-      const y = yWakeToCanvas(p.minutes);
-      if(i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
-    });
-    ctx.stroke();
-    wakeData.forEach(p => {
-      ctx.fillStyle = "#5a8fcf";
-      ctx.beginPath();
-      ctx.arc(xToCanvas(p.idx), yWakeToCanvas(p.minutes), 3, 0, Math.PI*2);
-      ctx.fill();
-    });
-  }
-
-  // 就寝ライン（紫）
-  if(sleepData.length >= 1){
-    ctx.strokeStyle = "#a87fcf";
-    ctx.lineWidth = 2;
-    ctx.setLineDash([4, 2]);
-    ctx.beginPath();
-    sleepData.forEach((p, i) => {
-      const x = xToCanvas(p.idx);
-      const y = ySleepToCanvas(p.minutes);
-      if(i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
-    });
-    ctx.stroke();
-    ctx.setLineDash([]);
-    sleepData.forEach(p => {
-      ctx.fillStyle = "#a87fcf";
-      ctx.beginPath();
-      ctx.arc(xToCanvas(p.idx), ySleepToCanvas(p.minutes), 3, 0, Math.PI*2);
-      ctx.fill();
-    });
-  }
-}
-
 /** テーマ切り替え時だけ呼ぶ。新しいノード集合でレイアウトを1から組み直す */
 function renderGraph(theme, event){
   renderRhythmChart();
@@ -4110,6 +4015,102 @@ renderLibrary();
 
 /* ============ Tasks ============ */
 const APP_TODAY = new Date("2026-07-08"); // アプリ内の「今日」
+
+/** 過去 30 日の起床時刻／就寝予定時刻の推移グラフ（Canvas 実装、骨格のみ）
+ * 注意：APP_TODAY 宣言後に定義すること */
+function renderRhythmChart(){
+  const canvas = document.getElementById("rhythm-canvas");
+  if(!canvas) return;
+  const ctx = canvas.getContext("2d");
+  const W = canvas.width = 350;
+  const H = canvas.height = 160;
+  ctx.clearRect(0, 0, W, H);
+
+  // 過去 30 日のデータ収集
+  const wakeData = [];
+  const sleepData = [];
+  let wakeSum = 0, wakeCount = 0;
+  let sleepSum = 0, sleepCount = 0;
+  for(let i = 29; i >= 0; i--){
+    const k = d(-i);
+    const wt = wakeHabit.wakeTime[k];
+    const st = sleepHabit.sleepPlannedTime[k];
+    const idx = 29 - i;
+    if(wt){
+      const [hh, mm] = wt.split(":").map(Number);
+      const minutes = hh * 60 + mm;
+      wakeData.push({ idx, minutes });
+      wakeSum += minutes; wakeCount++;
+    }
+    if(st){
+      const [hh, mm] = st.split(":").map(Number);
+      const minutes = hh * 60 + mm;
+      sleepData.push({ idx, minutes });
+      sleepSum += minutes; sleepCount++;
+    }
+  }
+
+  // 平均値の表示
+  const avgWake = wakeCount > 0 ? `${Math.floor(wakeSum/wakeCount/60).toString().padStart(2,"0")}:${Math.floor((wakeSum/wakeCount)%60).toString().padStart(2,"0")}` : "--:--";
+  const avgSleep = sleepCount > 0 ? `${Math.floor(sleepSum/sleepCount/60).toString().padStart(2,"0")}:${Math.floor((sleepSum/sleepCount)%60).toString().padStart(2,"0")}` : "--:--";
+  document.getElementById("rhythm-avg-wake").textContent = avgWake;
+  document.getElementById("rhythm-avg-sleep").textContent = avgSleep;
+
+  if(!wakeData.length && !sleepData.length){
+    ctx.fillStyle = "#888";
+    ctx.font = "11px var(--serif, sans-serif)";
+    ctx.textAlign = "center";
+    ctx.fillText("起床・就寝のデータがありません", W/2, H/2);
+    return;
+  }
+
+  // 軸：起床は 4:00-9:00 (240-540 分)、就寝は 21:00-25:00 (1260-1500 分)
+  const wakeMin = 4 * 60, wakeMax = 9 * 60;
+  const sleepMin = 21 * 60, sleepMax = 27 * 60; // 25:00 = 翌日 1:00
+  const yWakeToCanvas = (m) => 30 + (1 - (m - wakeMin) / (wakeMax - wakeMin)) * (H - 60);
+  const ySleepToCanvas = (m) => 30 + (1 - (m - sleepMin) / (sleepMax - sleepMin)) * (H - 60);
+  const xToCanvas = (idx) => 30 + (idx / 29) * (W - 60);
+
+  // 起床ライン（青）
+  if(wakeData.length >= 1){
+    ctx.strokeStyle = "#5a8fcf";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    wakeData.forEach((p, i) => {
+      const x = xToCanvas(p.idx);
+      const y = yWakeToCanvas(p.minutes);
+      if(i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    });
+    ctx.stroke();
+    wakeData.forEach(p => {
+      ctx.fillStyle = "#5a8fcf";
+      ctx.beginPath();
+      ctx.arc(xToCanvas(p.idx), yWakeToCanvas(p.minutes), 3, 0, Math.PI*2);
+      ctx.fill();
+    });
+  }
+
+  // 就寝ライン（紫）
+  if(sleepData.length >= 1){
+    ctx.strokeStyle = "#a87fcf";
+    ctx.lineWidth = 2;
+    ctx.setLineDash([4, 2]);
+    ctx.beginPath();
+    sleepData.forEach((p, i) => {
+      const x = xToCanvas(p.idx);
+      const y = ySleepToCanvas(p.minutes);
+      if(i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    });
+    ctx.stroke();
+    ctx.setLineDash([]);
+    sleepData.forEach(p => {
+      ctx.fillStyle = "#a87fcf";
+      ctx.beginPath();
+      ctx.arc(xToCanvas(p.idx), ySleepToCanvas(p.minutes), 3, 0, Math.PI*2);
+      ctx.fill();
+    });
+  }
+}
 
 /* ============ Habit（毎日の習慣） ============ */
 function d(offset){ const x=new Date(APP_TODAY); x.setDate(x.getDate()+offset); return x.toISOString().slice(0,10); }
