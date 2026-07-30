@@ -277,15 +277,17 @@
   .morning-gate-date{font-size:12.5px; color:var(--ink-faint); font-family:var(--mono); margin-bottom:32px;}
   .morning-gate-btn{flex:none; padding:14px 36px; font-size:14px;}
 
-  /* 常時表示のおやすみボタン */
+  /* 常時表示のおやすみボタン（右上固定、インカメラより下） */
   .night-fab{
+    position:fixed; top:calc(env(safe-area-inset-top, 0px) + 14px); right:14px; z-index:1000;
     background:#182338; border:1px solid #7ca9f0; color:#7ca9f0;
-    padding:5px 12px; border-radius:20px; font-size:10.5px; font-weight:600; cursor:pointer;
+    padding:5px 12px; border-radius:20px; font-size:11px; font-weight:600; cursor:pointer;
     box-shadow:0 4px 16px rgba(0,0,0,.45); white-space:nowrap;
   }
   .back-fab{
-    width:30px; height:30px; border-radius:9px; background:var(--surface); border:1px solid var(--border);
-    color:var(--ink); font-size:28px; line-height:1; display:flex; align-items:center; justify-content:center;
+    position:fixed; top:calc(env(safe-area-inset-top, 0px) + 14px); left:14px; z-index:1000;
+    width:32px; height:32px; border-radius:10px; background:var(--surface); border:1px solid var(--border);
+    color:var(--ink); font-size:22px; line-height:1; display:flex; align-items:center; justify-content:center;
     cursor:pointer; flex-shrink:0;
   }
 
@@ -4984,14 +4986,15 @@ function updateWakeTimeNow(hhmm){
   persistHabitChange(wakeHabit.id, { wake_time: wakeHabit.wakeTime });
 }
 
-/** おはよう画面のプリセット：現在時刻を 5 分刻みに丸め、前後 2 個ずつ（計 5 個） */
+/** おはよう画面のプリセット：現在時刻を 5 分刻みに丸め、過去 5 個（過去 20 分～現在）。
+ * 未来時刻に「起きる」は意味がないため、過去のみ提示。 */
 function computeWakePresetTimes(){
   const now = new Date();
   const minutes = now.getMinutes();
   const baseMin = Math.floor(minutes / 5) * 5;
   const baseHour = now.getHours();
   const out = [];
-  for(let i = -2; i <= 2; i++){
+  for(let i = -4; i <= 0; i++){
     let totalMin = baseHour * 60 + baseMin + i * 5;
     if(totalMin < 0) totalMin += 24 * 60;
     if(totalMin >= 24 * 60) totalMin -= 24 * 60;
@@ -5248,7 +5251,9 @@ function updateNightFab(){
   const windowStart = new Date(target.getTime() - 60*60000);
   const sleepHabit = habitData.find(x=>x.special==="sleep");
   const alreadyDone = sleepHabit && (d(0) in sleepHabit.log);
-  const show = now >= windowStart && !alreadyDone && hasGreetedToday;
+  // HOME.todaybrief 画面では表示しない（朝のおやすみボタンは不要）
+  const onHomeTab = document.getElementById("screen-todaybrief")?.classList.contains("active");
+  const show = now >= windowStart && !alreadyDone && hasGreetedToday && !onHomeTab;
   fab.style.display = show ? "" : "none";
 }
 
