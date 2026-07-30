@@ -667,6 +667,47 @@
 - **状態**: 未着手（余裕があれば）
 - **備考**: おやすみタイミング以外でも今日の習慣を記録可能に。ホームタブ or タスクタブから既存のカードスタックを呼び出せる導線
 
+---
+
+## 2026-07-30 セッション（Phase 3-6 実装 + バグ修正 + Playwright テスト）
+
+### Task 94: renderRhythmChart の hoisting 問題修正
+- **状態**: completed
+- **完了評価**: 成功
+- **備考**: ユーザー報告「Cannot access 'APP_TODAY' before initialization at d」。renderRhythmChart を APP_TODAY 宣言後に移動。
+- **コミット**: 9a36f97（push 済み）
+
+### Task 95: renderGraph 起動呼び出し位置修正
+- **状態**: completed
+- **完了評価**: 成功
+- **備考**: ユーザー報告「Cannot access 'wakeHabit' before initialization」。renderGraph("healthcare") 呼び出しを wakeHabit 宣言後に移動。
+- **コミット**: a7c84ed（push 済み）
+
+### Task 96: CLAUDE.md に Playwright テスト方針追記
+- **状態**: completed
+- **完了評価**: 成功
+- **備考**: ユーザー指示「テストはあなたができる部分はすべて実行」「可能なかぎり Playwright で」「想定通り動作しない場合はサーバー再起動・ハードリロード後再テスト、それでも改善しなければ調査報告」
+- 追記内容：動作確認の分担、想定通り動作しない場合のフロー、Playwright テスト方針
+- **コミット**: 9b8d9e8（push 済み）
+
+### Task 97: Playwright 動作テスト全項目
+- **状態**: completed
+- **完了評価**: 成功（CDN ブロック対応で自動テスト可能）
+- **備考**:
+  - 外部 CDN の d3 / js-yaml は vendor/ ローカル化済み（ブロックなし）
+  - GSI のみ ERR_BLOCKED_BY_CLIENT（OAuth テストのみ影響、ロジックテストには無影響）
+  - テスト結果：
+    - 初期表示：エラーなし（GSI 除く）、おはようボタン表示
+    - おはようボタン → doGreetAction → HOME.todaybrief 遷移、起床時刻記録（21:30 に起床済み）
+    - Tasks バッジ：9（未完了タスク数）
+    - 設定タブ：プリセット toggle 3 つ表示（起床/就寝/ウェイト）、時刻 05:30/22:00、Task 見直し 7 日
+    - 探索タブ → Canvas 描画成功（819 ピクセル）、平均起床・就寝 "--:--"（データなし、メッセージ表示）
+    - Tasks タブ → アドホック → 未完了レビュー「ビジョンマップ」（priority 1）
+    - 「完了」タップ → バッジ 9 → 8、次のタスク「6.5時間睡眠」
+    - 「続ける」タップ → バッジ 8 → 7、次のタスク「過集中傾向」
+  - 制約：OAuth 認証が必要な機能（Drive 接続、persistHabitChange 経由の永続化）は Playwright 範囲外
+- **コミット**: 9b8d9e8（push 済み）
+
 ### Explore グラフパーサー
 - **状態**: 未着手
 - **備考**: 仕様書 4.7.2 で「最も複雑」と注記あり
