@@ -4020,9 +4020,6 @@ renderLibrary();
 /* ============ Tasks ============ */
 const APP_TODAY = new Date("2026-07-08"); // アプリ内の「今日」
 
-// 起動時の renderGraph 呼び出し（APP_TODAY 宣言後に移動。TDZ 対策）
-renderGraph("healthcare");
-
 /** 過去 30 日の起床時刻／就寝予定時刻の推移グラフ（Canvas 実装、骨格のみ）
  * 注意：APP_TODAY 宣言後に定義すること */
 function renderRhythmChart(){
@@ -4158,6 +4155,9 @@ const habitData = [];
 const wakeHabit = { id:"h-wake", title:"起床", special:"wake", themes:["healthcare"], log:{}, wakeTime:{}, checkTime:null };
 const sleepHabit = { id:"h-sleep", title:"就寝", special:"sleep", themes:["healthcare"], log:{}, sleepPlannedTime:{}, checkTime:null };
 const weightHabit = { id:"h-weight", title:"ウェイトトレーニング", special:"weight_training", themes:["healthcare"], log:{}, checkTime:"morning" };
+
+// 起動時の renderGraph 呼び出し（wakeHabit 等宣言後。TDZ 対策）
+renderGraph("healthcare");
 
 function habitStreak(h){
   let streak = 0;
