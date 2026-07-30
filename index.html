@@ -373,6 +373,10 @@
   .brief-wake-sleep-row input[type="time"]{font-size:11px; padding:5px 8px; max-width:120px;}
   .brief-wake-sleep-label{font-weight:600;}
   .brief-wake-sleep-status{font-size:10.5px; color:var(--ink-faint); margin-left:auto;}
+  .time-preset-row{display:flex; gap:5px; flex-wrap:wrap; padding:4px 0 8px; margin-left:0;}
+  .time-preset-btn{font-size:11px; padding:5px 10px; border-radius:14px; background:var(--surface); color:var(--ink-dim); border:1px solid var(--border); cursor:pointer; font-family:var(--mono); transition:all 0.15s;}
+  .time-preset-btn:hover{background:var(--surface2); border-color:var(--primary); color:var(--ink);}
+  .time-preset-btn.active{background:var(--primary); color:#fff; border-color:var(--primary); font-weight:600;}
   .brief-goodnight-btn{position:absolute; top:14px; right:14px; background:var(--surface); color:var(--primary); border:1px solid var(--primary); border-radius:20px; padding:6px 14px; font-size:11px; font-weight:600; cursor:pointer; box-shadow:0 2px 8px rgba(0,0,0,0.15); z-index:5;}
   .brief-goodnight-btn:disabled{opacity:0.4; cursor:not-allowed; border-color:var(--border); color:var(--ink-faint); background:var(--surface2); box-shadow:none;}
   .brief-goodnight-btn:not(:disabled):hover{background:var(--primary); color:#fff;}
@@ -1643,6 +1647,13 @@ const vaultSeedFiles = [
       <input type="time" step="300" id="goodnight-sleep-time" onchange="updateSleepPlannedTimeNow(this.value)">
       <span class="brief-wake-sleep-status" id="goodnight-default-sleep-hint"></span>
     </div>
+    <div class="time-preset-row" id="goodnight-sleep-presets">
+      <button class="time-preset-btn" onclick="setSleepPlannedPreset('22:00')">22:00</button>
+      <button class="time-preset-btn" onclick="setSleepPlannedPreset('22:30')">22:30</button>
+      <button class="time-preset-btn" onclick="setSleepPlannedPreset('23:00')">23:00</button>
+      <button class="time-preset-btn" onclick="setSleepPlannedPreset('23:30')">23:30</button>
+      <button class="time-preset-btn" onclick="setSleepPlannedPreset('00:00')">00:00</button>
+    </div>
 
     <div class="section-label">今日の振り返り</div>
     <div id="goodnight-tasks"></div>
@@ -1680,12 +1691,26 @@ const vaultSeedFiles = [
       </label>
       <input class="url-input preset-time-input" type="time" id="set-wake-time" onchange="saveSettings()">
     </div>
+    <div class="time-preset-row" style="padding-left:0;">
+      <button class="time-preset-btn" onclick="setWakePreset('05:00')">05:00</button>
+      <button class="time-preset-btn" onclick="setWakePreset('05:30')">05:30</button>
+      <button class="time-preset-btn" onclick="setWakePreset('06:00')">06:00</button>
+      <button class="time-preset-btn" onclick="setWakePreset('06:30')">06:30</button>
+      <button class="time-preset-btn" onclick="setWakePreset('07:00')">07:00</button>
+    </div>
     <div class="preset-toggle-row">
       <label class="preset-toggle">
         <input type="checkbox" id="set-show-sleep" onchange="saveSettings()">
         <span>🛏️ 就寝</span>
       </label>
       <input class="url-input preset-time-input" type="time" id="set-sleep-time" onchange="saveSettings()">
+    </div>
+    <div class="time-preset-row" style="padding-left:0;">
+      <button class="time-preset-btn" onclick="setSleepPreset('22:00')">22:00</button>
+      <button class="time-preset-btn" onclick="setSleepPreset('22:30')">22:30</button>
+      <button class="time-preset-btn" onclick="setSleepPreset('23:00')">23:00</button>
+      <button class="time-preset-btn" onclick="setSleepPreset('23:30')">23:30</button>
+      <button class="time-preset-btn" onclick="setSleepPreset('00:00')">00:00</button>
     </div>
     <div class="preset-toggle-row">
       <label class="preset-toggle">
@@ -4946,6 +4971,33 @@ function updateSleepPlannedTimeNow(hhmm){
   persistHabitChange(sleepHabit.id, { sleep_planned_time: sleepHabit.sleepPlannedTime });
 }
 
+/** おやすみ画面のプリセットボタン：タップで時刻をセット＆プリセットの active 状態を更新 */
+function setSleepPlannedPreset(time){
+  const input = document.getElementById("goodnight-sleep-time");
+  if(input) input.value = time;
+  updateSleepPlannedTimeNow(time);
+  document.querySelectorAll("#goodnight-sleep-presets .time-preset-btn").forEach(btn => {
+    btn.classList.toggle("active", btn.textContent.trim() === time);
+  });
+}
+
+/** 設定画面のプリセット：起床時刻 */
+function setWakePreset(time){
+  const input = document.getElementById("set-wake-time");
+  if(input){
+    input.value = time;
+    saveSettings();
+  }
+}
+/** 設定画面のプリセット：就寝時刻 */
+function setSleepPreset(time){
+  const input = document.getElementById("set-sleep-time");
+  if(input){
+    input.value = time;
+    saveSettings();
+  }
+}
+
 /* ---- 朝の門番画面 ---- */
 let hasGreetedToday = false;
 function updateMorningGateClock(){
@@ -5086,20 +5138,17 @@ function renderTodayBrief(){
   document.getElementById("brief-date").textContent =
     new Date().toLocaleDateString("ja-JP", {month:"long", day:"numeric", weekday:"long"});
 
-  // 今日の起床・就寝（5 分刻み編集可能）
+  // 今日の起床（5 分刻み編集可能 + プリセットボタン）。就寝予定時刻はおやすみ画面で入力。
   const todayKey = d(0);
   const wakeTime = wakeHabit.wakeTime[todayKey];
-  const sleepPlanned = sleepHabit.sleepPlannedTime[todayKey];
   document.getElementById("brief-wake-sleep").innerHTML = `
     <div class="brief-wake-sleep-row">
       <span class="brief-wake-sleep-label">☀️ 起床</span>
       <input type="time" step="300" value="${wakeTime || ""}" onchange="updateWakeTimeNow(this.value)">
       <span class="brief-wake-sleep-status">${wakeTime ? `${wakeTime} に起床済み` : "未記録（おはようボタンで自動記録）"}</span>
     </div>
-    <div class="brief-wake-sleep-row">
-      <span class="brief-wake-sleep-label">🛏️ 就寝予定</span>
-      <input type="time" step="300" value="${sleepPlanned || ""}" onchange="updateSleepPlannedTimeNow(this.value)">
-      <span class="brief-wake-sleep-status">${sleepPlanned ? `${sleepPlanned} に就寝予定` : "未記録（おやすみボタンで自動記録）"}</span>
+    <div class="time-preset-row">
+      ${["05:00","05:30","06:00","06:30","07:00"].map(t => `<button class="time-preset-btn ${wakeTime===t?"active":""}" onclick="updateWakeTimeNow('${t}')">${t}</button>`).join("")}
     </div>`;
 
   document.getElementById("brief-workout").innerHTML =
