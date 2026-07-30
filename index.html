@@ -1631,7 +1631,8 @@ const vaultSeedFiles = [
       <h1 class="page-title" id="brief-title">おはようございます</h1>
       <p class="page-sub" id="brief-date"></p>
     </div>
-    <button class="brief-goodnight-btn" id="brief-goodnight-btn" onclick="openGoodnight()">🌙 今日はお休み</button>
+    <!-- 2026-07-30 削除：おはよう画面におやすみボタンは不要。
+         おやすみボタンは morning gate 画面の night-fab（右下）のみ。 -->
 
     <div class="section-label">今日の起床・就寝</div>
     <div id="brief-wake-sleep"></div>
@@ -4982,6 +4983,24 @@ function updateWakeTimeNow(hhmm){
   renderTodayBrief();
   persistHabitChange(wakeHabit.id, { wake_time: wakeHabit.wakeTime });
 }
+
+/** おはよう画面のプリセット：現在時刻を 5 分刻みに丸め、前後 2 個ずつ（計 5 個） */
+function computeWakePresetTimes(){
+  const now = new Date();
+  const minutes = now.getMinutes();
+  const baseMin = Math.floor(minutes / 5) * 5;
+  const baseHour = now.getHours();
+  const out = [];
+  for(let i = -2; i <= 2; i++){
+    let totalMin = baseHour * 60 + baseMin + i * 5;
+    if(totalMin < 0) totalMin += 24 * 60;
+    if(totalMin >= 24 * 60) totalMin -= 24 * 60;
+    const h = Math.floor(totalMin / 60);
+    const m = totalMin % 60;
+    out.push(`${String(h).padStart(2,"0")}:${String(m).padStart(2,"0")}`);
+  }
+  return out;
+}
 /** ホームタブの就寝予定時刻編集 */
 function updateSleepPlannedTimeNow(hhmm){
   if(!hhmm || !/^\d{2}:\d{2}$/.test(hhmm)) return;
@@ -5168,7 +5187,7 @@ function renderTodayBrief(){
       <span class="brief-wake-sleep-status">${wakeTime ? `${wakeTime} に起床済み` : "未記録（おはようボタンで自動記録）"}</span>
     </div>
     <div class="time-preset-row">
-      ${["05:00","05:30","06:00","06:30","07:00"].map(t => `<button class="time-preset-btn ${wakeTime===t?"active":""}" onclick="updateWakeTimeNow('${t}')">${t}</button>`).join("")}
+      ${computeWakePresetTimes().map(t => `<button class="time-preset-btn ${wakeTime===t?"active":""}" onclick="updateWakeTimeNow('${t}')">${t}</button>`).join("")}
     </div>`;
 
   document.getElementById("brief-workout").innerHTML =
