@@ -3224,9 +3224,25 @@ async function refreshHabitFromDrive(){
   try{
     const items = await loadHabitFromDrive();
     if(items.length){
+      // wakeHabit / sleepHabit はメモリ上固定リテラル。Drive から読んだ special:"wake"/"sleep" の
+      // データをリテラル側に Object.assign でマージ（リテラルが Single Source of Truth）。
+      const wakeItem = items.find(x => x.special === "wake");
+      const sleepItem = items.find(x => x.special === "sleep");
+      if(wakeItem){
+        Object.assign(wakeHabit.wakeTime, wakeItem.wakeTime || {});
+        Object.assign(wakeHabit.log, wakeItem.log || {});
+      }
+      if(sleepItem){
+        Object.assign(sleepHabit.sleepPlannedTime, sleepItem.sleepPlannedTime || {});
+        Object.assign(sleepHabit.log, sleepItem.log || {});
+      }
+      // habitData には wake / sleep 以外の Habit を入れる（重複回避）
+      const others = items.filter(x => x.special !== "wake" && x.special !== "sleep");
       habitData.length = 0;
-      habitData.push(...items);
+      habitData.push(...others);
       renderDailyHabitList();
+      renderTodayBrief();
+      renderTasksWakeTimeEdit();
     }
   } catch(e){ console.error("Habit読み込みエラー:", e); }
 }
@@ -4533,7 +4549,10 @@ async function persistTaskChange(taskId, updates){
 /** Drive上にHabit ファイルが存在しない場合、メモリ上の habitData から新規作成する。
  * 初回「完了する」タップ時など、まだ Drive 上に Habit ファイルがない場面で使われる。 */
 async function createHabitInDrive(habitId){
-  const h = habitData.find(x => x.id === habitId);
+  // wakeHabit / sleepHabit はメモリ上固定リテラルで habitData 外のため、そちらも探す
+  let h = habitData.find(x => x.id === habitId);
+  if(!h && habitId === wakeHabit.id) h = wakeHabit;
+  if(!h && habitId === sleepHabit.id) h = sleepHabit;
   if(!h) throw new Error(`Habit が見つかりません: ${habitId}`);
 
   const rootId = await ensureVaultFolder();
