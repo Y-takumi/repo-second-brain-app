@@ -1625,8 +1625,9 @@ const vaultSeedFiles = [
     <div class="section-label">今日の起床・就寝</div>
     <div id="brief-wake-sleep"></div>
 
-    <div class="section-label">今日の筋トレメニュー <span class="brief-ext-badge">外部ツール連携予定</span></div>
-    <div id="brief-workout"></div>
+    <!-- 2026-08-02 筋トレメニュー非表示（外部ツール完成まで） -->
+    <!-- <div class="section-label">今日の筋トレメニュー <span class="brief-ext-badge">外部ツール連携予定</span></div>
+    <div id="brief-workout"></div> -->
 
     <div class="section-label">通勤中にチェックしたいコンテンツ <span class="brief-ext-badge">AI提案・サンプル</span></div>
     <div id="brief-commute"></div>
@@ -1637,7 +1638,7 @@ const vaultSeedFiles = [
     <div class="section-label" style="margin-top:26px;">気になっているTask</div>
     <div id="brief-tasks"></div>
 
-    <button class="btn-primary" id="brief-cta" style="margin-top:20px;" onclick="goTo('capture')">今日を始める</button>
+    <!-- 2026-08-02 「今日を始める」ボタンは設定画面に移動 -->
   </div>
 
   <!-- ===== GOODNIGHT（おやすみボタンから遷移する締めくくり画面） ===== -->
@@ -1700,12 +1701,8 @@ const vaultSeedFiles = [
       </label>
       <input class="url-input preset-time-input" type="time" id="set-wake-time" onchange="saveSettings()">
     </div>
-    <div class="time-preset-row" style="padding-left:0;">
-      <button class="time-preset-btn" onclick="setWakePreset('05:00')">05:00</button>
-      <button class="time-preset-btn" onclick="setWakePreset('05:30')">05:30</button>
-      <button class="time-preset-btn" onclick="setWakePreset('06:00')">06:00</button>
-      <button class="time-preset-btn" onclick="setWakePreset('06:30')">06:30</button>
-      <button class="time-preset-btn" onclick="setWakePreset('07:00')">07:00</button>
+    <div class="time-preset-row" style="padding-left:0; display:none;">
+      <!-- 2026-08-02 30分刻みボタン廃止。時刻は直接入力（input[type=time]）のみ。 -->
     </div>
     <div class="preset-toggle-row">
       <label class="preset-toggle">
@@ -1714,12 +1711,8 @@ const vaultSeedFiles = [
       </label>
       <input class="url-input preset-time-input" type="time" id="set-sleep-time" onchange="saveSettings()">
     </div>
-    <div class="time-preset-row" style="padding-left:0;">
-      <button class="time-preset-btn" onclick="setSleepPreset('22:00')">22:00</button>
-      <button class="time-preset-btn" onclick="setSleepPreset('22:30')">22:30</button>
-      <button class="time-preset-btn" onclick="setSleepPreset('23:00')">23:00</button>
-      <button class="time-preset-btn" onclick="setSleepPreset('23:30')">23:30</button>
-      <button class="time-preset-btn" onclick="setSleepPreset('00:00')">00:00</button>
+    <div class="time-preset-row" style="padding-left:0; display:none;">
+      <!-- 2026-08-02 30分刻みボタン廃止。時刻は直接入力（input[type=time]）のみ。 -->
     </div>
     <div class="preset-toggle-row">
       <label class="preset-toggle">
@@ -1727,6 +1720,9 @@ const vaultSeedFiles = [
         <span>🏋️ ウェイト</span>
       </label>
     </div>
+
+    <button class="btn-primary" id="brief-cta" style="margin-top:20px; width:100%;" onclick="startBrief()">今日を始める</button>
+    <div class="settings-hint" style="margin-top:6px;">おはようボタン押下後、HOME と設定タブのみ移動できます。「今日を始める」を押すと、起床/就寝予定時刻が Drive に登録され、全タブが使えるようになります</div>
 
     <div class="field-label" style="margin-top:22px;">アカウント名</div>
     <input class="url-input" type="text" id="set-username" placeholder="表示する名前" onchange="saveSettings()">
@@ -3293,6 +3289,11 @@ let goToToken = 0;
 let navStack = []; // 戻るボタン用の遷移履歴
 function goTo(name, opts){
   opts = opts || {};
+  // 2026-08-02 タブ遷移制限：「今日を始める」押下前は HOME と設定のみ
+  if(!briefStarted && name !== "todaybrief" && name !== "settings" && name !== "morninggate" && name !== "goodnight"){
+    console.warn("「今日を始める」を押すまで、このタブには移動できません");
+    return;
+  }
   const myToken = ++goToToken; // 途中で別の遷移が割り込んだ場合、古い方を無効化するための印
   const next = document.getElementById("screen-"+name);
   const current = currentScreenName ? document.getElementById("screen-"+currentScreenName) : null;
@@ -5301,6 +5302,25 @@ function setSleepPlannedPreset(time){
   });
 }
 
+/** 2026-08-02 「今日を始める」ボタン押下時
+ * - 起床時刻・就寝予定時刻を persistHabitChange で Drive に保存
+ * - briefStarted を true にしてタブ遷移制限を解除
+ * - HOME 画面に戻る */
+async function startBrief(){
+  const todayKey = d(0);
+  // 起床時刻を Drive に保存（入力されている場合のみ）
+  if(wakeHabit.wakeTime[todayKey]){
+    await persistHabitChange(wakeHabit.id, { wake_time: wakeHabit.wakeTime });
+  }
+  // 就寝予定時刻を Drive に保存（入力されている場合のみ）
+  if(sleepHabit.sleepPlannedTime[todayKey]){
+    await persistHabitChange(sleepHabit.id, { sleep_planned_time: sleepHabit.sleepPlannedTime });
+  }
+  // タブ遷移制限を解除
+  briefStarted = true;
+  goTo("todaybrief");
+}
+
 /** 設定画面のプリセット：起床時刻 */
 function setWakePreset(time){
   const input = document.getElementById("set-wake-time");
@@ -5309,7 +5329,7 @@ function setWakePreset(time){
     saveSettings();
   }
 }
-/** 設定画面のプリセット：就寝時刻 */
+/** 設定画面のプリセット：就寝時刻（2026-08-02 廃止、関数のみ残置） */
 function setSleepPreset(time){
   const input = document.getElementById("set-sleep-time");
   if(input){
@@ -5320,6 +5340,9 @@ function setSleepPreset(time){
 
 /* ---- 朝の門番画面 ---- */
 let hasGreetedToday = false;
+/** 2026-08-02 「今日を始める」ボタン押下前は false、押下後に true。
+ *  false の間は HOME と設定タブのみ遷移可能（goTo 関数で制御） */
+let briefStarted = false;
 function updateMorningGateClock(){
   const timeEl = document.getElementById("morning-gate-time");
   const dateEl = document.getElementById("morning-gate-date");
@@ -5374,6 +5397,7 @@ function spawnBurstElements(){
 async function dismissMorningGate(){
   await doGreetAction("wake");
   hasGreetedToday = true;
+  briefStarted = false; // 2026-08-02 タブ遷移制限開始（HOME と設定のみ）
   renderDailyHabitList();
 
   const overlay = document.getElementById("sunrise-overlay");
@@ -5486,26 +5510,29 @@ function renderTodayBrief(){
       ${computeSleepPresetTimes().map(t => `<button class="time-preset-btn ${sleepPlannedTime===t?"active":""}" onclick="updateSleepPlannedTimeNow('${t}')">${t}</button>`).join("")}
     </div>`;
 
-  document.getElementById("brief-workout").innerHTML =
-    workoutProgress.map(w=>{
-      const t = computeSetTargets(w.base, w.increment, w.level);
-      const weeklyDelta = w.totalLevelUps - w.weekStartTotalLevelUps;
-      const deltaMsg = weeklyDelta > 0
-        ? `🎉 今週+${weeklyDelta}レベル上がったね！`
-        : "今週はまだレベルアップなし。今日で決めよう";
-      return `
-      <div class="brief-workout-item" style="flex-direction:column; align-items:stretch; gap:5px;">
-        <div style="display:flex; align-items:center; gap:8px;">
-          <span class="name" style="font-weight:600;">${w.name}</span>
-          <span class="detail" style="margin-left:auto;">${t.set1.weight}kg レベル${w.level}</span>
-        </div>
-        <div style="font-size:10.5px; color:var(--ink-faint);">
-          1セット目 ${t.set1.weight}kg×${t.set1.reps}回　・　2セット目 ${t.set2.weight}kg×${t.set2.reps}回
-        </div>
-        <div style="font-size:10px; color:${weeklyDelta>0?'var(--healthcare)':'var(--ink-faint)'};">${deltaMsg}</div>
-      </div>`;
-    }).join("") +
-    `<div class="brief-workout-note">※ 将来作成予定のトレーニング記録アプリと連携予定。今はサンプル表示です</div>`;
+  // 2026-08-02 筋トレメニュー非表示（外部ツール完成まで）
+  // const briefWorkoutEl = document.getElementById("brief-workout");
+  // if(briefWorkoutEl){
+  //   briefWorkoutEl.innerHTML = workoutProgress.map(w=>{
+  //     const t = computeSetTargets(w.base, w.increment, w.level);
+  //     const weeklyDelta = w.totalLevelUps - w.weekStartTotalLevelUps;
+  //     const deltaMsg = weeklyDelta > 0
+  //       ? `🎉 今週+${weeklyDelta}レベル上がったね！`
+  //       : "今週はまだレベルアップなし。今日で決めよう";
+  //     return `
+  //     <div class="brief-workout-item" style="flex-direction:column; align-items:stretch; gap:5px;">
+  //       <div style="display:flex; align-items:center; gap:8px;">
+  //         <span class="name" style="font-weight:600;">${w.name}</span>
+  //         <span class="detail" style="margin-left:auto;">${t.set1.weight}kg レベル${w.level}</span>
+  //       </div>
+  //       <div style="font-size:10.5px; color:var(--ink-faint);">
+  //         1セット目 ${t.set1.weight}kg×${t.set1.reps}回　・　2セット目 ${t.set2.weight}kg×${t.set2.reps}回
+  //       </div>
+  //       <div style="font-size:10px; color:${weeklyDelta>0?'var(--healthcare)':'var(--ink-faint)'};">${deltaMsg}</div>
+  //     </div>`;
+  //   }).join("") +
+  //   `<div class="brief-workout-note">※ 将来作成予定のトレーニング記録アプリと連携予定。今はサンプル表示です</div>`;
+  // }
 
   // タスクは控えめに：優先度が高い、またはDueが近いものだけ最大3件（一番下に表示）
   const dueTasks = taskData.filter(t=>t.status==="open" && !isBlocked(t) && t.due)
