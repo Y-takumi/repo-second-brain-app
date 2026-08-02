@@ -5219,6 +5219,16 @@ function enableWakeTimeEditOnHome(){
   if(typeof input.select === "function") input.select();
 }
 
+/** HOME.todaybrief 就寝予定時刻欄の「変更」ボタン押下時：input を有効化（直接編集）
+ * 起床時刻と同じ UX（disabled → 編集 → onchange で update）に統一 */
+function enableSleepPlannedTimeEditOnHome(){
+  const input = document.getElementById("brief-sleep-planned-time");
+  if(!input) return;
+  input.disabled = false;
+  input.focus();
+  if(typeof input.select === "function") input.select();
+}
+
 /** Tasks タブ Daily 画面上部の起床時刻編集：input + プリセットボタン */
 function renderTasksWakeTimeEdit(){
   const container = document.getElementById('tasks-wake-time-edit');
@@ -5253,6 +5263,12 @@ function computeWakePresetTimes(){
     out.push(`${String(h).padStart(2,"0")}:${String(m).padStart(2,"0")}`);
   }
   return out;
+}
+
+/** 就寝予定時刻のプリセット：5 分刻みの固定値（22:00, 22:30, 23:00, 23:30, 00:00）。
+ * おやすみ画面と HOME.todaybrief で同じ候補を提示することで、入力体験を一貫させる */
+function computeSleepPresetTimes(){
+  return ["22:00", "22:30", "23:00", "23:30", "00:00"];
 }
 /** ホームタブの就寝予定時刻編集 */
 function updateSleepPlannedTimeNow(hhmm){
@@ -5433,6 +5449,7 @@ function renderTodayBrief(){
   // 今日の起床（5 分刻み編集可能 + プリセットボタン）。就寝予定時刻はおやすみ画面で入力。
   const todayKey = d(0);
   const wakeTime = wakeHabit.wakeTime[todayKey];
+  const sleepPlannedTime = sleepHabit.sleepPlannedTime[todayKey];
   document.getElementById("brief-wake-sleep").innerHTML = `
     <div class="brief-wake-sleep-row">
       <span class="brief-wake-sleep-label">☀️ 起床</span>
@@ -5442,6 +5459,15 @@ function renderTodayBrief(){
     </div>
     <div class="time-preset-row">
       ${computeWakePresetTimes().map(t => `<button class="time-preset-btn ${wakeTime===t?"active":""}" onclick="updateWakeTimeNow('${t}')">${t}</button>`).join("")}
+    </div>
+    <div class="brief-wake-sleep-row">
+      <span class="brief-wake-sleep-label">🛏️ 就寝予定</span>
+      <input type="time" step="300" id="brief-sleep-planned-time" value="${sleepPlannedTime || ""}" onchange="updateSleepPlannedTimeNow(this.value)" disabled>
+      <button class="time-preset-btn time-edit-toggle" onclick="enableSleepPlannedTimeEditOnHome()">変更</button>
+      <span class="brief-wake-sleep-status">${sleepPlannedTime ? `${sleepPlannedTime} に就寝予定` : "未設定（おやすみ画面で入力）"}</span>
+    </div>
+    <div class="time-preset-row">
+      ${computeSleepPresetTimes().map(t => `<button class="time-preset-btn ${sleepPlannedTime===t?"active":""}" onclick="updateSleepPlannedTimeNow('${t}')">${t}</button>`).join("")}
     </div>`;
 
   document.getElementById("brief-workout").innerHTML =
