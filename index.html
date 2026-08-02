@@ -4986,6 +4986,20 @@ function updateWakeTimeNow(hhmm){
   persistHabitChange(wakeHabit.id, { wake_time: wakeHabit.wakeTime });
 }
 
+/** HOME.todaybrief 起床時刻欄の「変更」ボタン押下時：input を有効化、prompt で値変更 */
+function enableWakeTimeEditOnHome(){
+  const input = document.querySelector('#brief-wake-sleep input[type="time"]');
+  if(!input) return;
+  input.disabled = false;
+  input.focus();
+  const newVal = prompt('起床時刻を入力してください（HH:MM 形式）', input.value || '');
+  if(newVal && /^\d{2}:\d{2}$/.test(newVal)){
+    updateWakeTimeNow(newVal);
+  } else {
+    renderTodayBrief(); // キャンセル時に disabled に戻す
+  }
+}
+
 /** おはよう画面のプリセット：現在時刻を 5 分刻みに丸め、過去 5 個（過去 20 分～現在）。
  * 未来時刻に「起きる」は意味がないため、過去のみ提示。 */
 function computeWakePresetTimes(){
@@ -5186,7 +5200,8 @@ function renderTodayBrief(){
   document.getElementById("brief-wake-sleep").innerHTML = `
     <div class="brief-wake-sleep-row">
       <span class="brief-wake-sleep-label">☀️ 起床</span>
-      <input type="time" step="300" value="${wakeTime || ""}" onchange="updateWakeTimeNow(this.value)">
+      <input type="time" step="300" value="${wakeTime || ""}" onchange="updateWakeTimeNow(this.value)" disabled>
+      <button class="time-preset-btn time-edit-toggle" onclick="enableWakeTimeEditOnHome()">変更</button>
       <span class="brief-wake-sleep-status">${wakeTime ? `${wakeTime} に起床済み` : "未記録（おはようボタンで自動記録）"}</span>
     </div>
     <div class="time-preset-row">
