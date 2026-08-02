@@ -379,7 +379,7 @@
   .brief-wake-sleep-row input[type="time"]:hover{background:var(--surface2); border-color:var(--primary);}
   .brief-wake-sleep-row input[type="time"]:focus{outline:none; border-color:var(--primary); background:var(--surface2);}
   .brief-wake-sleep-label{font-weight:600;}
-  .brief-wake-sleep-status{font-size:10.5px; color:var(--ink-faint); margin-left:auto;}
+  .brief-wake-sleep-status{font-size:10.5px; color:var(--ink-faint); margin-left:auto; white-space:nowrap;}
   .time-preset-row{display:flex; gap:5px; flex-wrap:wrap; padding:4px 0 8px; margin-left:0;}
   .time-preset-btn{font-size:11px; padding:5px 12px; border-radius:14px; background:var(--surface); color:var(--ink-dim); border:1px solid var(--border); cursor:pointer; font-family:var(--mono); transition:all 0.15s;}
   .time-preset-btn:hover{background:var(--surface2); border-color:var(--primary); color:var(--ink);}
@@ -5265,10 +5265,22 @@ function computeWakePresetTimes(){
   return out;
 }
 
-/** 就寝予定時刻のプリセット：5 分刻みの固定値（22:00, 22:30, 23:00, 23:30, 00:00）。
+/** 就寝予定時刻のプリセット：設定画面の targetSleepTime を起点に、未来の 5 分刻み 5 個を生成。
  * おやすみ画面と HOME.todaybrief で同じ候補を提示することで、入力体験を一貫させる */
 function computeSleepPresetTimes(){
-  return ["22:00", "22:30", "23:00", "23:30", "00:00"];
+  const target = parseTimeToday(appSettings.targetSleepTime);
+  // 設定時刻を 5 分刻みの基準に丸める（例: 22:07 → 22:05）
+  const baseMin = Math.floor(target.getMinutes() / 5) * 5;
+  const baseHour = target.getHours();
+  const out = [];
+  for(let i = 0; i < 5; i++){
+    let totalMin = baseHour * 60 + baseMin + i * 5;
+    if(totalMin >= 24 * 60) totalMin -= 24 * 60;
+    const h = Math.floor(totalMin / 60);
+    const m = totalMin % 60;
+    out.push(`${String(h).padStart(2,"0")}:${String(m).padStart(2,"0")}`);
+  }
+  return out;
 }
 /** ホームタブの就寝予定時刻編集 */
 function updateSleepPlannedTimeNow(hhmm){
@@ -5446,9 +5458,13 @@ function renderTodayBrief(){
   document.getElementById("brief-date").textContent =
     new Date().toLocaleDateString("ja-JP", {month:"long", day:"numeric", weekday:"long"});
 
-  // 今日の起床（5 分刻み編集可能 + プリセットボタン）。就寝予定時刻はおやすみ画面で入力。
+  // 今日の起床（5 分刻み編集可能 + プリセットボタン）。就寝予定時刻は設定画面の targetSleepTime をデフォルトで自動入力。
   const todayKey = d(0);
   const wakeTime = wakeHabit.wakeTime[todayKey];
+  // 就寝予定時刻が未入力の場合、設定画面の targetSleepTime から自動計算してデフォルト値とする（メモリ上のみ、リロードで再計算）
+  if(!sleepHabit.sleepPlannedTime[todayKey]){
+    sleepHabit.sleepPlannedTime[todayKey] = computeDefaultSleepPlannedTime();
+  }
   const sleepPlannedTime = sleepHabit.sleepPlannedTime[todayKey];
   document.getElementById("brief-wake-sleep").innerHTML = `
     <div class="brief-wake-sleep-row">
@@ -5464,7 +5480,7 @@ function renderTodayBrief(){
       <span class="brief-wake-sleep-label">🛏️ 就寝予定</span>
       <input type="time" step="300" id="brief-sleep-planned-time" value="${sleepPlannedTime || ""}" onchange="updateSleepPlannedTimeNow(this.value)" disabled>
       <button class="time-preset-btn time-edit-toggle" onclick="enableSleepPlannedTimeEditOnHome()">変更</button>
-      <span class="brief-wake-sleep-status">${sleepPlannedTime ? `${sleepPlannedTime} に就寝予定` : "未設定（おやすみ画面で入力）"}</span>
+      <span class="brief-wake-sleep-status">${sleepPlannedTime ? `${sleepPlannedTime} に就寝予定` : "未入力"}</span>
     </div>
     <div class="time-preset-row">
       ${computeSleepPresetTimes().map(t => `<button class="time-preset-btn ${sleepPlannedTime===t?"active":""}" onclick="updateSleepPlannedTimeNow('${t}')">${t}</button>`).join("")}
