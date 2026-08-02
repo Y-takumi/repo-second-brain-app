@@ -1054,6 +1054,37 @@
 
 ---
 
+## 2026-08-02 セッション（起床/就寝時刻のブラッシュアップ）
+
+### タスク前提
+- 直前セッションの `memory/second-brain-2026-08-02-sleep-planned-time-bug.md` で持ち越されていた「HOME.todaybrief の就寝予定時刻欄が表示されない」バグに着手
+- ユーザー方針：「就寝予定時刻欄バグ修正 + 登録UX の改善」「未 commit 変更はないはずなので、まず現状確認してから進める」（結果、未 commit 変更なしを確認）
+
+### Task 95: HOME.todaybrief に就寝予定時刻欄を追加（起床と対称な UX）
+- **状態**: completed
+- **完了評価**: 成功
+- **備考**:
+  - **バグ原因**：`renderTodayBrief`（index.html:5429）の `brief-wake-sleep` に起床時刻欄しか描画されておらず、就寝予定時刻欄が完全に欠落（コメントに「就寝予定時刻はおやすみ画面で入力」とあり、実装意図として朝 HOME.todaybrief には載せない方針だった）
+  - **修正内容**：
+    - `renderTodayBrief` 内に就寝予定時刻欄を追加（`brief-wake-sleep-row` + `time-preset-row`、起床時刻と完全に対称な構造：disabled + 「変更」ボタン + 5 分刻みプリセット）
+    - `enableSleepPlannedTimeEditOnHome` 関数を新設（`enableWakeTimeEditOnHome` を踏襲）
+    - `computeSleepPresetTimes` 関数を新設（`["22:00", "22:30", "23:00", "23:30", "00:00"]` の固定値。おやすみ画面と HOME.todaybrief で同じ候補を提示）
+  - **既存パスを活用**：
+    - Drive 永続化：`updateSleepPlannedTimeNow` → `persistHabitChange`（既存パス）
+    - リロード復元：`refreshHabitFromDrive` が `sleepItem.sleepPlannedTime` を `sleepHabit.sleepPlannedTime` に Object.assign でマージ（既存パス、Task 76 で実装済み）
+  - **レイアウト**：縦並び（ユーザー選択）。起床 → 就寝予定 の順に縦に並ぶ
+  - **JS 構文チェック** OK
+  - **動作確認**：Playwright/Edge ヘッドレスは他セッションでブロック中のため、コードレベル確認のみ。ユーザー手動テスト推奨
+- **ユーザーによる手動テスト推奨手順**:
+  1. Google Drive に接続
+  2. HOME.todaybrief 画面に「🛏️ 就寝予定」欄が表示されるか確認
+  3. 「変更」ボタン押下 → 時刻入力 → 「23:00 に就寝予定」のステータス表示を確認
+  4. 完全リロード（Ctrl+Shift+R）→ 設定時刻が保持されているか確認
+  5. プリセットボタン（22:00, 22:30, 23:00, 23:30, 00:00）タップ → ステータス更新を確認
+- **コミット**: 4348fc2（push 済み）
+
+---
+
 ## 関連ドキュメント
 
 - `docs/OAUTH_AND_STORAGE.md`：OAuth・LocalStorage・データアクセス権限
