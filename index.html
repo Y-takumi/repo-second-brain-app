@@ -1578,6 +1578,8 @@ const vaultSeedFiles = [
 
     <!-- Daily：起床・就寝・筋トレなど、毎日の決まりごとの14日間の実績 -->
     <div id="tasks-daily-pane">
+      <div class="section-label" style="margin-top:4px;">今日の起床時間</div>
+      <div id="tasks-wake-time-edit"></div>
       <div class="section-label" style="margin-top:4px;">直近14日間の実績</div>
       <div id="daily-habit-list"></div>
     </div>
@@ -4847,7 +4849,10 @@ function setTasksSubTab(tab){
   document.getElementById("tasksub-adhoc").classList.toggle("active", tab==="adhoc");
   document.getElementById("tasks-daily-pane").style.display = tab==="daily" ? "" : "none";
   document.getElementById("tasks-adhoc-pane").style.display = tab==="adhoc" ? "" : "none";
-  if(tab==="daily") renderDailyHabitList();
+  if(tab==="daily"){
+    renderDailyHabitList();
+    renderTasksWakeTimeEdit();
+  }
   else {
     const activeTab = document.querySelector("#tasks-adhoc-pane .gtab.active");
     renderTasks(activeTab?.dataset.theme || "all");
@@ -4998,6 +5003,23 @@ function enableWakeTimeEditOnHome(){
   } else {
     renderTodayBrief(); // キャンセル時に disabled に戻す
   }
+}
+
+/** Tasks タブ Daily 画面上部の起床時刻編集：input + プリセットボタン */
+function renderTasksWakeTimeEdit(){
+  const container = document.getElementById('tasks-wake-time-edit');
+  if(!container) return;
+  const todayKey = d(0);
+  const wakeTime = wakeHabit.wakeTime[todayKey];
+  container.innerHTML = `
+    <div class="brief-wake-sleep-row">
+      <span class="brief-wake-sleep-label">☀️ 起床</span>
+      <input type="time" step="300" value="${wakeTime || ""}" onchange="updateWakeTimeNow(this.value)">
+      <span class="brief-wake-sleep-status">${wakeTime ? `${wakeTime} に起床済み` : "未記録"}</span>
+    </div>
+    <div class="time-preset-row">
+      ${computeWakePresetTimes().map(t => `<button class="time-preset-btn ${wakeTime===t?"active":""}" onclick="updateWakeTimeNow('${t}')">${t}</button>`).join("")}
+    </div>`;
 }
 
 /** おはよう画面のプリセット：現在時刻を 5 分刻みに丸め、過去 5 個（過去 20 分～現在）。
