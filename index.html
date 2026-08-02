@@ -5010,18 +5010,15 @@ function updateWakeTimeNow(hhmm){
   persistHabitChange(wakeHabit.id, { wake_time: wakeHabit.wakeTime });
 }
 
-/** HOME.todaybrief 起床時刻欄の「変更」ボタン押下時：input を有効化、prompt で値変更 */
+/** HOME.todaybrief 起床時刻欄の「変更」ボタン押下時：input を有効化（直接編集）
+ * 2026-08-02 prompt モーダル廃止。ブラウザ標準の時間選択 UI を input[type="time"] で使う。
+ * 編集完了時の onchange で updateWakeTimeNow(this.value) が既存ハンドラで呼ばれる。 */
 function enableWakeTimeEditOnHome(){
   const input = document.querySelector('#brief-wake-sleep input[type="time"]');
   if(!input) return;
   input.disabled = false;
   input.focus();
-  const newVal = prompt('起床時刻を入力してください（HH:MM 形式）', input.value || '');
-  if(newVal && /^\d{2}:\d{2}$/.test(newVal)){
-    updateWakeTimeNow(newVal);
-  } else {
-    renderTodayBrief(); // キャンセル時に disabled に戻す
-  }
+  if(typeof input.select === "function") input.select();
 }
 
 /** Tasks タブ Daily 画面上部の起床時刻編集：input + プリセットボタン */
