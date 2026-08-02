@@ -132,6 +132,9 @@
   .draft-item .title{font-size:12.5px; color:var(--ink); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
   .draft-status{font-size:10px; color:var(--business); font-family:var(--mono); margin-top:3px;}
   .chev{color:var(--ink-faint); font-size:14px; flex-shrink:0;}
+  .draft-clear{flex-shrink:0; color:var(--ink-faint); font-size:14px; padding:4px 8px; border-radius:8px; cursor:pointer; user-select:none;}
+  .draft-clear:hover{background:var(--surface2); color:var(--primary);}
+  .draft-clear:active{opacity:0.6;}
 
   /* Explore：グラフタブ */
   .graph-tabs{display:flex; gap:6px; overflow-x:auto; margin-bottom:12px; padding-bottom:2px;}
@@ -677,8 +680,10 @@
   .chip.active{border-color:transparent; color:#14101f; font-weight:600;}
 
   .note-card{background:var(--surface); border:1px solid var(--border); border-radius:14px; padding:14px 16px; margin-bottom:10px; cursor:pointer;}
-  .note-card .top{display:flex; align-items:center; gap:8px; margin-bottom:6px;}
+  .note-card .top{display:flex; align-items:center; gap:8px; margin-bottom:6px; flex-wrap:wrap;}
   .note-card .type{font-size:9.5px; font-family:var(--mono); color:var(--ink-faint); text-transform:uppercase;}
+  .note-card .branch-path{font-size:10.5px; font-family:var(--mono); color:var(--ink-dim);}
+  .note-card .branch-path .theme-name{color:var(--ink-faint); margin-right:2px;}
   .note-card .title{font-size:13.5px; color:var(--ink); line-height:1.4;}
   .note-card .date{font-size:10.5px; font-family:var(--mono); color:var(--ink-faint); margin-top:6px;}
 
@@ -1063,17 +1068,6 @@ const vaultSeedFiles = [
       <div class="mentor-text">昨日のジャーナルは「<b>成長資産の0.01%は毎日自由に使う</b>」というニック・マジューリのマインドを、資産の分類まで踏み込んで精緻化していましたね。素晴らしい思考の深まりです。</div>
     </div>
 
-    <div class="focus-check-card" id="focus-check-card">
-      <div class="focus-check-q">今はどっちにフォーカス向いてますか？</div>
-      <div class="focus-check-options">
-        <div class="focus-chip" style="border-color:var(--healthcare)" onclick="setFocusTheme('healthcare')">Health</div>
-        <div class="focus-chip" style="border-color:var(--business)" onclick="setFocusTheme('business')">Business</div>
-        <div class="focus-chip" style="border-color:var(--mind)" onclick="setFocusTheme('mind')">Mind</div>
-        <div class="focus-chip" style="border-color:var(--relationships)" onclick="setFocusTheme('relationships')">Relations</div>
-      </div>
-      <div class="focus-check-hint">選ぶとそのテーマのTaskの優先順位が上がります（たまに聞かれます）</div>
-    </div>
-
     <div class="mode-toggle">
       <div class="opt active" id="capmode-journal" onclick="setCaptureMode('journal')">① ジャーナル</div>
       <div class="opt" id="capmode-source" onclick="setCaptureMode('source')">② ソース＋解釈</div>
@@ -1084,13 +1078,14 @@ const vaultSeedFiles = [
       <div id="cap-journal-input-wrap">
         <div class="field-label">入力してください</div>
         <textarea class="url-input textarea" id="cap-journal-input" style="min-height:120px;" placeholder="iOS のキーボードマイクボタンを使うと音声入力できます"></textarea>
-        <div style="display:flex; justify-content:flex-end;">
-          <button class="btn-primary" style="margin-top:12px; width:auto; padding:9px 16px; font-size:12.5px; display:flex; align-items:center; gap:6px;" onclick="startJournalProcessing()">
+        <div style="display:flex; justify-content:flex-end; align-items:center; gap:8px; flex-wrap:wrap; margin-top:12px;">
+          <span id="cap-journal-status" class="settings-hint" style="margin-right:auto;"></span>
+          <button class="btn-secondary" style="width:auto; padding:9px 16px; font-size:12.5px;" onclick="saveDraftNow()">下書きに保存</button>
+          <button class="btn-primary" style="width:auto; padding:9px 16px; font-size:12.5px; display:flex; align-items:center; gap:6px;" onclick="startJournalProcessing()">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" style="width:15px;height:15px;"><path d="M13 2L3 14h7l-1 8 10-12h-7l1-8z"/></svg>
             処理する
           </button>
         </div>
-        <div id="cap-journal-status" class="settings-hint" style="margin-top:10px;"></div>
       </div>
     </div>
 
@@ -1187,23 +1182,11 @@ const vaultSeedFiles = [
       </div>
     </div>
 
-    <div class="section-label">下書き・進行中</div>
-    <div class="draft-item">
-      <span class="dot" style="background:var(--business)"></span>
-      <div class="meta">
-        <div class="title">〇〇ポッドキャスト（AIの未来について）</div>
-        <div class="draft-status">20分まで視聴・感想入力済み ・ 2026-07-04</div>
-      </div>
-      <span class="chev">›</span>
+    <div class="section-label" style="display:flex; justify-content:space-between; align-items:center;">
+      <span>下書き・進行中</span>
+      <button class="draft-clear" style="font-size:10px; padding:2px 10px;" onclick="deleteAllDrafts()" title="下書きをすべて削除（入力中のテキストは消えません）">全削除</button>
     </div>
-    <div class="draft-item">
-      <span class="dot" style="background:var(--healthcare)"></span>
-      <div class="meta">
-        <div class="title">腸内環境と睡眠に関する記事</div>
-        <div class="draft-status">要約のみ取得済み・感想未入力 ・ 2026-07-03</div>
-      </div>
-      <span class="chev">›</span>
-    </div>
+    <div id="draft-list"></div>
   </div>
 
   <!-- 要約 全画面オーバーレイ：スクロール可能な要約 + 下部固定の感想入力 -->
@@ -1501,6 +1484,7 @@ const vaultSeedFiles = [
       <div class="chip" data-theme="mind" onclick="setLibTheme('mind', event)" style="border-color:var(--mind); color:var(--mind)">Mind</div>
       <div class="chip" data-theme="relationships" onclick="setLibTheme('relationships', event)" style="border-color:var(--relationships); color:var(--relationships)">Relationships</div>
     </div>
+    <div class="filter-chips" id="lib-branch-chips" style="margin-top:6px;"></div>
     <p class="page-sub" id="lib-count" style="margin-top:10px;">13件のノート</p>
     <div id="lib-list"></div>
   </div>
@@ -2742,6 +2726,7 @@ async function startJournalProcessing(){
   const journalText = textEl.value.trim();
   if(!journalText){ statusEl.textContent = "内容を入力してください"; return; }
   if(!googleAccessToken){ statusEl.textContent = "先に開発者設定からGoogle Driveと連携してください"; return; }
+  saveDraftNow(); // 処理するボタンを押した瞬間に下書きにも保存（Drive保存成功時にpruneDraftByContentで削除される）
 
   statusEl.textContent = "① 既存Knowledge・Great Mindを確認中…";
   try{
@@ -3018,10 +3003,13 @@ async function commitCaptureResult(){
 
     // Note：最後に作成（knowledge_refs/task_refs/great_mind_refsを含めて）
     const noteFolder = await findOrCreateFolder(pendingCaptureResult.kind === "source" ? "02_Sources" : "01_Journal", rootId);
+    // 最初の Knowledge.branch を Note.branch として採用（カテゴリ引き継ぎ）
+    const firstKnowledgeBranch = (pendingCaptureResult.knowledge||[])[0]?.branch || "";
     const noteFm = {
       id: noteId, schema_version: 1, type: pendingCaptureResult.kind === "source" ? "source" : "journal",
       title: pendingCaptureResult.note?.title || "無題",
       themes: pendingCaptureResult.note?.themes || [], tags: pendingCaptureResult.note?.tags || [],
+      branch: firstKnowledgeBranch, // Knowledge の最初の branch を Note に引き継ぐ
       created: today, updated: today, status: "active", visibility: "private",
       related_notes: [], knowledge_refs: knowledgeIds, task_refs: taskIds,
     };
@@ -3033,9 +3021,11 @@ async function commitCaptureResult(){
     await createOrUpdateFile(`${today}_${noteFm.title.replace(/[\\/:*?"<>|]/g,"")}.md`, noteFolder, buildFrontmatterFile(noteFm, noteBody));
 
     statusEl.textContent = `✅ 保存しました（Knowledge${knowledgeIds.length}件・Task${taskIds.length}件${greatMindIds.length?`・GreatMind${greatMindIds.length}件`:""}）`;
+    const savedSourceText = pendingCaptureResult?.sourceText || ""; // pruneDraftByContent は pendingCaptureResult=null の前に
     pendingCaptureResult = null;
     refreshLibraryFromDrive();
     refreshTasksFromDrive();
+    pruneDraftByContent(savedSourceText); // 保存済みテキストと同じ下書きを削除
     setTimeout(()=>{
       document.getElementById("cap-journal-input").value="";
       goTo("capture");
@@ -3082,6 +3072,8 @@ async function loadLibraryFromDrive(){
         title: frontmatter.title || f.name.replace(/\.md$/, ""),
         date: frontmatter.created || frontmatter.date || "",
         updated: frontmatter.updated && frontmatter.updated !== frontmatter.created,
+        branch: frontmatter.branch || "", // 2026-08-02 追加：Knowledge から引き継いだカテゴリ
+        tags: frontmatter.tags || [], // タグも読み込み（検索用）
       });
     }
   }
@@ -4039,14 +4031,54 @@ const libraryData = [
   { type:"inbox", themes:["mind"], title:"グレートマインド登録構想／人生バランスのトレードオフ", date:"2026-07-06" },
 ];
 let libTheme = "all";
+let libBranch = "all"; // 2026-08-02 追加：カテゴリ（枝）フィルタ
 
 function setLibTheme(theme, event){
   libTheme = theme;
+  libBranch = "all"; // テーマ変更時はカテゴリもリセット
   document.querySelectorAll("#lib-chips .chip").forEach(c=>{
     const active = c===event?.currentTarget || c.dataset.theme===theme;
     c.classList.toggle("active", active);
     c.style.background = active ? (theme==="all" ? "var(--ink)" : (themeColors[theme]||primaryColor)) : "transparent";
     c.style.color = active ? "#14101f" : (theme==="all" ? "var(--ink-dim)" : (themeColors[theme]||primaryColor));
+  });
+  renderLibBranchChips();
+  renderLibrary();
+}
+
+/** カテゴリ（枝）チップ生成：現在のテーマに合致するノートから branch を集めて表示 */
+function renderLibBranchChips(){
+  const wrap = document.getElementById("lib-branch-chips");
+  if(!wrap) return;
+  // テーマが「all」または枝が0件ならチップ非表示
+  if(libTheme === "all"){
+    wrap.innerHTML = "";
+    return;
+  }
+  const sourceData = driveLibraryCache || libraryData;
+  // 現在のテーマに合致するノートの branch を収集（重複除外、空 branch は除外）
+  const branches = [...new Set(
+    sourceData
+      .filter(n => (n.themes||[]).includes(libTheme))
+      .map(n => n.branch || "")
+      .filter(b => b && b.trim())
+  )].sort();
+  if(!branches.length){
+    wrap.innerHTML = `<div class="settings-hint" style="padding:6px 10px;">このテーマにはまだカテゴリがありません</div>`;
+    return;
+  }
+  wrap.innerHTML = `
+    <div class="chip active" data-branch="all" onclick="setLibBranch('all', event)" style="background:var(--ink); color:#14101f; font-size:10.5px;">すべて</div>
+    ${branches.map(b => `<div class="chip" data-branch="${b.replace(/"/g, "&quot;")}" onclick="setLibBranch('${b.replace(/'/g, "\\'")}', event)" style="border-color:var(--ink-dim); color:var(--ink-dim); font-size:10.5px;">${b}</div>`).join("")}
+  `;
+}
+function setLibBranch(branch, event){
+  libBranch = branch;
+  document.querySelectorAll("#lib-branch-chips .chip").forEach(c=>{
+    const active = c===event?.currentTarget || c.dataset.branch===branch;
+    c.classList.toggle("active", active);
+    c.style.background = active ? "var(--ink)" : "transparent";
+    c.style.color = active ? "#14101f" : "var(--ink-dim)";
   });
   renderLibrary();
 }
@@ -4058,16 +4090,32 @@ function renderLibrary(){
   const sourceData = driveLibraryCache || libraryData;
   const filtered = sourceData.filter(n=>
     (libTheme==="all" || (n.themes||[]).includes(libTheme)) &&
-    (!q || n.title.toLowerCase().includes(q))
+    (libBranch==="all" || n.branch === libBranch) &&
+    (!q || n.title.toLowerCase().includes(q) || (n.tags||[]).some(t => t.toLowerCase().includes(q)))
   );
   const label = driveLibraryCache ? `${filtered.length}件のノート（Drive実データ）` : `${filtered.length}件のノート（サンプル）`;
   document.getElementById("lib-count").textContent = label;
-  document.getElementById("lib-list").innerHTML = filtered.map(n=>`
+  const themeLabels = { healthcare:"Healthcare", business:"Business", mind:"Mind", relationships:"Relationships" };
+  document.getElementById("lib-list").innerHTML = filtered.map(n=>{
+    const primaryTheme = (n.themes||[])[0];
+    // カテゴリ（branch）: 「テーマ > カテゴリ」の形で .top 内、type の右に表示
+    const branchPath = n.branch
+      ? `<span class="branch-path">${primaryTheme ? `<span class="theme-name">${themeLabels[primaryTheme]||primaryTheme}</span> › ` : ""}${n.branch}</span>`
+      : "";
+    // タグ: タイトル下に # 付きで控えめに表示
+    const tagBadges = (n.tags||[]).slice(0,3).map(t => `<span class="tag" style="background:var(--surface2); color:var(--ink-faint); font-size:9.5px; margin-right:3px;">#${t}</span>`).join("");
+    return `
     <div class="note-card" onclick="openNoteStub('${n.title.replace(/'/g,"\\'")}')">
-      <div class="top"><span class="dot" style="background:${themeColors[(n.themes||[])[0]]||primaryColor}"></span><span class="type">${n.type}</span></div>
+      <div class="top">
+        <span class="dot" style="background:${themeColors[primaryTheme]||primaryColor}"></span>
+        <span class="type">${n.type}</span>
+        ${branchPath}
+      </div>
       <div class="title">${n.title}</div>
       <div class="date">${n.date}${n.updated?' 更新':''}</div>
-    </div>`).join("") || `<div class="summary-preview-text" style="color:var(--ink-faint); margin-top:12px;">見つかりませんでした</div>`;
+      ${tagBadges ? `<div style="margin-top:6px; display:flex; flex-wrap:wrap; gap:3px;">${tagBadges}</div>` : ""}
+    </div>`;
+  }).join("") || `<div class="summary-preview-text" style="color:var(--ink-faint); margin-top:12px;">見つかりませんでした</div>`;
 }
 /** Drive連携済みなら、実データを読み込んでLibraryを再描画する */
 async function refreshLibraryFromDrive(){
@@ -4213,6 +4261,155 @@ function loadSettingsFromLocalStorage(){
       Object.assign(appSettings, saved);
     }
   } catch(e){ console.warn("設定の LocalStorage 読み込みに失敗:", e); }
+}
+
+/* ============ ジャーナル下書き（2026-08-02 追加） ============ */
+// textarea 入力中のジャーナルを LocalStorage に自動保存。リロード後も続きから書ける。
+// 配列の形式：[{ id, title, content, updatedAt }, ...]
+const SB_DRAFTS_KEY = "sb_journal_drafts";
+
+// XSS 対策用の簡易エスケープ（下書きのタイトル等を innerHTML に埋め込む際に使用）
+function escapeHtml(s){
+  return String(s).replace(/[&<>"']/g, c => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+  })[c]);
+}
+
+function loadDraftsFromStorage(){
+  try{
+    const raw = localStorage.getItem(SB_DRAFTS_KEY);
+    if(raw) return JSON.parse(raw);
+  } catch(e){ console.warn("下書きの読み込みに失敗:", e); }
+  return [];
+}
+function saveDraftsToStorage(drafts){
+  try{
+    localStorage.setItem(SB_DRAFTS_KEY, JSON.stringify(drafts));
+  } catch(e){ console.warn("下書きの保存に失敗:", e); }
+}
+function genDraftId(){
+  return "draft-" + Date.now() + "-" + Math.floor(Math.random()*1000);
+}
+function fmtDraftDate(iso){
+  try{
+    const dt = new Date(iso);
+    return dt.toLocaleString("ja-JP", { month:"short", day:"numeric", hour:"2-digit", minute:"2-digit" });
+  } catch(e){ return iso; }
+}
+
+// 「下書きに保存」ボタン、または「処理する」ボタン押下時、beforeunload から呼ばれる。
+// textarea 内容を draft として追加（同一 content なら更新のみ）。空 content は保存しない。
+function saveDraftNow(){
+  const textEl = document.getElementById("cap-journal-input");
+  const statusEl = document.getElementById("cap-journal-status");
+  if(!textEl) return false;
+  const content = textEl.value;
+  if(!content.trim()){
+    if(statusEl){
+      statusEl.textContent = "下書きに保存する内容がありません";
+      setTimeout(()=>{ if(statusEl.textContent === "下書きに保存する内容がありません") statusEl.textContent = ""; }, 2000);
+    }
+    return false;
+  }
+  const drafts = loadDraftsFromStorage();
+  // 同一 content の draft があれば更新（updatedAt）、なければ新規追加（先頭に挿入）
+  const existing = drafts.find(d => d.content === content);
+  if(existing){
+    existing.updatedAt = new Date().toISOString();
+  } else {
+    drafts.unshift({
+      id: genDraftId(),
+      title: content.slice(0, 30).replace(/\n/g, " "),
+      content: content,
+      updatedAt: new Date().toISOString(),
+    });
+  }
+  // 空 content の draft は除外
+  const cleaned = drafts.filter(d => d.content && d.content.trim());
+  saveDraftsToStorage(cleaned);
+  renderDraftList();
+  if(statusEl){
+    statusEl.textContent = "下書きに保存しました";
+    setTimeout(()=>{ if(statusEl.textContent === "下書きに保存しました") statusEl.textContent = ""; }, 2000);
+  }
+  return true;
+}
+
+// ブラウザ閉じ・リロード・タブ離脱時の保険保存（同期実行）
+window.addEventListener("beforeunload", ()=>{
+  const textEl = document.getElementById("cap-journal-input");
+  if(!textEl) return;
+  const content = textEl.value;
+  if(!content.trim()) return;
+  // 既存 draft に同 content があれば updatedAt 更新、なければ先頭に追加
+  const drafts = loadDraftsFromStorage();
+  const existing = drafts.find(d => d.content === content);
+  if(existing){
+    existing.updatedAt = new Date().toISOString();
+  } else {
+    drafts.unshift({
+      id: "draft-unload-" + Date.now(),
+      title: content.slice(0, 30).replace(/\n/g, " "),
+      content: content,
+      updatedAt: new Date().toISOString(),
+    });
+  }
+  saveDraftsToStorage(drafts.filter(d => d.content && d.content.trim()));
+});
+function renderDraftList(){
+  const wrap = document.getElementById("draft-list");
+  if(!wrap) return;
+  const drafts = loadDraftsFromStorage();
+  if(!drafts.length){
+    wrap.innerHTML = `<div class="settings-hint">入力中のジャーナルがあると、ここに表示されます（自動保存）</div>`;
+    return;
+  }
+  wrap.innerHTML = drafts.map(d => `
+    <div class="draft-item" onclick="loadDraftIntoTextarea('${d.id}')">
+      <span class="dot" style="background:var(--primary)"></span>
+      <div class="meta">
+        <div class="title">${escapeHtml(d.title)}</div>
+        <div class="draft-status">入力中 ・ ${fmtDraftDate(d.updatedAt)}</div>
+      </div>
+      <span class="draft-clear" onclick="event.stopPropagation(); deleteDraft('${d.id}')" title="この下書きを削除">✕</span>
+    </div>
+  `).join("");
+}
+function loadDraftIntoTextarea(draftId){
+  const drafts = loadDraftsFromStorage();
+  const d = drafts.find(x => x.id === draftId);
+  if(!d) return;
+  const textEl = document.getElementById("cap-journal-input");
+  if(textEl){
+    textEl.value = d.content;
+    textEl.focus();
+  }
+}
+function deleteDraft(draftId){
+  const drafts = loadDraftsFromStorage().filter(d => d.id !== draftId);
+  saveDraftsToStorage(drafts);
+  renderDraftList();
+}
+// 全削除（入力中のテキストは触らない）
+function deleteAllDrafts(){
+  const drafts = loadDraftsFromStorage();
+  if(!drafts.length){
+    if(confirm("下書きはありません。念のため空にしますが、よろしいですか？")){
+      saveDraftsToStorage([]);
+      renderDraftList();
+    }
+    return;
+  }
+  if(!confirm(`下書きをすべて削除しますか？（${drafts.length}件）\n入力中のテキストは消えません。`)) return;
+  saveDraftsToStorage([]);
+  renderDraftList();
+}
+// commitCaptureResult 成功時：保存したテキストと同じ content の draft を消す
+function pruneDraftByContent(content){
+  if(!content) return;
+  const drafts = loadDraftsFromStorage().filter(d => d.content !== content);
+  saveDraftsToStorage(drafts);
+  renderDraftList();
 }
 
 // 全ての Habit は 09_Habit/{id}.md から読み込む。サンプルデータは廃止（2026-07-29）。
@@ -4833,6 +5030,7 @@ function renderArchive(){
 }
 
 loadSettingsFromLocalStorage(); // 2026-07-29 追加：保存済み設定を復元
+renderDraftList(); // 2026-08-02 追加：ジャーナル下書きの復元・表示
 renderTasks("all"); // 全定義が揃った後で初回描画
 
 /** Tasksタブを開く：現在表示中のサブタブ(Daily/Ad Hoc)を最新化してから開く */
