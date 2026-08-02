@@ -726,6 +726,103 @@
 
 ---
 
+## 2026-08-02 セッション（.screen 幅問題 + スマホ枠レスポンシブ化保留）
+
+### 状況引き継ぎ（前のセッションから）
+- 前のセッションでスマホ枠レスポンシブ化（Step 1-5）を進めていたが、Step 4（`.tabbar` を `position: fixed` 化）以降、`.screen` の flex 計算が噛み合わずに**左の空白問題**が発生
+- 仮説：`.screen` の `flex: 1 1 100%` + `align-items: center` の計算で 472px に縮む
+- 試行：`.screen` に `width: 100% !important` を追加 → 反映されず
+- トークン切れで中断
+
+### Task 70: 未コミット変更を `git stash` で退避
+- **状態**: completed
+- **完了評価**: 成功
+- **備考**: `.screen` 関連の試行変更を stash 退避。退避メッセージ: `2026-08-02 退避: .screen幅問題の修正試行（width:100% !important 反映されず）`
+- **コミット**: なし（stash 退避）
+
+### Task 71: 画像2枚を `削除ファイル/` フォルダへ移動
+- **状態**: completed
+- **完了評価**: 成功
+- **備考**: `fix-screen-flex.png`、`fix-screen-min-height.png` を `削除ファイル/2026-08-02-fix-screen-flex.png` 等へ退避（CLAUDE.md 安全ルール）
+- **コミット**: なし
+
+### Task 72: `git reset --hard 689410f` でスマホ枠あり最終状態へ復元
+- **状態**: completed
+- **完了評価**: 成功
+- **備考**: バックアップブランチ `backup-2026-08-02-before-reset` 作成後に `git reset --hard 689410f` 実行。`.screen` の定義が `.screen{flex:1; overflow-y:auto; padding:0 20px 90px; display:none;}` に戻ったことを確認
+- **コミット**: 689410f（HEAD）
+
+### Task 73: 復元状態の確認（HTML構造 + Edge ヘッドレススクショ）
+- **状態**: completed
+- **完了評価**: 成功
+- **備考**: Playwright が他セッションでブロックされていたため、Edge ヘッドレスモード（`--headless=new --window-size=500,812`）で `http://localhost:8000/?v=screen-min-width-test` の Morning Gate 画面スクショ撮影。`.phone` の左右対称・中央配置に問題なし
+- **コミット**: なし
+
+### Task 74: `.screen` 幅問題への別アプローチ設計
+- **状態**: completed
+- **完了評価**: 成功
+- **備考**: 3 案を検討
+  - 案X（最小侵襲）：`.screen` に `min-width: 0` 追加
+  - 案Y（中規模）：`.phone` の `display: flex` を `display: block` 化
+  - 案Z（最大規模）：`.stage` の flex 中央寄せ廃止
+  - 推奨は案X（1コミット=1変更ルール遵守、回帰リスク最小）
+- **コミット**: なし
+
+### Task 75: 案X実装（`.screen` に `min-width: 0` 追加）
+- **状態**: completed
+- **完了評価**: 成功
+- **備考**: 689410f の `.screen` 定義に `min-width: 0` と `box-sizing: border-box` を追加。回帰なしを Morning Gate スクショで確認
+- **コミット**: 2cc8e08
+
+### ユーザー方針（2026-08-02）
+- スマホ枠あり（689410f ベース）で当面進める
+- 案X 変更はコミットだけして保留（スマホ枠レスポンシブ化再挑戦時に予防的に効く）
+- セッション切り替え実施
+
+### 保留中のタスク
+1. **スマホ枠レスポンシブ化（Step 1-5）再挑戦**
+   - 現状：Step 1-3 完了（`9d389fc`, `aeb2cdb`, `68d885f`）、Step 4（`c3bfc31`: `.screen *` の `max-width:100%`）以降で左の空白問題
+   - 案X の `min-width: 0` 追加（2cc8e08）で再挑戦の準備はできている
+   - 必要なら Step 4 から個別に進める or 別の根本アプローチで再設計
+
+2. **HOME.todaybrief 起床時刻欄の Drive 永続化** → ✅ **完了（Task 76 参照）**
+
+3. **Habit check_time の Drive 永続化**
+   - 通常 Habit の `check_time` 値が Drive 永続化されているか未確認
+   - 仕様書 4.5 節を参照
+
+### 退避データ
+- `git stash@{0}`: `2026-08-02 退避: .screen幅問題の修正試行（width:100% !important 反映されず）`（復元可能）
+- バックアップブランチ: `backup-2026-08-02-before-reset`（リセット前の状態）
+
+---
+
+## 2026-08-02 セッション（HOME.todaybrief 起床時刻欄 Drive 永続化・cherry-pick）
+
+### Task 76: HOME.todaybrief 起床時刻欄の Drive 永続化（cherry-pick + リテラル復元）
+- **状態**: completed
+- **完了評価**: 成功
+- **備考**:
+  - **背景**：保留中タスク A「HOME.todaybrief 起床時刻欄の Drive 永続化」に着手
+  - **状況発見**：コミット c31cb96, b888373（disabled + 変更ボタン + renderTasksWakeTimeEdit）は別ブランチ実装で main に未統合。ユーザー観察「変更ボタンが UI に存在しません」で発覚。メモリノート（[b888373, c31cb96 で disabled + 変更ボタン化済み]）の前提が崩れた
+  - **Phase 1（cherry-pick）**：私の refreshHabitFromDrive / createHabitInDrive の変更を `git stash push` 退避 → `git cherry-pick c31cb96` → `git cherry-pick b888373` → `git stash pop` で私の変更を再適用。コンフリクトなし
+  - **Phase 2（refreshHabitFromDrive 修正）**：`wakeHabit` / `sleepHabit` はメモリ上固定リテラルだが、Drive に書込まれた wake_time / sleep_planned_time / log がリロード後に復元されない問題があった。`items` の `special:"wake"/"sleep"` を wakeHabit/sleepHabit リテラルに `Object.assign` でマージ。`habitData` には wake/sleep を除外（リテラルが Single Source of Truth）。`renderTodayBrief` / `renderTasksWakeTimeEdit` も呼んでリロード後即時表示
+  - **Phase 3（createHabitInDrive 修正）**：`habitData.find(x => x.id === habitId)` で見つからない場合に `wakeHabit` / `sleepHabit` リテラルも探す（初回 Drive 作成時の throw 回避）
+  - **動作確認**：`node --check` で syntax OK 確認済み。Playwright テストは他セッションでブラウザロック中のため未実施。リロード復元のフルテストは OAuth 必須のためユーザー手動テスト推奨
+- **コミット**:
+  - 3e22ac7: feat: HOME.todaybrief 起床時刻欄を disabled + 変更ボタン追加（cherry-pick）
+  - b17d757: feat: Tasks タブ Daily 上部に renderTasksWakeTimeEdit 追加（cherry-pick）
+  - 続く commit: feat(Habit): refreshHabitFromDrive で wakeHabit/sleepHabit を Drive から復元
+- **ユーザーによる手動テスト推奨手順**:
+  1. Google Drive に接続
+  2. HOME.todaybrief 画面の起床時刻「変更」ボタンを押下
+  3. 時刻を入力（例: 07:30）
+  4. 完全リロード（Ctrl+Shift+R）
+  5. 起床時刻が保持されているか確認
+  6. 09_Habit フォルダに h-wake.md が作成されているか確認
+
+---
+
 ## 関連ドキュメント
 
 - `docs/OAUTH_AND_STORAGE.md`：OAuth・LocalStorage・データアクセス権限
