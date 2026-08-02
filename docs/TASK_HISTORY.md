@@ -1034,9 +1034,25 @@
   - **ユーザー質問への回答**: 仕様書 2.2 節「カテゴリの枝（Branch）」より、カテゴリは 1 階層のみ（テーマ直下の枝）。2 階層のサブカテゴリは存在しない
 - **コミット**: 未 commit
 
----
+### Task 93: 本番環境 GitHub Pages の自動デプロイ確認
+- **状態**: completed
+- **完了評価**: 成功
+- **備考**:
+  - ユーザー質問：「このURLで開けるのは、GitHubにコミットしたときに更新されているんですか？」
+  - `curl` で本番 URL の `index.html` を取得し、ローカル変更内容（saveDraftNow, 下書きに保存, escapeHtml, libBranch, branch-path, focus-check-card の HTML ブロック削除）と照合
+  - **結論**: main ブランチへの push で GitHub Pages が自動更新されている（CLAUDE.md の「手動アップロード」記述は古い情報だった）
+- **コミット**: 未 commit
 
-## 関連ドキュメント
+### Task 94: CLAUDE.md デプロイ記述の更新
+- **状態**: completed
+- **完了評価**: 成功
+- **備考**:
+  - ユーザー：「このセッションで CLAUDE.md にアップロード方式の変更をお願いします」
+  - CLAUDE.md 冒頭「最終更新日」を 2026-08-02 に更新
+  - 旧記述「現状は手動アップロード。Claude Codeでgit直接操作に移行できると望ましい」→ 新記述「main ブランチへの push で自動デプロイ。URL: https://Y-takumi.github.io/repo-second-brain-app/。2026-08-02 確認済み」に変更
+- **コミット**: 未 commit
+
+---
 
 ## 関連ドキュメント
 
