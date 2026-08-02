@@ -823,6 +823,221 @@
 
 ---
 
+## 2026-08-02 後半セッション（入力タブ現状動作テスト + レイアウト復元確認）
+
+### タスク前提
+- 直前セッションでスマホ枠レスポンシブ化保留（689410f + 2cc8e08 へ復元済み、cherry-pick 統合済み）
+- ユーザー：「ここまでの開発状況を確認。レイアウト崩れの復元確認。ジャーナル入力に集中したい。入力tabの完成を最優先」
+
+### Task 77: 現状開発状況の確認
+- **状態**: completed
+- **完了評価**: 成功
+- **備考**:
+  - レイアウト復元済み確認：689410f + 2cc8e08 + cherry-pick 3件（3e22ac7, b17d757, 28dd321）+ 最新 2b7f50e
+  - stash@{0} に `.screen` 幅問題の試行変更が残存（復元可能）
+  - 入力タブ実装状況：ジャーナル（①）完成、ソース（②）部分実装
+  - 保留中タスク：スマホ枠レスポンシブ化再挑戦、ブログ記事フォールバック、Habit フリック UI、Explore グラフパーサー、Insight 検出バッチ
+- **コミット**: なし
+
+### Task 78: 入力タブ方針の見直し
+- **状態**: completed
+- **完了評価**: 成功
+- **備考**:
+  - ユーザーFB（2回）：「ジャーナル（①）のみ徹底」「入力した情報が.mdで記録されていく部分だけでも作りたい。最低限ノートとして記録・要約することはやりたい。ID振るとかね」
+  - 提案した最小実装案（フルパイプライン縮小 or 最小モード追加 or 動作テストのみ）→ ユーザー選択「**まず動作テストのみ**」
+- **コミット**: なし
+
+### Task 79: ジャーナル入力フルフローの手動テスト
+- **状態**: completed
+- **完了評価**: 成功（ユーザー手動テスト）
+- **備考**:
+  - **STEP 1**: ⚠️ 起床時刻は表示されるが、**就寝予定時刻欄が表示されない**（起床時刻欄・5分刻みは正常）
+  - **STEP 2**: ✅ Capture 画面遷移問題なし
+  - **STEP 3**: ✅ Drive 連携促し → 連携後処理 → 確認画面遷移OK
+  - **STEP 4**: ✅ タイトル、テーマ（relationships）、要約表示。**Knowledge/Task が0件**（日常の短い入力では想定通り）
+  - **STEP 5**: ✅ Drive 書き込み成功（フロントマター・本文・ID すべて正常）
+  - **STEP 6**: ✅ Drive 上のファイル確認OK（`20260802-journal-yuob` として作成）
+  - **STEP 7**: ✅ 探索タブでデータ表示OK、同じ入力でも Knowledge 抽出されず（再現性あり）
+  - **結論**: ユーザー方針「最低限ノートとして再利用可能な状態で記録・要約する」は**現状のフルパイプラインで達成済み**。フルパイプライン縮小は不要
+- **コミット**: なし（テストのみ）
+
+### Task 80: 入力タブ方針の確定
+- **状態**: completed
+- **完了評価**: 成功
+- **備考**:
+  - ユーザー選択：「**現状維持 + バグ修正**」「**就寝予定時刻問題は別セッションにメモ**」
+  - 決定事項：
+    - 入力タブは現状のフルパイプラインを維持（最小実装化は不要）
+    - Knowledge/Task 生成の閾値下げは保留（日常入力で0件は妥当）
+    - 就寝予定時刻欄の問題は別セッションで修正
+- **コミット**: なし
+
+### Task 81: 就寝予定時刻問題のメモ + 引き継ぎ
+- **状態**: completed
+- **完了評価**: 成功
+- **備考**:
+  - `memory/second-brain-2026-08-02-sleep-planned-time-bug.md` を新規作成
+  - MEMORY.md にもエントリ追加
+  - 次のセッションで `renderTodayBrief` / `appSettings.sleepHabit.time` / `updateSleepPlannedTimeNow` を確認して修正
+- **コミット**: なし（memory は Git 管理外）
+
+---
+
+## 2026-08-02 後半セッション（入力タブ改修：フォーカス削除 + 下書き実装）
+
+### タスク前提
+- ユーザー：「このセッション内でもう少し入力tabを改修しましょう」
+- ユーザー方針（確定）：
+  - フォーカス機能：HTMLブロックごと削除
+  - 下書き機能：LocalStorage + 自動保存（debounce 500ms）
+
+### Task 82: フォーカス機能の HTML ブロック削除
+- **状態**: completed
+- **完了評価**: 成功
+- **備考**:
+  - `<div class="focus-check-card" id="focus-check-card">` ブロック（line 1066-1075）を完全削除
+  - 関連 CSS（`.focus-check-card` / `.focus-chip` / `.focus-check-hint`）はそのまま残す（後で役割が決まったら復活可能）
+  - `setFocusTheme` 関数、`focusedThemeAt` データ、`computePriorityScore` のフォーカス減算ロジックも残す
+- **コミット**: 未 commit
+
+### Task 83: ジャーナル下書き機能の実装
+- **状態**: completed
+- **完了評価**: 成功
+- **備考**:
+  - サンプル2件（line 1191-1206）を削除し `<div id="draft-list"></div>` に置換
+  - 新規関数：
+    - `loadDraftsFromStorage()` / `saveDraftsToStorage(drafts)`：LocalStorage 永続化（key: `sb_journal_drafts`）
+    - `genDraftId()`：`draft-{timestamp}-{rand}` 形式
+    - `scheduleDraftSave()`：500ms debounce のタイマー管理
+    - `addOrUpdateDraftFromTextarea()`：textarea 内容を見て既存 draft 更新 or 新規追加（空 content の draft は除外）
+    - `renderDraftList()`：空のときは「入力中のジャーナルがあると、ここに表示されます（自動保存）」ヒント表示
+    - `loadDraftIntoTextarea(draftId)`：クリックで textarea 内容を復元＋フォーカス
+    - `deleteDraft(draftId)`：個別削除（`event.stopPropagation()` で親クリックを発火させない）
+    - `pruneDraftByContent(content)`：保存成功時に該当 draft を削除
+  - textarea に `oninput="scheduleDraftSave()"` 追加
+  - 起動時に `renderDraftList()` 呼び出し追加（`loadSettingsFromLocalStorage()` の直後）
+  - `commitCaptureResult` 成功時に `pruneDraftByContent(savedSourceText)` 呼び出し（pendingCaptureResult=null の前に sourceText を退避）
+  - `.draft-clear` の CSS 追加（`:hover` で primary 色、cursor: pointer）
+  - 設計判断：既存パターン（`saveSettingsToLocalStorage` / `loadSettingsFromLocalStorage` / key prefix `sb_`）を踏襲
+- **コミット**: 未 commit
+
+### Task 84: 動作確認
+- **状態**: completed
+- **完了評価**: 成功
+- **備考**:
+  - JS 構文チェック OK（`node --check`）
+  - ローカルサーバー再起動 → 200 OK
+  - Edge ヘッドレスで Morning Gate 画面の表示確認 → レイアウト正常（フォーカス削除による影響なし）
+  - HTML/JS の存在確認：`focus-check-card` 2回（CSS のみ）、`draft-list` 2回、`scheduleDraftSave` 2回、`loadDraftsFromStorage` 6回、`renderDraftList` 5回
+- **コミット**: 未 commit
+
+---
+
+## 2026-08-02 後半セッション（下書き仕様改修：500ms 自動保存 → 手動ボタン + beforeunload）
+
+### タスク前提
+- ユーザーFB：「500ms自動保存だと下書きが増えすぎて使いづらい」
+- ユーザー方針（確定）：
+  - 保存トリガー：手動ボタン押下 + ブラウザ閉じる前（beforeunload）。blur（フォーカス喪失）は除外
+  - 処理成功時：保存成功時に下書き削除（クリーンな状態を維持）
+
+### Task 85: 500ms 自動保存の廃止
+- **状態**: completed
+- **完了評価**: 成功
+- **備考**:
+  - textarea から `oninput="scheduleDraftSave()"` を削除
+  - `scheduleDraftSave` 関数 / `draftSaveTimer` 変数を削除
+  - `loadDraftIntoTextarea` 内の `draftSaveTimer` クリア処理も削除
+- **コミット**: 未 commit
+
+### Task 86: 「下書きに保存」ボタン追加 + saveDraftNow 関数の実装
+- **状態**: completed
+- **完了評価**: 成功
+- **備考**:
+  - 処理するボタンの左に「下書きに保存」ボタン（btn-secondary）を追加。flex で 2 つ並べる
+  - `saveDraftNow()` 関数を新設：textarea 内容を draft に追加、同一 content なら updatedAt 更新
+  - ステータス表示：「下書きに保存しました」/「下書きに保存する内容がありません」を 2 秒間表示
+  - 既存の `addOrUpdateDraftFromTextarea` は廃止（saveDraftNow に統合）
+- **コミット**: 未 commit
+
+### Task 87: beforeunload での保険保存
+- **状態**: completed
+- **完了評価**: 成功
+- **備考**:
+  - `window.addEventListener("beforeunload", ...)` でブラウザ閉じ・リロード・タブ離脱時に同期保存
+  - 空 content の draft は保存しない（既存ロジック踏襲）
+  - id プレフィックス: `draft-unload-{timestamp}`（通常 draft と区別、再起動時に上書きされる可能性あり）
+- **コミット**: 未 commit
+
+### Task 88: 処理するボタン押下時の下書き保存
+- **状態**: completed
+- **完了評価**: 成功
+- **備考**:
+  - `startJournalProcessing` 内で `saveDraftNow()` を呼び出し
+  - 処理進行中（Drive 抽出中）にも下書きリストに表示される
+  - `commitCaptureResult` 成功時に既存 `pruneDraftByContent(savedSourceText)` で削除（ユーザー要望通り「クリーンな状態」）
+- **コミット**: 未 commit
+
+### Task 89: バグ修正（escapeHtml 未定義）
+- **状態**: completed
+- **完了評価**: 成功
+- **備考**:
+  - 初回テスト時にユーザーが「下書きリストに表示なし」「リロード後フッターtab以外表示されない」を報告
+  - 原因：`renderDraftList` 内で呼んでいた `escapeHtml` 関数が未定義 → ReferenceError でスクリプト停止
+  - 修正：`escapeHtml` 関数を `SB_DRAFTS_KEY` の直後に追加（XSS 対策付きエスケープ）
+- **コミット**: 未 commit
+
+### Task 90: UX改善（メッセージ位置変更 + 全削除ボタン追加）
+- **状態**: completed
+- **完了評価**: 成功
+- **備考**:
+  - ユーザーFB：「下書き保存メッセージがボタンの下に出るので下書き一覧が下に移動して違和感」「下書き全削除ボタンがほしい、入力中テキストは消さない」
+  - **メッセージ位置変更**: `<div id="cap-journal-status">` をボタンの flex 内に移動、`margin-right:auto` で左寄せ、`align-items:center` で縦中央揃え、`flex-wrap:wrap` で画面幅狭い時折り返し
+  - **全削除ボタン追加**: 「下書き・進行中」section-label の右に「全削除」ボタン（`draft-clear` クラス再利用）、`onclick="deleteAllDrafts()"`、`title` 属性で「入力中のテキストは消えません」案内
+  - **deleteAllDrafts 関数新設**: 確認ダイアログ（`confirm()`）で件数表示、OK で `saveDraftsToStorage([])` → `renderDraftList()`。下書きが0件のときも確認ダイアログで空にする
+  - 入力中のテキスト（textarea.value）は触らない（saveDraftsToStorage は LocalStorage のみ操作）
+- **コミット**: 未 commit
+
+### Task 91: Note.branch 追加 + Library にカテゴリフィルタ実装
+- **状態**: completed
+- **完了評価**: 成功
+- **備考**:
+  - ユーザーFB：「Knowledge の branch を Note にも引き継ぎたい」「Library のテーマフィルタの下にカテゴリ（枝）フィルタが欲しい」
+  - **設計判断**: カテゴリ（branch）はナレッジを分類するためのテーマ配下の階層。タグは想起用のキーワード。両者は別概念として維持
+  - **commitCaptureResult 改修**: 最初の Knowledge.branch を `noteFm.branch` にコピー
+  - **loadLibraryFromDrive 改修**: frontmatter.branch と frontmatter.tags を読み込み
+  - **HTML 追加**: `<div class="filter-chips" id="lib-branch-chips" style="margin-top:6px;"></div>`
+  - **JS 追加**:
+    - `let libBranch = "all"` グローバル変数
+    - `renderLibBranchChips()`：現在のテーマに合致するノートの branch を収集してチップ表示
+    - `setLibBranch(branch, event)`：枝フィルタ更新と renderLibrary() 呼び出し
+    - `setLibTheme()` 改修：テーマ変更時に libBranch を "all" にリセット + renderLibBranchChips() 呼び出し
+  - **renderLibrary 改修**:
+    - branch フィルタ追加：`libBranch==="all" || n.branch === libBranch`
+    - 検索対象に tags も追加：`!q || n.title.toLowerCase().includes(q) || (n.tags||[]).some(...)`
+    - note-card に branch + tags のバッジ表示（最初の3タグまで）
+  - 既存ノートには branch なし → 段階的にデータが揃う（"all" 以外では新規ノートのみ表示）
+- **コミット**: 未 commit
+
+### Task 92: カード内カテゴリ表示の改善
+- **状態**: completed
+- **完了評価**: 成功
+- **備考**:
+  - ユーザーFB：「カテゴリとタグを区別したい。カテゴリは JOURNAL の右に『Business > 開発Tips・技術メモ』形式で表示したい」
+  - **カテゴリ（branch）の表示位置変更**: note-card の `.top` 内、JOURNAL（type）の右に「テーマ名 › カテゴリ」形式で表示
+  - **タグの表示位置変更**: タイトル下に `#` 付きで控えめに表示（既存パターン踏襲）
+  - **CSS 追加**: `.note-card .branch-path`（font-size: 10.5px, var(--ink-dim)）、`.theme-name`（var(--ink-faint)）
+  - **renderLibrary 改修**:
+    - `themeLabels` マップを関数内に定義（healthcare→Healthcare 等）
+    - branchPath 生成: `${themeLabels[primaryTheme]||primaryTheme} › ${branch}`
+    - note-card HTML 構造変更（branch を `.top` 内に移動）
+  - **ユーザー質問への回答**: 仕様書 2.2 節「カテゴリの枝（Branch）」より、カテゴリは 1 階層のみ（テーマ直下の枝）。2 階層のサブカテゴリは存在しない
+- **コミット**: 未 commit
+
+---
+
+## 関連ドキュメント
+
 ## 関連ドキュメント
 
 - `docs/OAUTH_AND_STORAGE.md`：OAuth・LocalStorage・データアクセス権限
