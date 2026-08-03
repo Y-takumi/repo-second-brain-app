@@ -414,6 +414,17 @@
   .btn-complete:disabled{cursor:default;}
   .btn-complete.success{background:var(--healthcare); color:#fff; border-color:var(--healthcare); font-weight:700;}
   .btn-complete.success:hover{background:var(--healthcare); border-color:var(--healthcare);}
+  /* 2026-08-04 セッション：保留ボタン。押下前は無色、押下後は var(--business) のオレンジ背景で成功フィードバック。 */
+  .btn-hold{background:transparent; color:var(--ink-dim); border:1px solid var(--border); padding:9px 16px; border-radius:14px; font-size:12.5px; min-width:120px; cursor:pointer; transition:all 0.2s; font-family:inherit;}
+  .btn-hold:hover{background:var(--surface2); border-color:var(--business); color:var(--ink);}
+  .btn-hold:active{transform:scale(0.98);}
+  .btn-hold:disabled{cursor:default;}
+  .btn-hold.success{background:var(--business); color:#fff; border-color:var(--business); font-weight:700;}
+  /* 2026-08-04 セッション：削除ボタン。ゴミ箱マークのみ、赤系の枠線・文字色で「破壊的操作」임을 視覚化。 */
+  .btn-delete{background:transparent; color:#e0716e; border:1px solid #e0716e; padding:9px 12px; border-radius:14px; font-size:14px; min-width:44px; cursor:pointer; transition:all 0.2s; font-family:inherit;}
+  .btn-delete:hover{background:#e0716e22; color:#e0716e; border-color:#e0716e;}
+  .btn-delete:active{transform:scale(0.98);}
+  .btn-delete:disabled{cursor:default; opacity:.5;}
   /* 時刻入力 UI 統一（おはよう画面・おやすみ画面・設定画面の 4 か所） */
   input[type="time"].preset-time-input,
   input[type="time"]#goodnight-sleep-time,
@@ -1694,6 +1705,10 @@ const vaultSeedFiles = [
     <!-- 2026-08-03 通勤中にリサーチタスクを消化するためのセクション -->
     <div class="section-label">リサーチタスク</div>
     <div id="brief-research-tasks"></div>
+
+    <!-- 2026-08-04 セッション：保留中のタスク一覧。タップでタスク詳細 → 再開できる -->
+    <div class="section-label" style="margin-top:26px;">保留中のタスク</div>
+    <div id="brief-hold-tasks"></div>
 
     <div class="section-label" style="margin-top:26px;">気になっているTASK</div>
     <div id="brief-tasks"></div>
@@ -4595,7 +4610,7 @@ function daysSince(dateStr){ return Math.floor((APP_TODAY - new Date(dateStr)) /
 
 
 function taskById(id){ return taskData.find(t=>t.id===id); }
-function isBlocked(t){ return (t.dependsOn||[]).some(id=>{ const p=taskById(id); return p && p.status!=="done"; }); }
+function isBlocked(t){ return (t.dependsOn||[]).some(id=>{ const p=taskById(id); return p && p.status!=="done" && p.status!=="deleted"; }); }
 
 /** クロステーマ用スコア：テーマ内相対順位(%) − フォーカス直後ブースト − 締切ブースト。低いほど上位 */
 function computeCrossScore(t){
@@ -4678,12 +4693,15 @@ function renderTasks(theme, event){
   document.querySelectorAll("#screen-tasks .gtab").forEach(tab=>tab.classList.toggle("active", tab===event?.currentTarget || tab.dataset.theme===theme));
   const list = document.getElementById("task-list");
 
+  // 2026-08-04 セッション：hold / deleted のタスクは Tasks タブには表示しない（HOME の保留中セクション or ゴミ箱なしで扱う）
+  const visibleTaskData = taskData.filter(t => t.status !== "hold" && t.status !== "deleted");
+
   if(theme==="all"){
     // クロステーマ：グループ分けせず、スコアで混ぜた1本のリストにする
-    list.innerHTML = renderTaskGroup(taskData, "全テーマ", true)
+    list.innerHTML = renderTaskGroup(visibleTaskData, "全テーマ", true)
       || `<div class="summary-preview-text" style="color:var(--ink-faint); margin-top:12px;">Taskがありません</div>`;
   } else {
-    const pool = taskData.filter(t=>(t.themes||[]).includes(theme));
+    const pool = visibleTaskData.filter(t=>(t.themes||[]).includes(theme));
     list.innerHTML = renderTaskGroup(pool, taskThemeNames[theme], false)
       || `<div class="summary-preview-text" style="color:var(--ink-faint); margin-top:12px;">このテーマにはまだTaskがありません</div>`;
   }
@@ -5149,7 +5167,8 @@ function openTaskDetail(id){
 }
 
 /** 2026-08-03 夜セッション：Task詳細画面の「アクション」エリアを描画。
- * - open 状態：完了ボタン（無色、押下後 1秒間緑）
+ * - open 状態：完了 / 保留 / 削除 ボタン
+ * - hold 状態：再開 / 削除 ボタン
  * - done 状態：「完了済み」表示（取り消し不可、要望に応じて表示のみ） */
 function renderTaskActionArea(){
   const t = taskById(currentTaskDetailId);
@@ -5157,8 +5176,18 @@ function renderTaskActionArea(){
   const area = document.getElementById("td-action-area");
   if(t.status === "done"){
     area.innerHTML = `<div style="font-size:12px; color:var(--ink-dim); padding:8px 0;">✅ 完了済み</div>`;
+  } else if(t.status === "hold"){
+    area.innerHTML = `
+      <button class="btn-complete" id="td-resume-btn" onclick="resumeTaskFromDetail()">再開する</button>
+      <button class="btn-delete" onclick="deleteTaskFromDetail()" title="削除">🗑️</button>
+    `;
   } else {
-    area.innerHTML = `<button class="btn-complete" id="td-complete-btn" onclick="completeTaskFromDetail()">完了にする</button>`;
+    // open
+    area.innerHTML = `
+      <button class="btn-complete" id="td-complete-btn" onclick="completeTaskFromDetail()">完了にする</button>
+      <button class="btn-hold" id="td-hold-btn" onclick="holdTaskFromDetail()">保留にする</button>
+      <button class="btn-delete" onclick="deleteTaskFromDetail()" title="削除">🗑️</button>
+    `;
   }
 }
 
@@ -5192,6 +5221,96 @@ async function completeTaskFromDetail(){
     renderTodayBrief();
     goTo("todaybrief");
   }, 1000);
+}
+
+/** 2026-08-04 セッション：Task詳細画面の保留ボタン押下時。
+ * - open → hold に変更
+ * - 1秒間オレンジの成功状態を見せてから HOME へ遷移（完了ボタンと同じ UX パターン） */
+async function holdTaskFromDetail(){
+  const t = taskById(currentTaskDetailId);
+  if(!t || t.status !== "open") return;
+  const btn = document.getElementById("td-hold-btn");
+  if(!btn || btn.disabled) return; // 連続押下防止
+  btn.disabled = true;
+  btn.classList.add("success");
+  btn.textContent = "保留";
+  t.status = "hold";
+  setTimeout(async () => {
+    if(!googleAccessToken){
+      console.warn("Drive 未接続：保留状態はメモリ上のみ。次回リロードで元に戻ります");
+    } else {
+      try{
+        await updateTaskStatusInDrive(t.id, "hold");
+      } catch(e){
+        console.error("Task保留のDrive保存に失敗:", e);
+        alert(`Drive保存に失敗しました：${e.message}\n次回のリロードまで変更は保持されません。`);
+      }
+    }
+    renderTodayBrief();
+    goTo("todaybrief");
+  }, 1000);
+}
+
+/** 2026-08-04 セッション：Task詳細画面の再開ボタン押下時（hold → open）。
+ * - 1秒間緑の成功状態を見せてから HOME へ遷移 */
+async function resumeTaskFromDetail(){
+  const t = taskById(currentTaskDetailId);
+  if(!t || t.status !== "hold") return;
+  const btn = document.getElementById("td-resume-btn");
+  if(!btn || btn.disabled) return; // 連続押下防止
+  btn.disabled = true;
+  btn.classList.add("success");
+  btn.textContent = "再開";
+  t.status = "open";
+  setTimeout(async () => {
+    if(!googleAccessToken){
+      console.warn("Drive 未接続：再開状態はメモリ上のみ。次回リロードで元に戻ります");
+    } else {
+      try{
+        await updateTaskStatusInDrive(t.id, "open");
+      } catch(e){
+        console.error("Task再開のDrive保存に失敗:", e);
+        alert(`Drive保存に失敗しました：${e.message}\n次回のリロードまで変更は保持されません。`);
+      }
+    }
+    renderTodayBrief();
+    goTo("todaybrief");
+  }, 1000);
+}
+
+/** 2026-08-04 セッション：Task詳細画面の削除ボタン押下時。
+ * - 依存タスクがある場合は削除を拒否（孤児化を防ぐ）
+ * - 確認ポップアップで誤操作防止
+ * - メモリ上は物理削除（taskData から除去 → 一覧から消える）
+ * - Drive ファイルは論理削除（status: "deleted"、ファイルは残す。ゴミ箱 GUI はなし、ユーザー要望） */
+async function deleteTaskFromDetail(){
+  const t = taskById(currentTaskDetailId);
+  if(!t) return;
+  // 依存タスクチェック：他のタスクが dependsOn でこのタスクを参照していないか
+  const dependents = taskData.filter(x => (x.dependsOn || []).includes(t.id));
+  if(dependents.length > 0){
+    const depNames = dependents.map(d => `・${d.text}`).join("\n");
+    alert(`このタスクを依存しているタスクがあるため削除できません：\n\n${depNames}\n\n先に依存タスクを削除するか、依存関係を解除してください。`);
+    return;
+  }
+  // 確認ポップアップ
+  if(!confirm(`「${t.text}」を本当に削除しますか？\n\nこの操作は元に戻せません。`)) return;
+  // 物理削除（メモリから）
+  const idx = taskData.findIndex(x => x.id === t.id);
+  if(idx >= 0) taskData.splice(idx, 1);
+  // Drive 論理削除（ファイル残す、status: deleted を保存）
+  if(googleAccessToken){
+    try{
+      await updateTaskStatusInDrive(t.id, "deleted");
+    } catch(e){
+      console.error("Task削除のDrive保存に失敗:", e);
+      alert(`Drive保存に失敗しました：${e.message}\nメモリ上からは削除されましたが、次回リロードで復活します。`);
+    }
+  } else {
+    console.warn("Drive 未接続：削除はメモリ上のみ。次回リロードで復活します");
+  }
+  renderTodayBrief();
+  goTo("todaybrief");
 }
 function saveTaskTitle(){
   const t = taskById(currentTaskDetailId);
@@ -5706,6 +5825,15 @@ function renderTodayBrief(){
           <span class="dep" style="color:var(--ink); font-size:11.5px;">📚 ${t.text}${t.due ? ` <span style="color:var(--business);">・due ${t.due}</span>` : ""}</span>
         </div>`).join("")
     : `<div class="summary-preview-text" style="color:var(--ink-faint); font-size:11px;">リサーチタスクはまだありません</div>`;
+
+  // 2026-08-04 セッション：保留中のタスク一覧。タップでタスク詳細 → 再開できる
+  const holdTasks = taskData.filter(t => t.status === "hold");
+  document.getElementById("brief-hold-tasks").innerHTML = holdTasks.length
+    ? holdTasks.map(t => `
+        <div class="task-compact-row" style="cursor:pointer; opacity:.85;" onclick="openTaskDetail('${t.id}')">
+          <span class="dep" style="color:var(--ink-dim); font-size:11.5px;">⏸ ${t.text}</span>
+        </div>`).join("")
+    : `<div class="summary-preview-text" style="color:var(--ink-faint); font-size:11px;">保留中のタスクはありません</div>`;
 }
 /** HOMEタブから直接開いた時：サンライズ演出なしで、内容だけ描画して開く */
 function openTodayBrief(){
