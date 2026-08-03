@@ -399,7 +399,9 @@
   .brief-setup-cta-wrap{margin-top:64px;}
   .brief-setup-cta-wrap .btn-primary{padding:14px 20px; font-size:15px;}
   .time-preset-row{display:flex; gap:5px; flex-wrap:wrap; padding:4px 0 8px; margin-left:0;}
-  .time-preset-btn{font-size:11px; padding:5px 12px; border-radius:14px; background:var(--surface); color:var(--ink-dim); border:1px solid var(--border); cursor:pointer; font-family:var(--mono); transition:all 0.15s;}
+  /* 2026-08-03 夜セッション：ボタンの文字が縦に折り返される問題を修正。white-space:nowrap + min-width で横幅を保証。
+     デザインルール：ボタン内の文字は必ず横に並ぶ（縦書き禁止）。min-width 値は「変更」2文字 + padding を考慮して 60px。 */
+  .time-preset-btn{font-size:11px; padding:5px 12px; min-width:60px; border-radius:14px; background:var(--surface); color:var(--ink-dim); border:1px solid var(--border); cursor:pointer; font-family:var(--mono); transition:all 0.15s; white-space:nowrap;}
   .time-preset-btn:hover{background:var(--surface2); border-color:var(--primary); color:var(--ink);}
   .time-preset-btn.active{background:var(--primary); color:#fff; border-color:var(--primary); font-weight:600;}
   /* 2026-08-03 夕方セッション：変更ボタン押下時の成功状態（チェックマーク + 緑背景） */
@@ -1616,7 +1618,7 @@ const vaultSeedFiles = [
     <div class="k-meta" id="td-meta" style="margin-top:10px;"></div>
 
     <div class="field-label" style="margin-top:16px;">本文（詳細・メモ）</div>
-    <textarea class="url-input textarea" id="td-body" style="min-height:80px;" placeholder="詳細やメモがあれば書いてください" oninput="saveTaskBody()"></textarea>
+    <textarea class="url-input textarea" id="td-body" style="min-height:200px;" placeholder="詳細やメモがあれば書いてください" oninput="saveTaskBody()"></textarea>
 
     <div class="field-label" style="margin-top:20px;">Due date（任意。明確な締切がある場合のみ）</div>
     <div style="display:flex; gap:8px; align-items:center;">
@@ -1624,12 +1626,18 @@ const vaultSeedFiles = [
       <button class="btn-secondary" style="margin:0; width:auto; flex-shrink:0; padding:9px 12px; font-size:11px;" onclick="clearDueDate()">クリア</button>
     </div>
 
+    <!-- 2026-08-03 夜セッション：先行タスクセクションは一旦非表示（仕様再検討のため）
     <div class="field-label" style="margin-top:20px;">先行タスク（これが完了するまで着手待ちになる）</div>
     <div id="td-deps"></div>
 
     <div class="field-label" style="margin-top:16px;">先行タスクを検索して追加</div>
     <input class="url-input" id="td-search" placeholder="タスク名で検索…" oninput="renderTaskSearch()">
     <div id="td-search-results"></div>
+    -->
+
+    <!-- 2026-08-03 夜セッション：完了ボタン設置 -->
+    <div class="field-label" style="margin-top:24px;">アクション</div>
+    <div id="td-action-area" style="display:flex; gap:8px; flex-wrap:wrap;"></div>
   </div>
 
   <!-- ===== BRIEF SETUP（おはよう後、起床・就寝予定時刻を入力する専用画面） ===== -->
@@ -1676,10 +1684,10 @@ const vaultSeedFiles = [
     <div id="brief-workout"></div> -->
 
     <!-- 2026-08-03 通勤中にリサーチタスクを消化するためのセクション -->
-    <div class="section-label">リサーチタスク <span class="brief-ext-badge" style="background:var(--healthcare-soft, #5ec8a622); color:var(--healthcare);">通勤中</span></div>
+    <div class="section-label">リサーチタスク</div>
     <div id="brief-research-tasks"></div>
 
-    <div class="section-label" style="margin-top:26px;">気になっているTask</div>
+    <div class="section-label" style="margin-top:26px;">気になっているTASK</div>
     <div id="brief-tasks"></div>
   </div>
 
@@ -5124,10 +5132,49 @@ function openTaskDetail(id){
     (t.themes||[]).map(x=>`<span class="tag" style="background:${themeColors[x]||primaryColor}22; color:${themeColors[x]||primaryColor}">${x}</span>`).join("") +
     `<span class="conf-num">優先度 ${t.priority}</span>`;
   document.getElementById("td-due").value = t.due || "";
-  renderTaskDeps();
-  document.getElementById("td-search").value = "";
-  document.getElementById("td-search-results").innerHTML = "";
+  // 2026-08-03 夜セッション：先行タスク関連は一旦非表示のため、関連初期化もスキップ
+  // renderTaskDeps();
+  // document.getElementById("td-search").value = "";
+  // document.getElementById("td-search-results").innerHTML = "";
+  renderTaskActionArea();
   goTo("task-detail");
+}
+
+/** 2026-08-03 夜セッション：Task詳細画面の「アクション」エリアを描画。
+ * - open 状態：完了ボタン（primary）
+ * - done 状態：「完了済み」表示（取り消し不可、要望に応じて表示のみ） */
+function renderTaskActionArea(){
+  const t = taskById(currentTaskDetailId);
+  if(!t) return;
+  const area = document.getElementById("td-action-area");
+  if(t.status === "done"){
+    area.innerHTML = `<div style="font-size:12px; color:var(--ink-dim); padding:8px 0;">✅ 完了済み</div>`;
+  } else {
+    area.innerHTML = `<button class="btn-primary" style="margin:0; width:auto; flex-shrink:0; padding:9px 16px; font-size:12.5px; min-width:120px;" onclick="completeTaskFromDetail()">✅ 完了にする</button>`;
+  }
+}
+
+/** 2026-08-03 夜セッション：Task詳細画面の完了ボタン押下時。
+ * - タスクを done にして Drive に保存
+ * - HOME 画面に戻り、brief-tasks / brief-research-tasks を再描画 */
+async function completeTaskFromDetail(){
+  const t = taskById(currentTaskDetailId);
+  if(!t || t.status === "done") return;
+  // 既存パターン toggleTaskDone と同じ順序：メモリ更新 → Drive 永続化
+  t.status = "done";
+  if(!googleAccessToken){
+    console.warn("Drive 未接続：完了状態はメモリ上のみ。次回リロードで元に戻ります");
+  } else {
+    try{
+      await updateTaskStatusInDrive(t.id, "done");
+    } catch(e){
+      console.error("Task完了のDrive保存に失敗:", e);
+      alert(`Drive保存に失敗しました：${e.message}\n次回のリロードまで変更は保持されません。`);
+    }
+  }
+  // HOME 画面に戻って再描画（research / open task リストから除去される）
+  renderTodayBrief();
+  goTo("todaybrief");
 }
 function saveTaskTitle(){
   const t = taskById(currentTaskDetailId);
@@ -5629,10 +5676,10 @@ function renderTodayBrief(){
     .sort((a,b)=>computeCrossScore(a)-computeCrossScore(b));
   const briefTaskList = [...new Map([...dueTasks, ...topTasks].map(t=>[t.id,t])).values()].slice(0,3);
   document.getElementById("brief-tasks").innerHTML = briefTaskList.map(t=>`
-    <div class="task-compact-row" style="cursor:default; opacity:.85;">
-      <span class="dep" style="color:var(--ink-dim); font-size:11px;">${t.text}${t.due?` <span style="color:var(--business);">・due ${t.due}</span>`:""}</span>
+    <div class="task-compact-row" style="cursor:pointer; opacity:.95;" onclick="openTaskDetail('${t.id}')">
+      <span class="dep" style="color:var(--ink); font-size:11.5px;">${t.text}${t.due?` <span style="color:var(--business);">・due ${t.due}</span>`:""}</span>
     </div>`
-  ).join("") || `<div class="summary-preview-text" style="color:var(--ink-faint); font-size:11px;">今日は特に気になるTaskはありません</div>`;
+  ).join("") || `<div class="summary-preview-text" style="color:var(--ink-faint); font-size:11px;">今日は特に気になるTASKはありません</div>`;
 
   // 2026-08-03 リサーチタスク一覧：通勤中に消化したくなる research タスクを表示
   const researchTasks = getResearchTasksForBrief();
