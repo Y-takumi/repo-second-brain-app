@@ -1612,6 +1612,30 @@ const vaultSeedFiles = [
     <div id="td-search-results"></div>
   </div>
 
+  <!-- ===== BRIEF SETUP（おはよう後、起床・就寝予定時刻を入力する専用画面） ===== -->
+  <div class="screen" id="screen-brief-setup">
+    <div class="brief-hero">
+      <div class="brief-icon">☀️</div>
+      <h1 class="page-title">おはようございます</h1>
+      <p class="page-sub">起床時刻と就寝予定時刻を確認しましょう</p>
+    </div>
+
+    <div class="section-label">起床時刻</div>
+    <div class="brief-setup-input-row">
+      <input type="time" step="300" id="brief-setup-wake-time" onchange="onBriefSetupWakeTimeChange(this.value)">
+    </div>
+    <div class="time-preset-row" id="brief-setup-wake-presets"></div>
+
+    <div class="section-label" style="margin-top:22px;">就寝予定時刻</div>
+    <div class="brief-setup-input-row">
+      <input type="time" step="300" id="brief-setup-sleep-time" onchange="onBriefSetupSleepTimeChange(this.value)">
+    </div>
+    <div class="time-preset-row" id="brief-setup-sleep-presets"></div>
+
+    <button class="btn-primary" style="margin-top:30px; width:100%;" onclick="startBrief()">今日を始める</button>
+    <div class="brief-setup-hint">タップすると Drive に保存され、ホーム画面に移動します</div>
+  </div>
+
   <!-- ===== TODAY BRIEF（おはよう後、ハッピーな演出の後に着地する画面） ===== -->
   <div class="screen" id="screen-todaybrief">
     <div class="brief-hero">
@@ -3287,17 +3311,12 @@ let goToToken = 0;
 let navStack = []; // 戻るボタン用の遷移履歴
 function goTo(name, opts){
   opts = opts || {};
-  // 2026-08-02 タブ遷移制限：「今日を始める」押下前は HOME と設定のみ
-  if(!briefStarted && name !== "todaybrief" && name !== "settings" && name !== "morninggate" && name !== "goodnight"){
-    console.warn("「今日を始める」を押すまで、このタブには移動できません");
-    return;
-  }
   const myToken = ++goToToken; // 途中で別の遷移が割り込んだ場合、古い方を無効化するための印
   const next = document.getElementById("screen-"+name);
   const current = currentScreenName ? document.getElementById("screen-"+currentScreenName) : null;
 
-  // 履歴に積む（戻るボタン用）。戻る操作そのものや、門番画面がらみは積まない
-  if(!opts.isBack && currentScreenName && currentScreenName !== name && currentScreenName !== "morninggate"){
+  // 履歴に積む（戻るボタン用）。戻る操作そのものや、門番画面・brief-setup がらみは積まない
+  if(!opts.isBack && currentScreenName && currentScreenName !== name && currentScreenName !== "morninggate" && currentScreenName !== "brief-setup"){
     navStack.push(currentScreenName);
   }
 
@@ -3327,7 +3346,7 @@ function goTo(name, opts){
     } else {
       document.querySelectorAll(".tab").forEach(t=>t.classList.remove("active"));
     }
-    document.querySelector(".tabbar").style.display = (name==="morninggate") ? "none" : "";
+    document.querySelector(".tabbar").style.display = (name==="morninggate" || name==="brief-setup") ? "none" : "";
     // 戻るボタンは「タブ以外の画面（詳細・作成画面など）」にいる時だけ表示する
     const backBtn = document.getElementById("back-fab");
     if(backBtn) backBtn.style.display = (!tabScreens.includes(name) && name!=="morninggate") ? "" : "none";
@@ -5207,25 +5226,57 @@ function updateWakeTimeNow(hhmm){
   persistHabitChange(wakeHabit.id, { wake_time: wakeHabit.wakeTime });
 }
 
-/** HOME.todaybrief 起床時刻欄の「変更」ボタン押下時：input を有効化（直接編集）
- * 2026-08-02 prompt モーダル廃止。ブラウザ標準の時間選択 UI を input[type="time"] で使う。
- * 編集完了時の onchange で updateWakeTimeNow(this.value) が既存ハンドラで呼ばれる。 */
-function enableWakeTimeEditOnHome(){
-  const input = document.querySelector('#brief-wake-sleep input[type="time"]');
-  if(!input) return;
-  input.disabled = false;
-  input.focus();
-  if(typeof input.select === "function") input.select();
+/** 2026-08-03 リデザイン：HOME.todaybrief の起床時刻 input 変更時（メモリ上のみ）。
+ * 「変更」ボタン押下時に Drive 保存 + チェックマーク表示（confirmHomeWakeTimeEdit） */
+function onHomeWakeTimeChange(v){
+  if(!v || !/^\d{2}:\d{2}$/.test(v)) return;
+  const todayKey = d(0);
+  wakeHabit.wakeTime[todayKey] = v;
+  // ステータス更新（リアルタイム）
+  const statusEl = document.querySelector("#brief-wake-sleep .brief-wake-sleep-status");
+  if(statusEl) statusEl.textContent = `${v} に起床済み`;
 }
 
-/** HOME.todaybrief 就寝予定時刻欄の「変更」ボタン押下時：input を有効化（直接編集）
- * 起床時刻と同じ UX（disabled → 編集 → onchange で update）に統一 */
-function enableSleepPlannedTimeEditOnHome(){
-  const input = document.getElementById("brief-sleep-planned-time");
-  if(!input) return;
-  input.disabled = false;
-  input.focus();
-  if(typeof input.select === "function") input.select();
+/** 2026-08-03 リデザイン：HOME.todaybrief の就寝予定時刻 input 変更時（メモリ上のみ） */
+function onHomeSleepTimeChange(v){
+  if(!v || !/^\d{2}:\d{2}$/.test(v)) return;
+  const todayKey = d(0);
+  sleepHabit.sleepPlannedTime[todayKey] = v;
+  // ステータス更新（リアルタイム）
+  const statusEl = document.querySelectorAll("#brief-wake-sleep .brief-wake-sleep-status")[1];
+  if(statusEl) statusEl.textContent = `${v} に就寝予定`;
+}
+
+/** 2026-08-03 リデザイン：HOME.todaybrief の起床時刻「変更」ボタン押下時
+ * - Drive に保存
+ * - チェックマーク表示（3秒後に元に戻る） */
+async function confirmHomeWakeTimeEdit(){
+  const todayKey = d(0);
+  if(wakeHabit.wakeTime[todayKey]){
+    await persistHabitChange(wakeHabit.id, { wake_time: wakeHabit.wakeTime });
+  }
+  showCheckMark(document.getElementById("brief-wake-save-btn"));
+}
+
+/** 2026-08-03 リデザイン：HOME.todaybrief の就寝予定時刻「変更」ボタン押下時 */
+async function confirmHomeSleepTimeEdit(){
+  const todayKey = d(0);
+  if(sleepHabit.sleepPlannedTime[todayKey]){
+    await persistHabitChange(sleepHabit.id, { sleep_planned_time: sleepHabit.sleepPlannedTime });
+  }
+  showCheckMark(document.getElementById("brief-sleep-save-btn"));
+}
+
+/** 2026-08-03 リデザイン：変更ボタンに成功チェックマークを表示（3秒後に元に戻る） */
+function showCheckMark(btn){
+  if(!btn) return;
+  const originalText = btn.textContent;
+  btn.textContent = "✓";
+  btn.disabled = true;
+  setTimeout(()=>{
+    btn.textContent = originalText;
+    btn.disabled = false;
+  }, 3000);
 }
 
 /** Tasks タブ Daily 画面上部の起床時刻編集：input + プリセットボタン */
@@ -5300,10 +5351,51 @@ function setSleepPlannedPreset(time){
   });
 }
 
-/** 2026-08-02 「今日を始める」ボタン押下時
- * - 起床時刻・就寝予定時刻を persistHabitChange で Drive に保存
- * - briefStarted を true にしてタブ遷移制限を解除
- * - HOME 画面に戻る */
+/** 2026-08-03 専用画面（brief-setup）の描画：起床・就寝予定時刻のデフォルト値を表示し、プリセットボタンを生成 */
+function renderBriefSetup(){
+  const todayKey = d(0);
+  // 起床時刻：おはようボタン押下時の時刻（doGreetAction で記録済み）がデフォルト
+  const wakeTime = wakeHabit.wakeTime[todayKey];
+  // 就寝予定時刻：未入力なら computeDefaultSleepPlannedTime で計算
+  if(!sleepHabit.sleepPlannedTime[todayKey]){
+    sleepHabit.sleepPlannedTime[todayKey] = computeDefaultSleepPlannedTime();
+  }
+  const sleepPlannedTime = sleepHabit.sleepPlannedTime[todayKey];
+
+  document.getElementById("brief-setup-wake-time").value = wakeTime || "";
+  document.getElementById("brief-setup-sleep-time").value = sleepPlannedTime;
+
+  document.getElementById("brief-setup-wake-presets").innerHTML =
+    computeWakePresetTimes().map(t => `<button class="time-preset-btn" onclick="setBriefSetupWakeTime('${t}')">${t}</button>`).join("");
+  document.getElementById("brief-setup-sleep-presets").innerHTML =
+    computeSleepPresetTimes().map(t => `<button class="time-preset-btn" onclick="setBriefSetupSleepTime('${t}')">${t}</button>`).join("");
+}
+
+/** 専用画面の起床プリセットボタン押下時：input にセット + メモリ更新 */
+function setBriefSetupWakeTime(t){
+  document.getElementById("brief-setup-wake-time").value = t;
+  onBriefSetupWakeTimeChange(t);
+}
+/** 専用画面の就寝プリセットボタン押下時：input にセット + メモリ更新 */
+function setBriefSetupSleepTime(t){
+  document.getElementById("brief-setup-sleep-time").value = t;
+  onBriefSetupSleepTimeChange(t);
+}
+/** 専用画面の起床時刻 input 変更時：メモリ上のみ更新（Drive 保存は「今日を始める」押下時） */
+function onBriefSetupWakeTimeChange(v){
+  const todayKey = d(0);
+  if(v) wakeHabit.wakeTime[todayKey] = v;
+}
+/** 専用画面の就寝予定時刻 input 変更時：メモリ上のみ更新（Drive 保存は「今日を始める」押下時） */
+function onBriefSetupSleepTimeChange(v){
+  const todayKey = d(0);
+  if(v) sleepHabit.sleepPlannedTime[todayKey] = v;
+}
+
+/** 2026-08-03 「今日を始める」ボタン押下時
+ * - 専用画面（brief-setup）で編集された起床時刻・就寝予定時刻を Drive に保存
+ * - HOME 画面へ遷移
+ * - 2026-08-03 リデザイン：タブ遷移制限は廃止（brief-setup で入力が確定するため） */
 async function startBrief(){
   const todayKey = d(0);
   // 起床時刻を Drive に保存（入力されている場合のみ）
@@ -5314,8 +5406,6 @@ async function startBrief(){
   if(sleepHabit.sleepPlannedTime[todayKey]){
     await persistHabitChange(sleepHabit.id, { sleep_planned_time: sleepHabit.sleepPlannedTime });
   }
-  // タブ遷移制限を解除
-  briefStarted = true;
   goTo("todaybrief");
 }
 
@@ -5338,9 +5428,6 @@ function setSleepPreset(time){
 
 /* ---- 朝の門番画面 ---- */
 let hasGreetedToday = false;
-/** 2026-08-02 「今日を始める」ボタン押下前は false、押下後に true。
- *  false の間は HOME と設定タブのみ遷移可能（goTo 関数で制御） */
-let briefStarted = false;
 function updateMorningGateClock(){
   const timeEl = document.getElementById("morning-gate-time");
   const dateEl = document.getElementById("morning-gate-date");
@@ -5395,7 +5482,6 @@ function spawnBurstElements(){
 async function dismissMorningGate(){
   await doGreetAction("wake");
   hasGreetedToday = true;
-  briefStarted = false; // 2026-08-02 タブ遷移制限開始（HOME と設定のみ）
   renderDailyHabitList();
 
   const overlay = document.getElementById("sunrise-overlay");
@@ -5408,8 +5494,8 @@ async function dismissMorningGate(){
   overlay.classList.add("play");
   // 太陽が昇りきって(1.75s)から少し余韻を置いてから画面を切り替える。太陽・空はその瞬間に素早く消し、鳥・風船・シャボン玉だけは新しい画面の上に重なって続く
   setTimeout(()=>{
-    renderTodayBrief();
-    goTo("todaybrief", {instant:true}); // オーバーレイがまだ覆っている間に、フェードなしで裏側の画面だけ即座に切り替える
+    renderBriefSetup(); // 2026-08-03 専用画面（brief-setup）に直接遷移
+    goTo("brief-setup", {instant:true}); // オーバーレイがまだ覆っている間に、フェードなしで裏側の画面だけ即座に切り替える
 
     // 空(明)と太陽を、完全に同じフレームでまとめてフェードアウトさせる
     const fadeEls = ["sunrise-sky-dark","sunrise-sky-bright","sunrise-sun"]
@@ -5480,7 +5566,8 @@ function renderTodayBrief(){
   document.getElementById("brief-date").textContent =
     new Date().toLocaleDateString("ja-JP", {month:"long", day:"numeric", weekday:"long"});
 
-  // 今日の起床（5 分刻み編集可能 + プリセットボタン）。就寝予定時刻は設定画面の targetSleepTime をデフォルトで自動入力。
+  // 2026-08-03 リデザイン：HOME.todaybrief は編集専用（5分刻みプリセットなし）。
+  // 起床・就寝時刻を直接入力し、「変更」ボタン押下で Drive に保存 + チェックマーク表示。
   const todayKey = d(0);
   const wakeTime = wakeHabit.wakeTime[todayKey];
   // 就寝予定時刻が未入力の場合、設定画面の targetSleepTime から自動計算してデフォルト値とする（メモリ上のみ、リロードで再計算）
@@ -5491,21 +5578,15 @@ function renderTodayBrief(){
   document.getElementById("brief-wake-sleep").innerHTML = `
     <div class="brief-wake-sleep-row">
       <span class="brief-wake-sleep-label">☀️ 起床</span>
-      <input type="time" step="300" value="${wakeTime || ""}" onchange="updateWakeTimeNow(this.value)" disabled>
-      <button class="time-preset-btn time-edit-toggle" onclick="enableWakeTimeEditOnHome()">変更</button>
+      <input type="time" step="300" id="brief-wake-time-input" value="${wakeTime || ""}" onchange="onHomeWakeTimeChange(this.value)">
+      <button class="time-preset-btn time-edit-toggle" id="brief-wake-save-btn" onclick="confirmHomeWakeTimeEdit()">変更</button>
       <span class="brief-wake-sleep-status">${wakeTime ? `${wakeTime} に起床済み` : "未記録（おはようボタンで自動記録）"}</span>
-    </div>
-    <div class="time-preset-row">
-      ${computeWakePresetTimes().map(t => `<button class="time-preset-btn ${wakeTime===t?"active":""}" onclick="updateWakeTimeNow('${t}')">${t}</button>`).join("")}
     </div>
     <div class="brief-wake-sleep-row">
       <span class="brief-wake-sleep-label">🛏️ 就寝予定</span>
-      <input type="time" step="300" id="brief-sleep-planned-time" value="${sleepPlannedTime || ""}" onchange="updateSleepPlannedTimeNow(this.value)" disabled>
-      <button class="time-preset-btn time-edit-toggle" onclick="enableSleepPlannedTimeEditOnHome()">変更</button>
+      <input type="time" step="300" id="brief-sleep-planned-time" value="${sleepPlannedTime || ""}" onchange="onHomeSleepTimeChange(this.value)">
+      <button class="time-preset-btn time-edit-toggle" id="brief-sleep-save-btn" onclick="confirmHomeSleepTimeEdit()">変更</button>
       <span class="brief-wake-sleep-status">${sleepPlannedTime ? `${sleepPlannedTime} に就寝予定` : "未入力"}</span>
-    </div>
-    <div class="time-preset-row">
-      ${computeSleepPresetTimes().map(t => `<button class="time-preset-btn ${sleepPlannedTime===t?"active":""}" onclick="updateSleepPlannedTimeNow('${t}')">${t}</button>`).join("")}
     </div>`;
 
   // 2026-08-02 筋トレメニュー非表示（外部ツール完成まで）
