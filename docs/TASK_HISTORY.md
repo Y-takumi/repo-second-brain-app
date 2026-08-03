@@ -1194,6 +1194,19 @@
   - **コミット**: 1832e24（push 済み）
 - **関連仕様書節**: 00_処理ロジック仕様書.md 2.10.5 節「2026-08-03 夕方セッション第 2 段」
 
+### Task 103: HOME.todaybrief レンダリング漏れ修正
+- **状態**: completed
+- **完了評価**: 成功
+- **備考**:
+  - ユーザーFB（スクショ報告）：「専用画面で今日を始めるボタンを押したら、HOMEタブが表示されますが、今日を始めるボタン以外が表示されていません。」
+  - **原因**：`dismissMorningGate` で `goTo("brief-setup")` に変更した結果、`renderTodayBrief()` が呼ばれなくなり、HOME.todaybrief の `brief-wake-sleep` 要素の中身（起床・就寝時刻の入力欄）がレンダリングされない問題が発生。HOME.todaybrief には不要な「今日を始める」ボタンも残っていた
+  - **修正内容**：
+    1. `startBrief` 関数で `goTo("todaybrief")` の前に `renderTodayBrief()` を呼ぶ
+    2. HOME.todaybrief HTML から不要な「今日を始める」ボタン（id="brief-cta"）を削除
+  - **JS 構文チェック** OK
+  - **コミット**: acd1458（push 済み）
+- **関連仕様書節**: 00_処理ロジック仕様書.md 2.10.5 節「2026-08-03 夕方セッション第 3 段」
+
 ---
 
 ## 関連ドキュメント
