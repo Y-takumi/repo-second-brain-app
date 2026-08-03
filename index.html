@@ -390,6 +390,12 @@
   .time-preset-row-scrollable .time-preset-btn{flex-shrink:0; font-size:13px; padding:8px 14px;}
   .brief-setup-section-gap{margin-top:38px;}
   .brief-setup-hint{font-size:12px; color:var(--ink-dim); margin-top:10px; text-align:center; white-space:nowrap;}
+  /* 2026-08-03 夕方セッション：brief-setup 専用 section-label をより目立たせる */
+  #screen-brief-setup .section-label{font-size:16px; color:var(--ink); font-weight:700; text-transform:none; letter-spacing:.02em; margin:32px 0 14px;}
+  #screen-brief-setup .brief-setup-section-gap{margin-top:48px;}
+  /* 2026-08-03 夕方セッション：今日を始めるボタンを画面下部に配置 */
+  .brief-setup-cta-wrap{margin-top:64px;}
+  .brief-setup-cta-wrap .btn-primary{padding:14px 20px; font-size:15px;}
   .time-preset-row{display:flex; gap:5px; flex-wrap:wrap; padding:4px 0 8px; margin-left:0;}
   .time-preset-btn{font-size:11px; padding:5px 12px; border-radius:14px; background:var(--surface); color:var(--ink-dim); border:1px solid var(--border); cursor:pointer; font-family:var(--mono); transition:all 0.15s;}
   .time-preset-btn:hover{background:var(--surface2); border-color:var(--primary); color:var(--ink);}
@@ -1632,20 +1638,20 @@ const vaultSeedFiles = [
 
     <div class="section-label">起床時刻</div>
     <div class="brief-setup-input-row">
-      <label for="brief-setup-wake-time">☀️ 起床</label>
       <input type="time" step="300" id="brief-setup-wake-time" onchange="onBriefSetupWakeTimeChange(this.value)">
     </div>
     <div class="time-preset-row-scrollable" id="brief-setup-wake-presets"></div>
 
     <div class="section-label brief-setup-section-gap">就寝予定時刻</div>
     <div class="brief-setup-input-row">
-      <label for="brief-setup-sleep-time">🛏️ 就寝</label>
       <input type="time" step="300" id="brief-setup-sleep-time" onchange="onBriefSetupSleepTimeChange(this.value)">
     </div>
     <div class="time-preset-row-scrollable" id="brief-setup-sleep-presets"></div>
 
-    <button class="btn-primary" style="margin-top:36px; width:100%;" onclick="startBrief()">今日を始める</button>
-    <div class="brief-setup-hint">タップすると Drive に保存され、ホーム画面に移動します</div>
+    <div class="brief-setup-cta-wrap">
+      <button class="btn-primary" style="width:100%;" onclick="startBrief()">今日を始める</button>
+      <div class="brief-setup-hint">タップすると Drive に保存され、ホーム画面に移動します</div>
+    </div>
   </div>
 
   <!-- ===== TODAY BRIEF（おはよう後、ハッピーな演出の後に着地する画面） ===== -->
