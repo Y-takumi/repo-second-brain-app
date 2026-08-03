@@ -1625,6 +1625,9 @@ const vaultSeedFiles = [
     <div class="section-label">今日の起床・就寝</div>
     <div id="brief-wake-sleep"></div>
 
+    <!-- 2026-08-03 「今日を始める」ボタン：就寝予定時刻の下部に配置。おはようボタン押下後、押すまでタブ遷移制限 -->
+    <button class="btn-primary" id="brief-cta" style="margin-top:14px; width:100%;" onclick="startBrief()">今日を始める</button>
+
     <!-- 2026-08-02 筋トレメニュー非表示（外部ツール完成まで） -->
     <!-- <div class="section-label">今日の筋トレメニュー <span class="brief-ext-badge">外部ツール連携予定</span></div>
     <div id="brief-workout"></div> -->
@@ -1637,8 +1640,6 @@ const vaultSeedFiles = [
 
     <div class="section-label" style="margin-top:26px;">気になっているTask</div>
     <div id="brief-tasks"></div>
-
-    <!-- 2026-08-02 「今日を始める」ボタンは設定画面に移動 -->
   </div>
 
   <!-- ===== GOODNIGHT（おやすみボタンから遷移する締めくくり画面） ===== -->
@@ -1720,9 +1721,6 @@ const vaultSeedFiles = [
         <span>🏋️ ウェイト</span>
       </label>
     </div>
-
-    <button class="btn-primary" id="brief-cta" style="margin-top:20px; width:100%;" onclick="startBrief()">今日を始める</button>
-    <div class="settings-hint" style="margin-top:6px;">おはようボタン押下後、HOME と設定タブのみ移動できます。「今日を始める」を押すと、起床/就寝予定時刻が Drive に登録され、全タブが使えるようになります</div>
 
     <div class="field-label" style="margin-top:22px;">アカウント名</div>
     <input class="url-input" type="text" id="set-username" placeholder="表示する名前" onchange="saveSettings()">

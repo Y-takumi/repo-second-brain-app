@@ -1106,6 +1106,7 @@
     1. **設定タブの 30 分刻みボタン削除**：1703-1709, 1717-1723 行目を `display:none` で非表示化（`setWakePreset` / `setSleepPreset` 関数は残置、後で復活可能）
     2. **HOMEtab 筋トレメニュー非表示**：section-label + `brief-workout` 要素を HTML コメントアウト、renderTodayBrief 内の描画ロジックもコメントアウト
     3. **「今日を始める」ボタンの移動**：HOMEtab.todaybrief → 設定タブ「基本の習慣（プリセット）」直下。onclick を `goTo('capture')` → `startBrief()` に変更
+4. **【2026-08-03 朝セッション訂正】設定タブへの移動を取り消し**：ユーザーFB「HOME タブの就寝予定時刻の下部に今日を始めるボタンを設置したいです」「おはようボタンは門番画面にそのまま」→ HOME.todaybrief の起床・就寝時刻欄の下部（就寝予定時刻プリセット直下）に再配置、設定タブからは削除
     4. **タブ遷移制限の実装**：新規フラグ `briefStarted` を追加（`hasGreetedToday` と独立）。`dismissMorningGate` で `false` にセット。`goTo` 関数で遷移制限チェック（`briefStarted === false` かつ `name` が "todaybrief" / "settings" / "morninggate" / "goodnight" 以外なら `return`）
     5. **「今日を始める」ボタン押下時の Drive 登録**：新規関数 `startBrief`（async）を実装。起床時刻・就寝予定時刻を `persistHabitChange` で Drive に保存 → `briefStarted = true` → `goTo("todaybrief")`
   - **既存パターンの活用**：`persistHabitChange` 関数（Task 73 で実装済み）の既存パスで Drive 同期
