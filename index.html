@@ -406,6 +406,14 @@
   .time-preset-btn.active{background:var(--primary); color:#fff; border-color:var(--primary); font-weight:600;}
   /* 2026-08-03 夕方セッション：変更ボタン押下時の成功状態（チェックマーク + 緑背景） */
   .time-preset-btn.success-check{background:var(--healthcare); color:#fff; border-color:var(--healthcare); font-weight:700;}
+  /* 2026-08-03 夜セッション：完了ボタン（タスク詳細画面）。押下前は無色、押下後 1秒間緑背景を表示してから遷移する。
+     デザインルール：押下前は無彩色で「押せる」ことを示し、押下後は緑で「成功」を示す視覚的フィードバック。 */
+  .btn-complete{background:transparent; color:var(--ink-dim); border:1px solid var(--border); padding:9px 16px; border-radius:14px; font-size:12.5px; min-width:120px; cursor:pointer; transition:all 0.2s; font-family:inherit;}
+  .btn-complete:hover{background:var(--surface2); border-color:var(--primary); color:var(--ink);}
+  .btn-complete:active{transform:scale(0.98);}
+  .btn-complete:disabled{cursor:default;}
+  .btn-complete.success{background:var(--healthcare); color:#fff; border-color:var(--healthcare); font-weight:700;}
+  .btn-complete.success:hover{background:var(--healthcare); border-color:var(--healthcare);}
   /* 時刻入力 UI 統一（おはよう画面・おやすみ画面・設定画面の 4 か所） */
   input[type="time"].preset-time-input,
   input[type="time"]#goodnight-sleep-time,
@@ -5141,7 +5149,7 @@ function openTaskDetail(id){
 }
 
 /** 2026-08-03 夜セッション：Task詳細画面の「アクション」エリアを描画。
- * - open 状態：完了ボタン（primary）
+ * - open 状態：完了ボタン（無色、押下後 1秒間緑）
  * - done 状態：「完了済み」表示（取り消し不可、要望に応じて表示のみ） */
 function renderTaskActionArea(){
   const t = taskById(currentTaskDetailId);
@@ -5150,31 +5158,40 @@ function renderTaskActionArea(){
   if(t.status === "done"){
     area.innerHTML = `<div style="font-size:12px; color:var(--ink-dim); padding:8px 0;">✅ 完了済み</div>`;
   } else {
-    area.innerHTML = `<button class="btn-primary" style="margin:0; width:auto; flex-shrink:0; padding:9px 16px; font-size:12.5px; min-width:120px;" onclick="completeTaskFromDetail()">✅ 完了にする</button>`;
+    area.innerHTML = `<button class="btn-complete" id="td-complete-btn" onclick="completeTaskFromDetail()">完了にする</button>`;
   }
 }
 
 /** 2026-08-03 夜セッション：Task詳細画面の完了ボタン押下時。
- * - タスクを done にして Drive に保存
- * - HOME 画面に戻り、brief-tasks / brief-research-tasks を再描画 */
+ * - 押下後、ボタンを緑化し、1秒後に HOME 画面へ遷移
+ * - 連続押下防止のためボタンを disabled 化
+ * - メモリ上は即座に done にして HOME の再描画でタスクを消す
+ * - Drive 永続化は遷移後にバックグラウンドで実行（UX 優先） */
 async function completeTaskFromDetail(){
   const t = taskById(currentTaskDetailId);
   if(!t || t.status === "done") return;
-  // 既存パターン toggleTaskDone と同じ順序：メモリ更新 → Drive 永続化
+  const btn = document.getElementById("td-complete-btn");
+  if(!btn || btn.disabled) return; // 連続押下防止
+  btn.disabled = true;
+  btn.classList.add("success");
+  btn.textContent = "完了";
+  // メモリ上を即座に done にして HOME に戻った時にタスクが一覧から消えるようにする
   t.status = "done";
-  if(!googleAccessToken){
-    console.warn("Drive 未接続：完了状態はメモリ上のみ。次回リロードで元に戻ります");
-  } else {
-    try{
-      await updateTaskStatusInDrive(t.id, "done");
-    } catch(e){
-      console.error("Task完了のDrive保存に失敗:", e);
-      alert(`Drive保存に失敗しました：${e.message}\n次回のリロードまで変更は保持されません。`);
+  // 1秒間緑の成功状態を見せてから HOME へ遷移
+  setTimeout(async () => {
+    if(!googleAccessToken){
+      console.warn("Drive 未接続：完了状態はメモリ上のみ。次回リロードで元に戻ります");
+    } else {
+      try{
+        await updateTaskStatusInDrive(t.id, "done");
+      } catch(e){
+        console.error("Task完了のDrive保存に失敗:", e);
+        alert(`Drive保存に失敗しました：${e.message}\n次回のリロードまで変更は保持されません。`);
+      }
     }
-  }
-  // HOME 画面に戻って再描画（research / open task リストから除去される）
-  renderTodayBrief();
-  goTo("todaybrief");
+    renderTodayBrief();
+    goTo("todaybrief");
+  }, 1000);
 }
 function saveTaskTitle(){
   const t = taskById(currentTaskDetailId);
