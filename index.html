@@ -1667,9 +1667,6 @@ const vaultSeedFiles = [
     <div class="section-label">今日の起床・就寝</div>
     <div id="brief-wake-sleep"></div>
 
-    <!-- 2026-08-03 「今日を始める」ボタン：就寝予定時刻の下部に配置。おはようボタン押下後、押すまでタブ遷移制限 -->
-    <button class="btn-primary" id="brief-cta" style="margin-top:14px; width:100%;" onclick="startBrief()">今日を始める</button>
-
     <!-- 2026-08-02 筋トレメニュー非表示（外部ツール完成まで） -->
     <!-- <div class="section-label">今日の筋トレメニュー <span class="brief-ext-badge">外部ツール連携予定</span></div>
     <div id="brief-workout"></div> -->
@@ -5414,8 +5411,7 @@ function onBriefSetupSleepTimeChange(v){
 
 /** 2026-08-03 「今日を始める」ボタン押下時
  * - 専用画面（brief-setup）で編集された起床時刻・就寝予定時刻を Drive に保存
- * - HOME 画面へ遷移
- * - 2026-08-03 リデザイン：タブ遷移制限は廃止（brief-setup で入力が確定するため） */
+ * - HOME 画面へ遷移（renderTodayBrief も呼ぶ：brief-wake-sleep のレンダリング漏れ対策） */
 async function startBrief(){
   const todayKey = d(0);
   // 起床時刻を Drive に保存（入力されている場合のみ）
@@ -5426,6 +5422,8 @@ async function startBrief(){
   if(sleepHabit.sleepPlannedTime[todayKey]){
     await persistHabitChange(sleepHabit.id, { sleep_planned_time: sleepHabit.sleepPlannedTime });
   }
+  // HOME.todaybrief を再描画（起床・就寝時刻欄を更新）
+  renderTodayBrief();
   goTo("todaybrief");
 }
 
