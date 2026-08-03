@@ -1127,6 +1127,46 @@
 
 ---
 
+## 2026-08-03 朝セッション（今日を始めるボタン再配置）
+
+### Task 99: 「今日を始める」ボタンを HOME.todaybrief へ再配置
+- **状態**: completed
+- **完了評価**: 成功
+- **備考**:
+  - ユーザーFB：「すみません、門番画面は今まで通りです。設定画面から削除したかったのは[今日を始める]ボタンでした。またHOMEタブの就寝予定時刻の下部に今日を始めるボタンを設置したいです。」
+  - 昨夜の改修を訂正：設定タブに置いた「今日を始める」ボタンを削除し、HOME.todaybrief の起床・就寝時刻欄の下部（就寝予定プリセット直下）に再配置
+  - 仕様書 2.10.5 節の「『今日を始める』ボタン位置」記述を「HOME.todaybrief」に修正
+  - コミット: d65c959（push 済み）
+
+---
+
+## 2026-08-03 午後セッション（UX リデザイン：専用画面 + HOME 編集簡素化）
+
+### Task 100: UX リデザイン実装（brief-setup 専用画面 + HOME 編集簡素化 + タブロック廃止）
+- **状態**: completed
+- **完了評価**: 成功
+- **備考**:
+  - ユーザーFB：「おはようボタンを押したら、それはアプリの起動をイメージさせることが重要で、そのあとに起床時間が何時だったか？就寝予定時刻は何時か？を確認して今日を始める。」「HOME画面だとスペースが窮屈で5分刻みのボタンがビジーに見えます。」「HOME画面の5分刻みのボタンは不要かと思います。編集する場合は、起床時刻および就寝予定時刻を直接入力する項目だけ残して、編集後に変更ボタンをタップして編集を確定させたいです。(変更ボタンをタップしたらボタンにチェックマークが表示されて、アクションが成功したかを視覚的に分かりやすくしたいです。)」
+  - **3 つの大きな変更を委任モードで実装**：
+    1. **専用画面（brief-setup）の追加**：新しい `screen-brief-setup` を HTML に追加。起床・就寝時刻の input（disabled なし、5 分刻みプリセット付き、十分なスペース）、「今日を始める」ボタン（btn-primary）
+    2. **おはようフローの変更**：`dismissMorningGate` で `goTo("brief-setup")` に変更。サンライズ演出 → brief-setup 画面へ
+    3. **タブ遷移制限の廃止**：`briefStarted` フラグ削除、`goTo` の遷移制限ロジック削除、`tabbar` 表示制御を拡張（brief-setup でも非表示）
+    4. **HOME.todaybrief の簡素化**：5 分刻みプリセットボタンを削除。input + 変更ボタンに統一。変更ボタン押下時に「✓」チェックマークを 3 秒間表示（`showCheckMark` 関数）
+  - **新規関数**：`renderBriefSetup`, `setBriefSetupWakeTime/Sleep`, `onBriefSetupWakeTime/Sleep`, `onHomeWakeTime/Sleep`, `confirmHomeWakeTime/Sleep`, `showCheckMark`
+  - **既存関数の保持**：`updateWakeTimeNow` / `updateSleepPlannedTimeNow` / `enableWakeTimeEditOnHome` / `enableSleepPlannedTimeEditOnHome` は goodnight 画面・Tasks タブ（`renderTasksWakeTimeEdit`）で現役使用中のため残置
+  - **新フロー**：
+    1. 門番画面でおはよう押下
+    2. サンライズ演出 → brief-setup（タブバー非表示）
+    3. 起床・就寝時刻を 5 分刻みボタン or 直接入力で編集
+    4. 「今日を始める」押下 → Drive 保存 → HOME.todaybrief へ
+    5. HOME では各タブが利用可能（タブ遷移制限なし）
+    6. HOME で時刻を編集する場合、変更ボタン押下 → Drive 保存 + チェックマーク
+  - **JS 構文チェック** OK
+  - **コミット**: 924ffb6（push 済み）
+- **関連仕様書節**: 00_処理ロジック仕様書.md 2.10.5 節「2026-08-03 午後セッション：UX リデザイン」
+
+---
+
 ## 関連ドキュメント
 
 - `docs/OAUTH_AND_STORAGE.md`：OAuth・LocalStorage・データアクセス権限
