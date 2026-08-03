@@ -400,6 +400,8 @@
   .time-preset-btn{font-size:11px; padding:5px 12px; border-radius:14px; background:var(--surface); color:var(--ink-dim); border:1px solid var(--border); cursor:pointer; font-family:var(--mono); transition:all 0.15s;}
   .time-preset-btn:hover{background:var(--surface2); border-color:var(--primary); color:var(--ink);}
   .time-preset-btn.active{background:var(--primary); color:#fff; border-color:var(--primary); font-weight:600;}
+  /* 2026-08-03 夕方セッション：変更ボタン押下時の成功状態（チェックマーク + 緑背景） */
+  .time-preset-btn.success-check{background:var(--healthcare); color:#fff; border-color:var(--healthcare); font-weight:700;}
   /* 時刻入力 UI 統一（おはよう画面・おやすみ画面・設定画面の 4 か所） */
   input[type="time"].preset-time-input,
   input[type="time"]#goodnight-sleep-time,
@@ -5242,14 +5244,11 @@ function updateWakeTimeNow(hhmm){
 }
 
 /** 2026-08-03 リデザイン：HOME.todaybrief の起床時刻 input 変更時（メモリ上のみ）。
- * 「変更」ボタン押下時に Drive 保存 + チェックマーク表示（confirmHomeWakeTimeEdit） */
+ * ステータス更新は「変更」ボタン押下時に行う（confirmHomeWakeTimeEdit） */
 function onHomeWakeTimeChange(v){
   if(!v || !/^\d{2}:\d{2}$/.test(v)) return;
   const todayKey = d(0);
   wakeHabit.wakeTime[todayKey] = v;
-  // ステータス更新（リアルタイム）
-  const statusEl = document.querySelector("#brief-wake-sleep .brief-wake-sleep-status");
-  if(statusEl) statusEl.textContent = `${v} に起床済み`;
 }
 
 /** 2026-08-03 リデザイン：HOME.todaybrief の就寝予定時刻 input 変更時（メモリ上のみ） */
@@ -5257,19 +5256,20 @@ function onHomeSleepTimeChange(v){
   if(!v || !/^\d{2}:\d{2}$/.test(v)) return;
   const todayKey = d(0);
   sleepHabit.sleepPlannedTime[todayKey] = v;
-  // ステータス更新（リアルタイム）
-  const statusEl = document.querySelectorAll("#brief-wake-sleep .brief-wake-sleep-status")[1];
-  if(statusEl) statusEl.textContent = `${v} に就寝予定`;
 }
 
 /** 2026-08-03 リデザイン：HOME.todaybrief の起床時刻「変更」ボタン押下時
  * - Drive に保存
- * - チェックマーク表示（3秒後に元に戻る） */
+ * - ステータス表示を更新（「HH:MM に起床済み」）
+ * - チェックマーク + 緑背景を 3 秒間表示 */
 async function confirmHomeWakeTimeEdit(){
   const todayKey = d(0);
   if(wakeHabit.wakeTime[todayKey]){
     await persistHabitChange(wakeHabit.id, { wake_time: wakeHabit.wakeTime });
   }
+  // ステータス表示を更新
+  const statusEl = document.querySelector("#brief-wake-sleep .brief-wake-sleep-status");
+  if(statusEl) statusEl.textContent = `${wakeHabit.wakeTime[todayKey]} に起床済み`;
   showCheckMark(document.getElementById("brief-wake-save-btn"));
 }
 
@@ -5279,18 +5279,23 @@ async function confirmHomeSleepTimeEdit(){
   if(sleepHabit.sleepPlannedTime[todayKey]){
     await persistHabitChange(sleepHabit.id, { sleep_planned_time: sleepHabit.sleepPlannedTime });
   }
+  // ステータス表示を更新
+  const statusEl = document.querySelectorAll("#brief-wake-sleep .brief-wake-sleep-status")[1];
+  if(statusEl) statusEl.textContent = `${sleepHabit.sleepPlannedTime[todayKey]} に就寝予定`;
   showCheckMark(document.getElementById("brief-sleep-save-btn"));
 }
 
-/** 2026-08-03 リデザイン：変更ボタンに成功チェックマークを表示（3秒後に元に戻る） */
+/** 2026-08-03 リデザイン：変更ボタンに成功チェックマーク + 緑背景を表示（3秒後に元に戻る） */
 function showCheckMark(btn){
   if(!btn) return;
   const originalText = btn.textContent;
   btn.textContent = "✓";
   btn.disabled = true;
+  btn.classList.add("success-check");
   setTimeout(()=>{
     btn.textContent = originalText;
     btn.disabled = false;
+    btn.classList.remove("success-check");
   }, 3000);
 }
 
