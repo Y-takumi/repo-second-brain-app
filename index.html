@@ -1673,11 +1673,9 @@ const vaultSeedFiles = [
     <!-- <div class="section-label">今日の筋トレメニュー <span class="brief-ext-badge">外部ツール連携予定</span></div>
     <div id="brief-workout"></div> -->
 
-    <div class="section-label">通勤中にチェックしたいコンテンツ <span class="brief-ext-badge">AI提案・サンプル</span></div>
-    <div id="brief-commute"></div>
-
-    <div class="section-label">ジャーナルのヒント <span class="brief-ext-badge" style="background:var(--primary-soft); color:var(--primary);">オフィスでの音声入力用</span></div>
-    <div id="brief-journal-hints"></div>
+    <!-- 2026-08-03 通勤中にリサーチタスクを消化するためのセクション -->
+    <div class="section-label">リサーチタスク <span class="brief-ext-badge" style="background:var(--healthcare-soft, #5ec8a622); color:var(--healthcare);">通勤中</span></div>
+    <div id="brief-research-tasks"></div>
 
     <div class="section-label" style="margin-top:26px;">気になっているTask</div>
     <div id="brief-tasks"></div>
@@ -5557,32 +5555,18 @@ const workoutProgress = [
   { name:"デッドリフト", base:30,   increment:5,   level:2, totalLevelUps:9,  weekStartTotalLevelUps:9  },
 ];
 
-/** 今日の音声ジャーナルで話すきっかけを、実データから提案する（通勤電車で調べられるコンテンツ提案込み） */
-function getJournalHints(){
-  const hints = [];
-  const researchTask = taskData.find(t=>t.type==="research" && t.status==="open" && !isBlocked(t));
-  if(researchTask) hints.push({icon:"💬", text:`「${researchTask.text}」について、今分かっていること・考えていることを話してみる`});
-
-  const unexaminedGm = greatMindData.find(g=>gmComputedStance(g)==="unexamined");
-  if(unexaminedGm) hints.push({icon:"💬", text:`「${unexaminedGm.title}」というマインドセット、自分にはどう当てはまりそうか話してみる`});
-
-  const staleHabitList = getUnfinishedQueue();
-  if(staleHabitList.length){
-    hints.push({icon:"💬", text:`「${staleHabitList[0].text}」、最近ずっと動きがないので、今どう感じているか話してみる`});
-  } else {
-    hints.push({icon:"💬", text:"昨日の出来事で、印象に残っていることはありますか？"});
-  }
-  return hints.slice(0,3);
-}
-
-/** 通勤電車（20分以上）で見られそうなコンテンツ提案。本来はResearch Task/Great Mindのsageを踏まえてClaudeが探す想定。今はサンプル */
-function getCommuteRecommendations(){
-  const gm = greatMindData.find(g=>g.sage && g.sage!=="自分の考え");
-  const sageName = gm ? gm.sage : "気になる分野の専門家";
-  return [
-    { type:"YouTube", title:`${sageName}の最新動画をチェックする`, note:"20分程度。今朝のResearch Taskの続きになりそうです" },
-    { type:"記事", title:"関連するブログ記事を1本読む", note:"移動時間で読み切れる長さのものを想定" },
-  ];
+/** HOME.todaybrief のリサーチタスク一覧表示用：open な research タスクを抽出
+ * 通勤中に消化したくなるリサーチタスクを優先表示 */
+function getResearchTasksForBrief(){
+  return taskData
+    .filter(t => t.type === "research" && t.status === "open" && !isBlocked(t))
+    .sort((a, b) => {
+      // priority 昇順 → due 昇順
+      const pa = (a.priority ?? 999);
+      const pb = (b.priority ?? 999);
+      if(pa !== pb) return pa - pb;
+      return new Date(a.due || "9999-12-31") - new Date(b.due || "9999-12-31");
+    });
 }
 
 function renderTodayBrief(){
@@ -5648,15 +5632,14 @@ function renderTodayBrief(){
     </div>`
   ).join("") || `<div class="summary-preview-text" style="color:var(--ink-faint); font-size:11px;">今日は特に気になるTaskはありません</div>`;
 
-  document.getElementById("brief-journal-hints").innerHTML =
-    getJournalHints().map(h=>`<div class="brief-journal-hint"><span class="mark">${h.icon}</span><span>${h.text}</span></div>`).join("");
-
-  document.getElementById("brief-commute").innerHTML =
-    getCommuteRecommendations().map(c=>`
-      <div class="brief-journal-hint" style="border-color:var(--business);">
-        <span class="mark" style="color:var(--business);">${c.type==="YouTube"?"📺":"📰"}</span>
-        <span><b style="color:var(--ink);">${c.title}</b><br><span style="color:var(--ink-faint); font-size:10.5px;">${c.note}</span></span>
-      </div>`).join("");
+  // 2026-08-03 リサーチタスク一覧：通勤中に消化したくなる research タスクを表示
+  const researchTasks = getResearchTasksForBrief();
+  document.getElementById("brief-research-tasks").innerHTML = researchTasks.length
+    ? researchTasks.slice(0, 5).map(t => `
+        <div class="task-compact-row" style="cursor:default; opacity:.95;">
+          <span class="dep" style="color:var(--ink); font-size:11.5px;">📚 ${t.text}${t.due ? ` <span style="color:var(--business);">・due ${t.due}</span>` : ""}</span>
+        </div>`).join("")
+    : `<div class="summary-preview-text" style="color:var(--ink-faint); font-size:11px;">リサーチタスクはまだありません</div>`;
 }
 /** HOMEタブから直接開いた時：サンライズ演出なしで、内容だけ描画して開く */
 function openTodayBrief(){
