@@ -1400,6 +1400,31 @@
 
 ---
 
+## 2026-08-04 セッション（確認ポップアップのアプリ内モーダル化）
+
+### Task 115: 削除確認ポップアップをアプリ内モーダルに置き換え
+- **状態**: completed
+- **完了評価**: 成功（コード変更は確認済み、目視確認は Tackman さんに依頼）
+- **備考**:
+  - ユーザーFB：「削除時のポップアップはブラウザ側で実行していると思いますが、これはアプリ内でポップアップできないですか？」
+  - **変更**：
+    - ブラウザネイティブ `confirm()` → アプリ内モーダル（`.modal-backdrop` + `.modal-card`）
+    - 新規 CSS：`.btn-danger`（赤系 #e0716e、削除確認用）, `.modal-backdrop`, `.modal-card`, `.modal-title`, `.modal-message`, `.modal-actions`
+    - 新規 JS 関数 `openConfirmModal({ title, message, confirmLabel, cancelLabel, danger, onConfirm, onCancel })`
+    - 閉じる方法：背景タップ、ESC キー、キャンセルボタンの 3 通り
+    - フォーカス管理：開いた時に確認ボタンにフォーカス、閉じた後に元の要素に戻す
+  - **削除確認モーダルの表示仕様**：
+    - タイトル：「タスクを削除」
+    - メッセージ：「『タスク名』を本当に削除しますか？\n\nこの操作は元に戻せません。」
+    - 確認ボタンラベル：「削除する」（`.btn-danger` で赤系）
+    - キャンセルボタンラベル：「キャンセル」（`.btn-secondary`）
+  - **デザインルール追加**：CLAUDE.md に「確認ポップアップはアプリ内モーダルで実装する」を追記
+  - **既存 alert/confirm の扱い**：スコープ外として残置。エラー通知は alert のまま、破壊的確認（confirm）は順次モーダルに移行予定
+- **コミット**:
+  - `8424c39` refactor(task-detail): 削除確認をブラウザ confirm() からアプリ内モーダルに置き換え
+
+---
+
 ## 関連ドキュメント
 
 - `docs/OAUTH_AND_STORAGE.md`：OAuth・LocalStorage・データアクセス権限

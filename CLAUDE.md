@@ -77,6 +77,7 @@ Drive OAuth・Vault読み込みパーサー（Library/Task/Knowledge/GreatMind/H
 - レイアウトが崩れていないか、**変更後は必ずスクリーンショットで確認してから次に進む**
 - **ボタン内の文字は必ず横に並ぶ**（縦書き禁止）。`white-space: nowrap` + `min-width: 60px` を基本形とする。2026-08-03 夜セッションで HOME タブの「変更」ボタンが横幅不足で「変更」が縦に並んだ事案を受けて追加
 - **取り消しの大きい操作（タスク完了等）の成功状態は 1秒間緑背景で表示してから遷移する**：押下前は無彩色（背景透明・枠線のみ）、押下後 1秒間 `.btn-complete.success`（`var(--healthcare)` 緑背景・白文字）で成功を視覚的にフィードバックし、その間に Drive 永続化等の非同期処理を行う。押下後は `disabled` で連続押下防止。2026-08-03 夜セッションで実装
+- **確認ポップアップはアプリ内モーダルで実装する**：ブラウザネイティブの `confirm()` / `alert()` は使用禁止（スマホ枠アプリでは UX が劣る、スタイル統一不可）。共通関数 `openConfirmModal({ title, message, confirmLabel, cancelLabel, danger, onConfirm, onCancel })` を使用。背景タップ・ESC・キャンセルボタンで `onCancel`、確認ボタンで `onConfirm`。破壊的操作は `danger: true` で確認ボタンを `.btn-danger`（赤系）にする。2026-08-04 セッションで実装
 
 
 ### 動作確認の分担（2026-07-30 追加）
