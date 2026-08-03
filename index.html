@@ -379,6 +379,8 @@
   .brief-wake-sleep-row input[type="time"]:hover{background:var(--surface2); border-color:var(--primary);}
   .brief-wake-sleep-row input[type="time"]:focus{outline:none; border-color:var(--primary); background:var(--surface2);}
   .brief-wake-sleep-label{font-weight:600;}
+  /* 2026-08-03 HOME.todaybrief の起床行・就寝行で input 開始位置をそろえるためのスコープ付き最小幅 */
+  #brief-wake-sleep .brief-wake-sleep-label{display:inline-block; min-width:90px; flex-shrink:0;}
   .brief-wake-sleep-status{font-size:10.5px; color:var(--ink-faint); margin-left:auto; white-space:nowrap;}
   /* 2026-08-03 専用画面（brief-setup）用：大きな入力欄 + 横スクロールプリセット */
   .brief-setup-input-row{display:flex; align-items:center; gap:14px; padding:10px 0 14px;}
@@ -5636,7 +5638,7 @@ function renderTodayBrief(){
   const researchTasks = getResearchTasksForBrief();
   document.getElementById("brief-research-tasks").innerHTML = researchTasks.length
     ? researchTasks.slice(0, 5).map(t => `
-        <div class="task-compact-row" style="cursor:default; opacity:.95;">
+        <div class="task-compact-row" style="cursor:pointer; opacity:.95;" onclick="openTaskDetail('${t.id}')">
           <span class="dep" style="color:var(--ink); font-size:11.5px;">📚 ${t.text}${t.due ? ` <span style="color:var(--business);">・due ${t.due}</span>` : ""}</span>
         </div>`).join("")
     : `<div class="summary-preview-text" style="color:var(--ink-faint); font-size:11px;">リサーチタスクはまだありません</div>`;
