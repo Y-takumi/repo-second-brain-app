@@ -380,6 +380,16 @@
   .brief-wake-sleep-row input[type="time"]:focus{outline:none; border-color:var(--primary); background:var(--surface2);}
   .brief-wake-sleep-label{font-weight:600;}
   .brief-wake-sleep-status{font-size:10.5px; color:var(--ink-faint); margin-left:auto; white-space:nowrap;}
+  /* 2026-08-03 専用画面（brief-setup）用：大きな入力欄 + 横スクロールプリセット */
+  .brief-setup-input-row{display:flex; align-items:center; gap:14px; padding:10px 0 14px;}
+  .brief-setup-input-row label{font-size:14px; font-weight:600; color:var(--ink); flex-shrink:0; min-width:90px;}
+  .brief-setup-input-row input[type="time"]{font-size:22px; padding:12px 16px; max-width:none; flex:1; border-radius:14px; background:var(--surface); color:var(--ink); border:1px solid var(--border); font-family:var(--mono); cursor:pointer; transition:all 0.15s; color-scheme:dark; text-align:center;}
+  .brief-setup-input-row input[type="time"]:hover{background:var(--surface2); border-color:var(--primary);}
+  .brief-setup-input-row input[type="time"]:focus{outline:none; border-color:var(--primary); background:var(--surface2);}
+  .time-preset-row-scrollable{display:flex; gap:8px; overflow-x:auto; white-space:nowrap; padding:8px 0 14px; margin-left:0; -webkit-overflow-scrolling:touch; scrollbar-width:thin;}
+  .time-preset-row-scrollable .time-preset-btn{flex-shrink:0; font-size:13px; padding:8px 14px;}
+  .brief-setup-section-gap{margin-top:38px;}
+  .brief-setup-hint{font-size:12px; color:var(--ink-dim); margin-top:10px; text-align:center; white-space:nowrap;}
   .time-preset-row{display:flex; gap:5px; flex-wrap:wrap; padding:4px 0 8px; margin-left:0;}
   .time-preset-btn{font-size:11px; padding:5px 12px; border-radius:14px; background:var(--surface); color:var(--ink-dim); border:1px solid var(--border); cursor:pointer; font-family:var(--mono); transition:all 0.15s;}
   .time-preset-btn:hover{background:var(--surface2); border-color:var(--primary); color:var(--ink);}
@@ -1622,17 +1632,19 @@ const vaultSeedFiles = [
 
     <div class="section-label">起床時刻</div>
     <div class="brief-setup-input-row">
+      <label for="brief-setup-wake-time">☀️ 起床</label>
       <input type="time" step="300" id="brief-setup-wake-time" onchange="onBriefSetupWakeTimeChange(this.value)">
     </div>
-    <div class="time-preset-row" id="brief-setup-wake-presets"></div>
+    <div class="time-preset-row-scrollable" id="brief-setup-wake-presets"></div>
 
-    <div class="section-label" style="margin-top:22px;">就寝予定時刻</div>
+    <div class="section-label brief-setup-section-gap">就寝予定時刻</div>
     <div class="brief-setup-input-row">
+      <label for="brief-setup-sleep-time">🛏️ 就寝</label>
       <input type="time" step="300" id="brief-setup-sleep-time" onchange="onBriefSetupSleepTimeChange(this.value)">
     </div>
-    <div class="time-preset-row" id="brief-setup-sleep-presets"></div>
+    <div class="time-preset-row-scrollable" id="brief-setup-sleep-presets"></div>
 
-    <button class="btn-primary" style="margin-top:30px; width:100%;" onclick="startBrief()">今日を始める</button>
+    <button class="btn-primary" style="margin-top:36px; width:100%;" onclick="startBrief()">今日を始める</button>
     <div class="brief-setup-hint">タップすると Drive に保存され、ホーム画面に移動します</div>
   </div>
 
@@ -5296,15 +5308,16 @@ function renderTasksWakeTimeEdit(){
     </div>`;
 }
 
-/** おはよう画面のプリセット：現在時刻を 5 分刻みに丸め、過去 5 個（過去 20 分～現在）。
- * 未来時刻に「起きる」は意味がないため、過去のみ提示。 */
+/** おはよう画面のプリセット：現在時刻を 5 分刻みに丸め、過去 12 個（過去 1 時間～現在）。
+ * 未来時刻に「起きる」は意味がないため、過去のみ提示。
+ * 専用画面（brief-setup）では横スクロールで全選択肢を表示。 */
 function computeWakePresetTimes(){
   const now = new Date();
   const minutes = now.getMinutes();
   const baseMin = Math.floor(minutes / 5) * 5;
   const baseHour = now.getHours();
   const out = [];
-  for(let i = -4; i <= 0; i++){
+  for(let i = -11; i <= 0; i++){
     let totalMin = baseHour * 60 + baseMin + i * 5;
     if(totalMin < 0) totalMin += 24 * 60;
     if(totalMin >= 24 * 60) totalMin -= 24 * 60;
@@ -5315,16 +5328,17 @@ function computeWakePresetTimes(){
   return out;
 }
 
-/** 就寝予定時刻のプリセット：設定画面の targetSleepTime を起点に、未来の 5 分刻み 5 個を生成。
- * おやすみ画面と HOME.todaybrief で同じ候補を提示することで、入力体験を一貫させる */
+/** 就寝予定時刻のプリセット：設定画面の targetSleepTime を起点に、未来の 5 分刻み 12 個（過去 30 分 ～ 未来 30 分の幅）を生成。
+ * 専用画面（brief-setup）では横スクロールで全選択肢を表示。 */
 function computeSleepPresetTimes(){
   const target = parseTimeToday(appSettings.targetSleepTime);
   // 設定時刻を 5 分刻みの基準に丸める（例: 22:07 → 22:05）
   const baseMin = Math.floor(target.getMinutes() / 5) * 5;
   const baseHour = target.getHours();
   const out = [];
-  for(let i = 0; i < 5; i++){
+  for(let i = -3; i < 9; i++){
     let totalMin = baseHour * 60 + baseMin + i * 5;
+    if(totalMin < 0) totalMin += 24 * 60;
     if(totalMin >= 24 * 60) totalMin -= 24 * 60;
     const h = Math.floor(totalMin / 60);
     const m = totalMin % 60;
