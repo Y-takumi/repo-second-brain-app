@@ -120,6 +120,31 @@
     padding:12px; border-radius:14px; font-size:13.5px; font-weight:600; cursor:pointer;
   }
   .btn-secondary.loading{opacity:.6; pointer-events:none;}
+  /* 2026-08-04 セッション：破壊的操作用の危険ボタン（赤系）。confirm モーダルや「削除」確認の OK ボタンで使う。 */
+  .btn-danger{
+    background:transparent; color:#e0716e; border:1px solid #e0716e;
+    padding:12px; border-radius:14px; font-size:13.5px; font-weight:600; cursor:pointer;
+  }
+  .btn-danger:hover{background:#e0716e22; color:#e0716e; border-color:#e0716e;}
+  .btn-danger:active{transform:scale(0.98);}
+  /* 2026-08-04 セッション：アプリ内確認モーダル。ブラウザネイティブ confirm() の代わりに使用。
+     背景タップ、ESC キー、×ボタンでキャンセル。ボタンは既存の btn-secondary / btn-danger を流用。 */
+  .modal-backdrop{
+    position:fixed; inset:0; background:rgba(0,0,0,0.65); z-index:1000;
+    display:flex; align-items:center; justify-content:center; padding:24px;
+    animation:modal-fade-in 0.15s ease-out;
+  }
+  @keyframes modal-fade-in{from{opacity:0;}to{opacity:1;}}
+  @keyframes modal-pop-in{from{opacity:0; transform:scale(0.95);}to{opacity:1; transform:scale(1);}}
+  .modal-card{
+    background:var(--surface); border:1px solid var(--border); border-radius:18px;
+    padding:20px; max-width:340px; width:100%; box-shadow:0 20px 60px rgba(0,0,0,0.5);
+    animation:modal-pop-in 0.2s ease-out;
+  }
+  .modal-title{font-size:15px; font-weight:700; color:var(--ink); margin:0 0 10px;}
+  .modal-message{font-size:13px; color:var(--ink-dim); line-height:1.6; margin:0 0 20px; white-space:pre-wrap;}
+  .modal-actions{display:flex; gap:8px;}
+  .modal-actions button{flex:1; margin:0;}
   .btn-row{display:flex; gap:8px; margin-top:14px;}
   .btn-row .btn-secondary, .btn-row .btn-primary{flex:1; margin-top:0; display:flex; align-items:center; justify-content:center; gap:6px;}
   .btn-row svg{width:15px; height:15px; flex-shrink:0;}
@@ -5280,7 +5305,7 @@ async function resumeTaskFromDetail(){
 
 /** 2026-08-04 セッション：Task詳細画面の削除ボタン押下時。
  * - 依存タスクがある場合は削除を拒否（孤児化を防ぐ）
- * - 確認ポップアップで誤操作防止
+ * - 確認ポップアップで誤操作防止（ブラウザ confirm() → アプリ内モーダル）
  * - メモリ上は物理削除（taskData から除去 → 一覧から消える）
  * - Drive ファイルは論理削除（status: "deleted"、ファイルは残す。ゴミ箱 GUI はなし、ユーザー要望） */
 async function deleteTaskFromDetail(){
@@ -5293,8 +5318,20 @@ async function deleteTaskFromDetail(){
     alert(`このタスクを依存しているタスクがあるため削除できません：\n\n${depNames}\n\n先に依存タスクを削除するか、依存関係を解除してください。`);
     return;
   }
-  // 確認ポップアップ
-  if(!confirm(`「${t.text}」を本当に削除しますか？\n\nこの操作は元に戻せません。`)) return;
+  // 確認モーダル（アプリ内）
+  openConfirmModal({
+    title: "タスクを削除",
+    message: `「${t.text}」を本当に削除しますか？\n\nこの操作は元に戻せません。`,
+    confirmLabel: "削除する",
+    cancelLabel: "キャンセル",
+    danger: true,
+    onConfirm: () => performDeleteTask(t),
+    onCancel: () => {}
+  });
+}
+
+/** deleteTaskFromDetail から呼ばれる実際の削除処理（確認後に実行） */
+async function performDeleteTask(t){
   // 物理削除（メモリから）
   const idx = taskData.findIndex(x => x.id === t.id);
   if(idx >= 0) taskData.splice(idx, 1);
@@ -6079,6 +6116,82 @@ updateMorningGateClock();
 setInterval(updateMorningGateClock, 1000);
 updateNightFab();
 setInterval(updateNightFab, 30000);
+
+/* ===== アプリ内確認モーダル（confirm() の代替） ===== */
+let _modalOnConfirm = null;
+let _modalOnCancel = null;
+let _modalPrevFocus = null;
+function openConfirmModal({ message, title, confirmLabel, cancelLabel, danger, onConfirm, onCancel }){
+  // 既存モーダルがあれば閉じる
+  closeConfirmModal();
+  const root = document.createElement("div");
+  root.className = "modal-backdrop";
+  root.id = "confirm-modal";
+  root.setAttribute("role", "dialog");
+  root.setAttribute("aria-modal", "true");
+  const card = document.createElement("div");
+  card.className = "modal-card";
+  const titleHTML = title ? `<h3 class="modal-title">${title}</h3>` : "";
+  const dangerBtn = danger ? "btn-danger" : "btn-secondary";
+  card.innerHTML = `
+    ${titleHTML}
+    <p class="modal-message">${message}</p>
+    <div class="modal-actions">
+      <button class="btn-secondary" id="modal-cancel-btn">${cancelLabel || "キャンセル"}</button>
+      <button class="${dangerBtn}" id="modal-confirm-btn">${confirmLabel || "OK"}</button>
+    </div>
+  `;
+  root.appendChild(card);
+  document.body.appendChild(root);
+  _modalOnConfirm = onConfirm || null;
+  _modalOnCancel = onCancel || null;
+  // イベント登録
+  document.getElementById("modal-confirm-btn").addEventListener("click", () => {
+    const cb = _modalOnConfirm;
+    closeConfirmModal();
+    if(cb) cb();
+  });
+  document.getElementById("modal-cancel-btn").addEventListener("click", () => {
+    const cb = _modalOnCancel;
+    closeConfirmModal();
+    if(cb) cb();
+  });
+  // 背景タップでキャンセル
+  root.addEventListener("click", (e) => {
+    if(e.target === root){
+      const cb = _modalOnCancel;
+      closeConfirmModal();
+      if(cb) cb();
+    }
+  });
+  // ESC キーでキャンセル
+  _modalKeyHandler = (e) => {
+    if(e.key === "Escape"){
+      const cb = _modalOnCancel;
+      closeConfirmModal();
+      if(cb) cb();
+    }
+  };
+  document.addEventListener("keydown", _modalKeyHandler);
+  // 確認ボタンにフォーカス
+  _modalPrevFocus = document.activeElement;
+  setTimeout(() => document.getElementById("modal-confirm-btn")?.focus(), 0);
+}
+let _modalKeyHandler = null;
+function closeConfirmModal(){
+  const root = document.getElementById("confirm-modal");
+  if(root) root.remove();
+  if(_modalKeyHandler){
+    document.removeEventListener("keydown", _modalKeyHandler);
+    _modalKeyHandler = null;
+  }
+  if(_modalPrevFocus && _modalPrevFocus.focus){
+    try{ _modalPrevFocus.focus(); }catch(e){}
+    _modalPrevFocus = null;
+  }
+  _modalOnConfirm = null;
+  _modalOnCancel = null;
+}
 setInterval(applyTimeTheme, 60000); // 5時/17時の境界をまたいだ時のため定期的に再チェック
 </script>
 </body>
