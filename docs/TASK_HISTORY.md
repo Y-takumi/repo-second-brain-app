@@ -1237,6 +1237,35 @@
 
 ---
 
+## 2026-08-03 夜セッション（HOME 整理：入力欄位置 + リサーチタスクタップ）
+
+### Task 106: HOME 起床/就寝時刻入力欄の開始位置をそろえる
+- **状態**: completed
+- **完了評価**: 成功（コード変更は確認済み、目視確認は Tackman さんに依頼）
+- **備考**:
+  - ユーザーFB：「起床時刻と就寝予定時刻の入力欄の開始位置はそろえてください」
+  - **変更**：`.brief-wake-sleep-label` に `#brief-wake-sleep` スコープの `display:inline-block; min-width:90px; flex-shrink:0;` を追加
+  - goodnight 画面の「🛏️ 今夜」ラベルには影響しないよう `#brief-wake-sleep` スコープに限定
+  - **Playwright 確認は未実施**：セッション開始時に別プロセスがブラウザをロック中。コードは grep で変更反映を確認
+- **コミット**: 0964a56（push 済み、style(HOME) ... タスク107とまとめコミット）
+
+### Task 107: HOME リサーチタスクをタップでタスク詳細画面に遷移
+- **状態**: completed
+- **完了評価**: 成功（コード変更は確認済み、目視確認は Tackman さんに依頼）
+- **備考**:
+  - ユーザーFB：「リサーチタスクはタップしたらタスク詳細画面を表示したいです」
+  - **変更**：`brief-research-tasks` の `task-compact-row` に `onclick="openTaskDetail('${t.id}')"` を追加、`cursor:pointer` に変更
+  - 既存パターン（Tasks タブ 4625行目）に揃えた実装
+  - 「気になっているTask」セクションは依頼に含まれていないため未対応（明示的に確認したい）
+- **コミット**: 0964a56（push 済み、style(HOME) ... タスク106とまとめコミット）
+
+### 補足：コミット分割について
+- 理想はタスクごとに 1 コミット（CLAUDE.md ルール）だが、`git add index.html` 時に両変更が同一コミットに含まれてしまった
+- `--amend` でメッセージに両タスクを明示する形で着地（コミットハッシュ 0964a56）
+- 今後の教訓：離れた箇所の複数 Edit をする場合は、Edit 1 → commit → Edit 2 → commit の順で作業する
+
+---
+
 ## 関連ドキュメント
 
 - `docs/OAUTH_AND_STORAGE.md`：OAuth・LocalStorage・データアクセス権限
