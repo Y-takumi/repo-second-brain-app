@@ -390,15 +390,6 @@
     font-size:9px; font-family:var(--mono); font-weight:600; padding:2px 8px; border-radius:20px;
     background:var(--surface2); color:var(--ink-faint); margin-left:6px; vertical-align:middle;
   }
-  .brief-workout-item{
-    display:flex; align-items:center; gap:10px; padding:11px 14px; background:var(--surface);
-    border:1px solid var(--border); border-radius:12px; margin-bottom:7px;
-  }
-  .brief-workout-item .n{width:20px; height:20px; border-radius:50%; background:var(--surface2); color:var(--ink-dim);
-    font-family:var(--mono); font-size:10px; display:flex; align-items:center; justify-content:center; flex-shrink:0;}
-  .brief-workout-item .name{font-size:12.5px; color:var(--ink); flex:1;}
-  .brief-workout-item .detail{font-size:10px; color:var(--ink-faint); font-family:var(--mono);}
-  .brief-workout-note{font-size:10px; color:var(--ink-faint); margin:2px 0 4px; line-height:1.6;}
   .brief-wake-sleep-row{display:flex; align-items:center; gap:10px; padding:6px 0; font-size:12px; color:var(--ink);}
   .brief-wake-sleep-row input[type="time"]{font-size:11.5px; padding:5px 12px; max-width:120px; border-radius:14px; background:var(--surface); color:var(--ink); border:1px solid var(--border); font-family:var(--mono); cursor:pointer; transition:all 0.15s; color-scheme:dark;}
   .brief-wake-sleep-row input[type="time"]:hover{background:var(--surface2); border-color:var(--primary);}
@@ -1611,35 +1602,20 @@ const vaultSeedFiles = [
   <!-- ===== TASKS ===== -->
   <div class="screen" id="screen-tasks">
     <h1 class="page-title">Tasks</h1>
-    <p class="page-sub">Dailyは毎日の決まりごと、Ad Hocはその都度発生するタスクです</p>
+    <p class="page-sub">その都度発生するタスクを管理します</p>
 
-    <div class="mode-toggle">
-      <div class="opt active" id="tasksub-daily" onclick="setTasksSubTab('daily')">Daily</div>
-      <div class="opt" id="tasksub-adhoc" onclick="setTasksSubTab('adhoc')">Ad Hoc</div>
+    <!-- 2026-08-04 セッション：Tasks タブを Ad Hoc のみに整理（Daily は HOME タブの起床・就寝・ウェイト実績に集約） -->
+    <div id="stale-review-area"></div>
+    <div class="graph-tabs">
+      <div class="gtab active" data-theme="all" onclick="renderTasks('all', event)">すべて</div>
+      <div class="gtab" data-theme="healthcare" onclick="renderTasks('healthcare', event)">Health</div>
+      <div class="gtab" data-theme="business" onclick="renderTasks('business', event)">Business</div>
+      <div class="gtab" data-theme="mind" onclick="renderTasks('mind', event)">Mind</div>
+      <div class="gtab" data-theme="relationships" onclick="renderTasks('relationships', event)">Relations</div>
     </div>
 
-    <!-- Daily：起床・就寝・筋トレなど、毎日の決まりごとの14日間の実績 -->
-    <div id="tasks-daily-pane">
-      <div class="section-label" style="margin-top:4px;">今日の起床時間</div>
-      <div id="tasks-wake-time-edit"></div>
-      <div class="section-label" style="margin-top:4px;">直近14日間の実績</div>
-      <div id="daily-habit-list"></div>
-    </div>
-
-    <!-- Ad Hoc：これまでのTasks機能一式 -->
-    <div id="tasks-adhoc-pane" style="display:none;">
-      <div id="stale-review-area"></div>
-      <div class="graph-tabs">
-        <div class="gtab active" data-theme="all" onclick="renderTasks('all', event)">すべて</div>
-        <div class="gtab" data-theme="healthcare" onclick="renderTasks('healthcare', event)">Health</div>
-        <div class="gtab" data-theme="business" onclick="renderTasks('business', event)">Business</div>
-        <div class="gtab" data-theme="mind" onclick="renderTasks('mind', event)">Mind</div>
-        <div class="gtab" data-theme="relationships" onclick="renderTasks('relationships', event)">Relations</div>
-      </div>
-
-      <div id="task-list"></div>
-      <div id="task-archive-wrap" style="margin-top:8px;"></div>
-    </div>
+    <div id="task-list"></div>
+    <div id="task-archive-wrap" style="margin-top:8px;"></div>
   </div>
 
   <!-- ===== TASK 詳細（先行タスク検索） ===== -->
@@ -1715,10 +1691,6 @@ const vaultSeedFiles = [
     <div class="section-label">今日の起床・就寝</div>
     <div id="brief-wake-sleep"></div>
 
-    <!-- 2026-08-02 筋トレメニュー非表示（外部ツール完成まで） -->
-    <!-- <div class="section-label">今日の筋トレメニュー <span class="brief-ext-badge">外部ツール連携予定</span></div>
-    <div id="brief-workout"></div> -->
-
     <!-- 2026-08-04 セッション：生活リズムを HOME に移動（探索タブから）。起床・就寝入力の下に配置 -->
     <div class="section-label">生活リズム（過去 30 日）</div>
     <div class="rhythm-summary">
@@ -1733,6 +1705,10 @@ const vaultSeedFiles = [
     </div>
     <canvas id="rhythm-canvas" width="350" height="160" style="width:100%; max-width:350px; background:var(--surface); border:1px solid var(--border); border-radius:12px; margin-top:8px;"></canvas>
     <div class="settings-hint" style="margin-top:4px;">折れ線：起床（左軸）／点線：就寝予定（右軸）</div>
+
+    <!-- 2026-08-03 通勤中にリサーチタスクを消化するためのセクション -->
+    <div class="section-label" style="margin-top:20px;">ウェイト実績</div>
+    <div id="brief-weight-habit"></div>
 
     <!-- 2026-08-03 通勤中にリサーチタスクを消化するためのセクション -->
     <div class="section-label" style="margin-top:20px;">リサーチタスク</div>
@@ -2071,8 +2047,8 @@ function saveSettings(){
   appSettings.showSleepHabit = document.getElementById("set-show-sleep").checked;
   appSettings.showTrainingHabit = document.getElementById("set-show-training").checked;
   updateGreeting();
-  // プリセットの表示/非表示変更を即時反映
-  if(typeof renderDailyHabitList === "function") renderDailyHabitList();
+  // プリセットの表示/非表示変更を即時反映（HOME.todaybrief のウェイト実績を再描画）
+  if(typeof renderTodayBrief === "function") renderTodayBrief();
   // LocalStorage に保存（リロード後も設定維持）
   saveSettingsToLocalStorage();
 }
@@ -3427,9 +3403,7 @@ async function refreshHabitFromDrive(){
       const others = items.filter(x => x.special !== "wake" && x.special !== "sleep");
       habitData.length = 0;
       habitData.push(...others);
-      renderDailyHabitList();
       renderTodayBrief();
-      renderTasksWakeTimeEdit();
     }
   } catch(e){ console.error("Habit読み込みエラー:", e); }
 }
@@ -4530,7 +4504,7 @@ const appSettings = {
   userName: "拓弥",
   showWakeHabit: true,       // プリセット：起床（基本の習慣）。Daily タブに表示
   showSleepHabit: true,      // プリセット：就寝（基本の習慣）。Daily タブに表示
-  showTrainingHabit: true,   // プリセット：ウェイトトレーニング（基本の習慣、別アプリ連携予定）。Daily タブに表示
+  showTrainingHabit: true,   // プリセット：ウェイトトレーニング（基本の習慣、別アプリ連携予定）。HOME タブに表示
   googleClientId: "3872463289-5ra0lvuimkang4nolgd4r9ef6ur9c6ut.apps.googleusercontent.com", // Google OAuth Client ID（Drive 用・公開情報だが変数化管理）
   youtubeClientId: "3872463289-sc9di6miu96ilk98qpgv59v1u94o4ucr.apps.googleusercontent.com", // Google OAuth Client ID（YouTube 用・公開情報だが変数化管理。Worker の wrangler.toml [vars] にも同じ値を記載）
   devWorkerUrl: "https://second-brain-proxy.takumi-yasuda-biz.workers.dev/",
@@ -4707,7 +4681,7 @@ function pruneDraftByContent(content){
 const habitData = [];
 const wakeHabit = { id:"h-wake", title:"起床", special:"wake", themes:["healthcare"], log:{}, wakeTime:{}, checkTime:null };
 const sleepHabit = { id:"h-sleep", title:"就寝", special:"sleep", themes:["healthcare"], log:{}, sleepPlannedTime:{}, checkTime:null };
-const weightHabit = { id:"h-weight", title:"ウェイトトレーニング", special:"weight_training", themes:["healthcare"], log:{}, checkTime:"morning" };
+const weightHabit = { id:"h-weight", title:"ウェイトトレーニング", special:"weight_training", themes:["healthcare"], log:{} };
 
 // 起動時の renderGraph 呼び出し（wakeHabit 等宣言後。TDZ 対策）
 renderGraph("healthcare");
@@ -4727,67 +4701,12 @@ function habitCalRow(h){
   return `<div class="habit-cal-row">${days.join("")}</div>`;
 }
 function habitCheckTimeChip(h){
-  // check_timeを持つ習慣（通常のHabit・ウェイトトレーニング）だけ、朝/夜の切替チップを出す
-  if(!("checkTime" in h)) return "";
-  return `
-    <div class="habit-time-toggle">
-      <span class="${h.checkTime==='morning'?'active':''}" onclick="setHabitCheckTime('${h.id}','morning')">☀️ 朝</span>
-      <span class="${h.checkTime==='night'?'active':''}" onclick="setHabitCheckTime('${h.id}','night')">🌙 夜</span>
-    </div>`;
+  // 2026-08-04 セッション：Tasks タブ Daily 廃止に伴い朝/夜切替チップは廃止（関数自体残置、呼び出し箇所なし）
+  return "";
 }
-async function setHabitCheckTime(id, time){
-  const h = habitData.find(x=>x.id===id);
-  h.checkTime = time;
-  renderDailyHabitList();
-  // Drive に永続化（fire-and-forget）。check_time は YAML 側で snake_case
-  persistHabitChange(h.id, { check_time: time });
-}
-/** Tasksタブ「Daily」：起床・就寝・ウェイトトレーニングなど、毎日の決まりごとの14日間実績を表示。
- * プリセット Habit（wake/sleep/weight）は設定 toggle で表示/非表示、通常 Habit は Vault から読み込み。
- * wake/sleep は読み取り専用（doGreetAction 経由で記録）、それ以外の Habit は「完了」ボタンで記録可能 */
+/** Tasksタブ「Daily」：2026-08-04 セッションで廃止。Habit 実績は HOME タブの起床・就寝・ウェイトカードに表示。 */
 function renderDailyHabitList(){
-  const el = document.getElementById("daily-habit-list");
-  if(!el) return;
-  const today = d(0);
-
-  // プリセット Habit（設定 toggle に応じて追加）
-  const presetHabits = [];
-  if(appSettings.showWakeHabit) presetHabits.push(wakeHabit);
-  if(appSettings.showSleepHabit) presetHabits.push(sleepHabit);
-  if(appSettings.showTrainingHabit) presetHabits.push(weightHabit);
-
-  // プリセット + ユーザー作成 Habit を結合
-  const allHabits = [...presetHabits, ...habitData];
-
-  el.innerHTML = allHabits.map(h=>{
-    const streak = habitStreak(h);
-    const isDone = h.log[today] === true;
-    const isPreset = (h === wakeHabit || h === sleepHabit || h === weightHabit);
-    const specialBadge = h.special ? `<span class="habit-special-badge">基本の習慣</span>` : "";
-    const timeInfo = h.special==="wake" ? `<div class="habit-target-time">☀️ 目標 ${appSettings.targetWakeTime} ・ 30分以内に「おはよう」でクリア</div>`
-                    : h.special==="sleep" ? `<div class="habit-target-time">🌙 目標 ${appSettings.targetSleepTime} ・ 30〜60分前に「おやすみ」でクリア</div>`
-                    : h.special==="weight_training" ? `<div class="habit-target-time">🏋️ トレーニング記録アプリと連携予定（今はサンプル）</div>`
-                    : "";
-    // wake/sleep は doGreetAction 経由なのでチェック UI なし、weight_training と通常 Habit は「完了」ボタン
-    const isAutoHabit = h.special === "wake" || h.special === "sleep";
-    const isConnected = !!googleAccessToken;
-    const checkUI = isAutoHabit ? "" :
-      `<label class="habit-check-label ${isConnected ? "" : "disabled"}" title="${isConnected ? "" : "Drive 未連携：リロードすると変更は失われます"}">
-        <input type="checkbox" ${isDone ? "checked" : ""} ${isConnected ? "" : "disabled"} onclick="event.stopPropagation(); toggleHabitDone('${h.id}')">
-        <span class="habit-check-text">${isConnected ? (isDone ? "完了" : "完了する") : "Drive 連携が必要"}</span>
-      </label>`;
-    return `
-    <div class="gm-card habit-card">
-      <div class="gm-card-top">
-        <span class="title">${h.title}</span>
-        <span class="habit-streak-badge">🔥 ${streak}日</span>
-      </div>
-      <div class="gm-card-bottom" style="margin-bottom:2px;">${specialBadge}${habitCheckTimeChip(h)}</div>
-      ${checkUI}
-      ${timeInfo}
-      ${habitCalRow(h)}
-    </div>`;
-  }).join("");
+  /* 廃止：HOME.todaybrief に簡略版を実装 */
 }
 
 /** Daily サブタブの「完了」チェックボックスをタップした時の処理。
@@ -4802,10 +4721,9 @@ async function toggleHabitDone(habitId){
   } else {
     h.log[today] = true; // 完了
   }
-  renderDailyHabitList();
+  if(typeof renderTodayBrief === "function") renderTodayBrief();
   persistHabitChange(h.id, { log: h.log });
 }
-renderDailyHabitList();
 
 const taskData = [
   { id:"t-vision", type:"action", text:"ビジョンマップを作成する", body:"中心に自分の写真、周囲に理想の未来・欲しいものの写真を配置し、毎日見る。動画『15のルール』の『ゴールを成功に置く』という学びの実践アクション。", themes:["business"], priority:1, status:"open", dependsOn:[], created:"2026-07-02", due:null, lastConfirmed:null },
@@ -5326,17 +5244,13 @@ loadSettingsFromLocalStorage(); // 2026-07-29 追加：保存済み設定を復�
 renderDraftList(); // 2026-08-02 追加：ジャーナル下書きの復元・表示
 renderTasks("all"); // 全定義が揃った後で初回描画
 
-/** Tasksタブを開く：現在表示中のサブタブ(Daily/Ad Hoc)を最新化してから開く */
+/** Tasksタブを開く：2026-08-04 セッションで Ad Hoc のみに整理。
+ * バッジ更新 → 未完了レビュー → 現在テーマでタスク一覧描画 → 画面遷移 */
 function openTasksTab(){
   updateTaskBadge();
-  const dailyActive = document.getElementById("tasksub-daily")?.classList.contains("active");
-  if(dailyActive === false){
-    const activeTab = document.querySelector("#tasks-adhoc-pane .gtab.active");
-    renderTasks(activeTab?.dataset.theme || "all");
-    renderStaleReview(); // 未完了レビューをアドホックタブ上部に表示
-  } else {
-    renderDailyHabitList();
-  }
+  const activeTab = document.querySelector("#screen-tasks .gtab.active");
+  renderTasks(activeTab?.dataset.theme || "all");
+  renderStaleReview(); // 未完了レビューを上部に表示
   goTo("tasks");
 }
 
@@ -5350,23 +5264,6 @@ function updateTaskBadge(){
     badge.style.display = "";
   } else {
     badge.style.display = "none";
-  }
-}
-
-/** TasksタブのDaily/Ad Hocサブタブ切り替え */
-function setTasksSubTab(tab){
-  document.getElementById("tasksub-daily").classList.toggle("active", tab==="daily");
-  document.getElementById("tasksub-adhoc").classList.toggle("active", tab==="adhoc");
-  document.getElementById("tasks-daily-pane").style.display = tab==="daily" ? "" : "none";
-  document.getElementById("tasks-adhoc-pane").style.display = tab==="adhoc" ? "" : "none";
-  if(tab==="daily"){
-    renderDailyHabitList();
-    renderTasksWakeTimeEdit();
-  }
-  else {
-    const activeTab = document.querySelector("#tasks-adhoc-pane .gtab.active");
-    renderTasks(activeTab?.dataset.theme || "all");
-    renderStaleReview();
   }
 }
 
@@ -5718,22 +5615,8 @@ function showCheckMark(btn){
   }, 3000);
 }
 
-/** Tasks タブ Daily 画面上部の起床時刻編集：input + プリセットボタン */
-function renderTasksWakeTimeEdit(){
-  const container = document.getElementById('tasks-wake-time-edit');
-  if(!container) return;
-  const todayKey = d(0);
-  const wakeTime = wakeHabit.wakeTime[todayKey];
-  container.innerHTML = `
-    <div class="brief-wake-sleep-row">
-      <span class="brief-wake-sleep-label">☀️ 起床</span>
-      <input type="time" step="300" value="${wakeTime || ""}" onchange="updateWakeTimeNow(this.value)">
-      <span class="brief-wake-sleep-status">${wakeTime ? `${wakeTime} に起床済み` : "未記録"}</span>
-    </div>
-    <div class="time-preset-row">
-      ${computeWakePresetTimes().map(t => `<button class="time-preset-btn ${wakeTime===t?"active":""}" onclick="updateWakeTimeNow('${t}')">${t}</button>`).join("")}
-    </div>`;
-}
+/** Tasks タブ Daily 画面上部の起床時刻編集：2026-08-04 セッションで Tasks タブ Daily 廃止のため削除。
+ * HOME.todaybrief の起床時刻編集は引き続き renderTodayBrief 内で描画。 */
 
 /** おはよう画面のプリセット：現在時刻を 5 分刻みに丸め、過去 12 個（過去 1 時間～現在）。
  * 未来時刻に「起きる」は意味がないため、過去のみ提示。
@@ -5924,7 +5807,7 @@ function spawnBurstElements(){
 async function dismissMorningGate(){
   await doGreetAction("wake");
   hasGreetedToday = true;
-  renderDailyHabitList();
+  if(typeof renderTodayBrief === "function") renderTodayBrief();
 
   const overlay = document.getElementById("sunrise-overlay");
   overlay.style.display = "block";
@@ -6017,29 +5900,28 @@ function renderTodayBrief(){
       <span class="brief-wake-sleep-status">${sleepPlannedTime ? `${sleepPlannedTime} に就寝予定` : "未入力"}</span>
     </div>`;
 
-  // 2026-08-02 筋トレメニュー非表示（外部ツール完成まで）
-  // const briefWorkoutEl = document.getElementById("brief-workout");
-  // if(briefWorkoutEl){
-  //   briefWorkoutEl.innerHTML = workoutProgress.map(w=>{
-  //     const t = computeSetTargets(w.base, w.increment, w.level);
-  //     const weeklyDelta = w.totalLevelUps - w.weekStartTotalLevelUps;
-  //     const deltaMsg = weeklyDelta > 0
-  //       ? `🎉 今週+${weeklyDelta}レベル上がったね！`
-  //       : "今週はまだレベルアップなし。今日で決めよう";
-  //     return `
-  //     <div class="brief-workout-item" style="flex-direction:column; align-items:stretch; gap:5px;">
-  //       <div style="display:flex; align-items:center; gap:8px;">
-  //         <span class="name" style="font-weight:600;">${w.name}</span>
-  //         <span class="detail" style="margin-left:auto;">${t.set1.weight}kg レベル${w.level}</span>
-  //       </div>
-  //       <div style="font-size:10.5px; color:var(--ink-faint);">
-  //         1セット目 ${t.set1.weight}kg×${t.set1.reps}回　・　2セット目 ${t.set2.weight}kg×${t.set2.reps}回
-  //       </div>
-  //       <div style="font-size:10px; color:${weeklyDelta>0?'var(--healthcare)':'var(--ink-faint)'};">${deltaMsg}</div>
-  //     </div>`;
-  //   }).join("") +
-  //   `<div class="brief-workout-note">※ 将来作成予定のトレーニング記録アプリと連携予定。今はサンプル表示です</div>`;
-  // }
+  // 2026-08-04 セッション：HOME にウェイト実績の簡略版を追加。設定の showTrainingHabit が true の時のみ表示。
+  // 今日の完了チェック + 14日カレンダー + 連続日数（「1日1回は体を...」のような冗長な説明は廃止、簡潔に）。
+  if(appSettings.showTrainingHabit){
+    const today = d(0);
+    const isDone = weightHabit.log[today] === true;
+    const streak = habitStreak(weightHabit);
+    const isConnected = !!googleAccessToken;
+    document.getElementById("brief-weight-habit").innerHTML = `
+      <div class="gm-card habit-card">
+        <div class="gm-card-top">
+          <span class="title">🏋️ ウェイトトレーニング</span>
+          <span class="habit-streak-badge">🔥 ${streak}日</span>
+        </div>
+        <label class="habit-check-label ${isConnected ? "" : "disabled"}" title="${isConnected ? "" : "Drive 未連携：リロードすると変更は失われます"}">
+          <input type="checkbox" ${isDone ? "checked" : ""} ${isConnected ? "" : "disabled"} onclick="event.stopPropagation(); toggleHabitDone('${weightHabit.id}')">
+          <span class="habit-check-text">${isConnected ? (isDone ? "完了" : "完了する") : "Drive 連携が必要"}</span>
+        </label>
+        ${habitCalRow(weightHabit)}
+      </div>`;
+  } else {
+    document.getElementById("brief-weight-habit").innerHTML = "";
+  }
 
   // タスクは控えめに：優先度が高い、またはDueが近いものだけ最大3件（一番下に表示）
   const dueTasks = taskData.filter(t=>t.status==="open" && !isBlocked(t) && t.due)
@@ -6178,7 +6060,7 @@ async function openGoodnight(){
   document.getElementById("goodnight-wake-time").textContent = appSettings.targetWakeTime;
   document.getElementById("goodnight-message").textContent = goodnightMessages[Math.floor(Math.random()*goodnightMessages.length)];
 
-  renderDailyHabitList();
+  if(typeof renderTodayBrief === "function") renderTodayBrief();
   updateNightFab();
   goTo("goodnight");
 }
