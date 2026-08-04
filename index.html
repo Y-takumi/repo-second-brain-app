@@ -520,8 +520,9 @@
   .task-accordion{display:none;}
   .task-accordion.open{display:block;}
 
-  /* 保留タスク（コンパクト） */
-  .task-pending-label{font-size:10px; color:var(--ink-faint); text-transform:uppercase; letter-spacing:.05em; margin:12px 0 6px;}
+  /* 保留タスク（コンパクト）
+     2026-08-05：先行タスク機能停止 → .task-pending-label は不要になったため削除。
+     .task-compact-row は復活時に備えて残置（CSS のみ、JS 関数 taskCompactHTML は削除済み） */
   .task-compact-row{
     display:flex; align-items:center; gap:6px; padding:8px 12px; background:var(--surface2);
     border-radius:10px; margin-bottom:5px; font-size:11px; color:var(--ink-faint); cursor:pointer;
@@ -4762,7 +4763,8 @@ function isBlocked(t){ return (t.dependsOn||[]).some(id=>{ const p=taskById(id);
 /** クロステーマ用スコア：テーマ内相対順位(%) − フォーカス直後ブースト − 締切ブースト。低いほど上位 */
 function computeCrossScore(t){
   const primaryTheme = (t.themes||[])[0];
-  const sameTheme = taskData.filter(x=>x.status==="open" && !isBlocked(x) && (x.themes||[]).includes(primaryTheme))
+  // 2026-08-05：先行タスク機能停止 → isBlocked 条件を削除
+  const sameTheme = taskData.filter(x=>x.status==="open" && (x.themes||[]).includes(primaryTheme))
     .sort((a,b)=>a.priority-b.priority);
   const rankIdx = sameTheme.findIndex(x=>x.id===t.id);
   let score = sameTheme.length>1 ? (rankIdx/(sameTheme.length-1))*100 : 0;
@@ -4783,11 +4785,11 @@ function computeCrossScore(t){
 
 function taskCardHTML(t, showScore){
   const done = t.status==="done";
-  // 2026-08-05 セッション：未完了タスク（open && !isBlocked）に行全体をスワイプ可能なラッパーで囲む。
+  // 2026-08-05 セッション：未完了タスク（open）に行全体をスワイプ可能なラッパーで囲む。
   // 右スワイプ → 完了ボタン（左から緑）／ 左スワイプ → 保留ボタン（右からオレンジ）。
   // 「継続」は何もしない（スワイプしない = 現状維持）。カード本体の onclick（タスク詳細遷移）は維持。
-  // done / blocked のタスクはスワイプ無効（クリックのみ）。
-  const isUnfinished = t.status === "open" && !isBlocked(t);
+  // 2026-08-05 微修正：先行タスク機能停止 → isBlocked 条件を削除し、すべての open タスクをスワイプ可能に。
+  const isUnfinished = t.status === "open";
   if(!isUnfinished){
     return `
     <div class="task-card ${done?'done':''}" onclick="openTaskDetail('${t.id}')">
@@ -4821,21 +4823,17 @@ function taskCardHTML(t, showScore){
     <div class="swipe-action swipe-action-hold">保留</div>
   </div>`;
 }
-function taskCompactHTML(t){
-  const depText = (t.dependsOn||[]).map(id=>taskById(id)?.text).filter(Boolean).join("、");
-  return `
-  <div class="task-compact-row" onclick="openTaskDetail('${t.id}')">
-    <span class="lock">⏳</span><span class="txt">${t.text}</span>
-    <span class="arrow">→待機:</span><span class="dep">${depText}</span>
-  </div>`;
-}
+// 2026-08-05 セッション：先行タスク機能を一旦停止したため、待機中タスクの表示を削除。
+// taskCompactHTML（待機中タスク用のコンパクト行）は不要になったため関数ごと削除。
+// isBlocked 関数自体は残置（呼び出し箇所は !isBlocked(t) のみなので、関数は常に false を返せば OK）。
 
-/** 1つのプール(単一テーマ or 全テーマ)をtop3+peek+accordion+保留の形でレンダリング */
+/** 1つのプール(単一テーマ or 全テーマ)をtop3+peek+accordion の形でレンダリング。
+ * 2026-08-05：先行タスク機能停止 → 待機中タスク（isBlocked）の描画ロジックを削除。
+ * 「すべての open タスク」を active として扱うため、!isBlocked フィルタは外した（呼び出し側で isBlocked を評価しない方針）。 */
 function renderTaskGroup(pool, label, useCrossScore){
   if(!pool.length) return "";
-  const active = pool.filter(t=>t.status==="open" && !isBlocked(t))
+  const active = pool.filter(t=>t.status==="open")
     .sort((a,b)=> useCrossScore ? computeCrossScore(a)-computeCrossScore(b) : a.priority-b.priority);
-  const blocked = pool.filter(t=>t.status==="open" && isBlocked(t)).sort((a,b)=>a.priority-b.priority);
   const done = pool.filter(t=>t.status==="done");
 
   let html = `<div class="task-theme-label">${label}（${pool.length}件）${useCrossScore?' <span style="color:var(--primary);">・スコア順</span>':''}</div>`;
@@ -4853,10 +4851,6 @@ function renderTaskGroup(pool, label, useCrossScore){
     html += `<div class="task-expand-btn" id="${accId}-btn" data-label="もっと見る（+${restCount}件）" onclick="toggleTaskAccordion('${accId}')">もっと見る（+${restCount}件）</div>`;
   }
 
-  if(blocked.length){
-    html += `<div class="task-pending-label">⏳ 待機中（${blocked.length}）</div>`;
-    html += blocked.map(taskCompactHTML).join("");
-  }
   return html;
 }
 
@@ -5060,7 +5054,7 @@ function getUnfinishedQueue(){
   const today = APP_TODAY.toISOString().slice(0,10);
   return taskData.filter(t=>{
     if(t.status!=="open") return false;
-    if(isBlocked(t)) return false; // 依存待ちタスクは整理対象外
+    // 2026-08-05：先行タスク機能停止 → isBlocked 条件を削除し、すべての open タスクを整理対象とする
     if(t.lastConfirmed === today) return false; // 今日すでに整理したタスクは除外
     return true;
   }).sort((a,b)=>{
@@ -5926,7 +5920,8 @@ const workoutProgress = [
  * 通勤中に消化したくなるリサーチタスクを優先表示 */
 function getResearchTasksForBrief(){
   return taskData
-    .filter(t => t.type === "research" && t.status === "open" && !isBlocked(t))
+    // 2026-08-05：先行タスク機能停止 → isBlocked 条件を削除
+    .filter(t => t.type === "research" && t.status === "open")
     .sort((a, b) => {
       // priority 昇順 → due 昇順
       const pa = (a.priority ?? 999);
@@ -5987,9 +5982,10 @@ function renderTodayBrief(){
   }
 
   // タスクは控えめに：優先度が高い、またはDueが近いものだけ最大3件（一番下に表示）
-  const dueTasks = taskData.filter(t=>t.status==="open" && !isBlocked(t) && t.due)
+  // 2026-08-05：先行タスク機能停止 → isBlocked 条件を削除
+  const dueTasks = taskData.filter(t=>t.status==="open" && t.due)
     .sort((a,b)=> new Date(a.due) - new Date(b.due));
-  const topTasks = taskData.filter(t=>t.status==="open" && !isBlocked(t))
+  const topTasks = taskData.filter(t=>t.status==="open")
     .sort((a,b)=>computeCrossScore(a)-computeCrossScore(b));
   const briefTaskList = [...new Map([...dueTasks, ...topTasks].map(t=>[t.id,t])).values()].slice(0,3);
 
@@ -6003,7 +5999,8 @@ function renderTodayBrief(){
     : `<div class="summary-preview-text" style="color:var(--ink-faint); font-size:11px;">リサーチタスクはまだありません</div>`;
 
   // 2026-08-04 セッション：HOME から保留中のタスク一覧を削除（保留機能自体はタスク詳細画面で残す）。
-  // 「気になっているTASK」を [アクションタスク] にリネーム。表示ロジックは open / !isBlocked / priority 順のまま。
+  // 「気になっているTASK」を [アクションタスク] にリネーム。
+  // 2026-08-05：先行タスク機能停止 → 表示ロジックを open / priority 順に変更（!isBlocked 削除）
   document.getElementById("brief-tasks").innerHTML = briefTaskList.map(t=>`
     <div class="task-compact-row" style="cursor:pointer; opacity:.95;" onclick="openTaskDetail('${t.id}')">
       <span class="dep" style="color:var(--ink); font-size:11.5px;">▶️ ${t.text}${t.due?` <span style="color:var(--business);">・due ${t.due}</span>`:""}</span>
@@ -6101,7 +6098,8 @@ async function openGoodnight(){
   document.getElementById("goodnight-default-sleep-hint").textContent = `目標 ${appSettings.targetSleepTime} (現在時刻ベース)`;
 
   const doneCount = taskData.filter(t=>t.status==="done").length;
-  const openCount = taskData.filter(t=>t.status==="open" && !isBlocked(t)).length;
+  // 2026-08-05：先行タスク機能停止 → isBlocked 条件を削除
+  const openCount = taskData.filter(t=>t.status==="open").length;
   document.getElementById("goodnight-tasks").innerHTML = `
     <div class="k-card"><div class="title" style="font-size:13px;">✅ 完了済み ${doneCount}件 ・ 残り ${openCount}件</div></div>`;
 
