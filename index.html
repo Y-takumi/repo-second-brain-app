@@ -5870,8 +5870,6 @@ function renderTodayBrief(){
   // 2026-08-04 セッション：生活リズムを HOME に移動したため、HOME 表示時にもリズムチャートを更新
   if(typeof renderRhythmChart === "function") renderRhythmChart();
 }
-  ).join("") || `<div class="summary-preview-text" style="color:var(--ink-faint); font-size:11px;">[アクションタスク]はまだありません</div>`;
-}
 /** HOMEタブから直接開いた時：サンライズ演出なしで、内容だけ描画して開く */
 function openTodayBrief(){
   renderTodayBrief();
