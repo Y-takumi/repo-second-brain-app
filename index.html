@@ -2794,7 +2794,7 @@ async function startYouTubeProcessing(videoUrl){
     const [candidates, gmCandidates] = await Promise.all([fetchCandidateKnowledge(), fetchCandidateGreatMinds()]);
     if(statusEl) statusEl.textContent = `③ Claudeで処理中…（Knowledge候補${candidates.length}件・Great Mind候補${gmCandidates.length}件を参照）`;
     const prompt = buildSourceExtractionPrompt(articleMeta, articleMeta.bodyText, candidates, gmCandidates);
-    const raw = await callClaudeWorker(prompt, 6000);
+    const raw = await callClaudeWorker(prompt, 8000);
 
     let parsed;
     try{
@@ -2853,7 +2853,7 @@ async function startSourceProcessing(){
     const [candidates, gmCandidates] = await Promise.all([fetchCandidateKnowledge(), fetchCandidateGreatMinds()]);
     if(statusEl) statusEl.textContent = `③ Claudeで処理中…（Knowledge候補${candidates.length}件・Great Mind候補${gmCandidates.length}件を参照）`;
     const prompt = buildSourceExtractionPrompt(articleMeta, articleMeta.bodyText || `（タイトル: ${articleMeta.title}）`, candidates, gmCandidates);
-    const raw = await callClaudeWorker(prompt, 6000);
+    const raw = await callClaudeWorker(prompt, 8000);
 
     let parsed;
     try{
@@ -2924,7 +2924,7 @@ async function startJournalProcessing(){
     const [candidates, gmCandidates] = await Promise.all([fetchCandidateKnowledge(), fetchCandidateGreatMinds()]);
     statusEl.textContent = `② Claudeで処理中…（Knowledge候補${candidates.length}件・Great Mind候補${gmCandidates.length}件を参照）`;
     const prompt = buildExtractionPrompt(journalText, candidates, gmCandidates);
-    const raw = await callClaudeWorker(prompt, 6000);
+    const raw = await callClaudeWorker(prompt, 8000);
 
     let parsed;
     try{
