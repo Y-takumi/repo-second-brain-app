@@ -535,23 +535,25 @@
      - 右スワイプ → 完了ボタン（左から緑）／ 左スワイプ → 保留ボタン（右からオレンジ）
      - 「継続」は何もしない（スワイプしない = 現状維持）
      - 閾値 80px 以上で確定表示 / 未満はスワイプキャンセル → 元に戻る
-     - 2026-08-05 修正：.task-card だけを transform でスライド → アクションが下から顔を出す */
+     - 2026-08-05 修正：.task-card だけを transform でスライド → アクションが下から顔を出す
+     - 2026-08-05 修正 2：JS で .swipe-action の高さを .task-card に明示同期 + border-radius 調整で見た目を揃える */
   .swipe-wrap{
     position:relative; overflow:hidden;
-    background:transparent; border-radius:14px;
+    background:transparent; border-radius:12px;
     margin-bottom:7px; touch-action:pan-y;
   }
   .swipe-wrap .task-card{
     position:relative; z-index:2;
-    background:var(--surface); border-radius:14px;
+    background:var(--surface); border-radius:12px;
     transition:transform .25s cubic-bezier(.2,.7,.3,1);
     will-change:transform;
   }
   .swipe-wrap.swipe-active .task-card{transition:none;}
   .swipe-action{
-    position:absolute; top:0; bottom:0; width:120px;
+    /* height は JS で .task-card.offsetHeight に同期 */
+    position:absolute; top:0; width:120px;
     display:flex; align-items:center;
-    font-size:13px; font-weight:700; color:#fff;
+    font-size:13.5px; font-weight:700; color:#fff;
     z-index:1; cursor:pointer; user-select:none;
     transition:opacity .15s;
     opacity:0;
@@ -559,11 +561,13 @@
   }
   .swipe-action-done{
     left:0; background:var(--healthcare);
-    padding-left:18px; justify-content:flex-start;
+    padding-left:20px; justify-content:flex-start;
+    border-radius:12px 0 0 12px;
   }
   .swipe-action-hold{
     right:0; background:var(--business);
-    padding-right:18px; justify-content:flex-end;
+    padding-right:20px; justify-content:flex-end;
+    border-radius:0 12px 12px 0;
   }
   .swipe-wrap.show-done-action .swipe-action-done,
   .swipe-wrap.show-hold-action .swipe-action-hold{
@@ -4874,6 +4878,8 @@ function renderTasks(theme, event){
   updateTaskBadge();
   // 2026-08-05 セッション：タスク行にスワイプジェスチャー（保留 / 完了）を付与
   setupAllSwipeGestures();
+  // 2026-08-05 追加：.task-card の高さに .swipe-action を同期（タスク内容の長さによって変動するため）
+  if(typeof syncAllSwipeActionHeights === "function") syncAllSwipeActionHeights();
 }
 function toggleTaskAccordion(accId){
   const acc = document.getElementById(accId);
@@ -5080,16 +5086,27 @@ function setupAllSwipeGestures(){
 function attachSwipeGestures(wrapEl){
   const taskId = wrapEl.dataset.taskId;
   let startX = 0, startY = 0, currentX = 0, isSwiping = false;
+  const card = wrapEl.querySelector(".task-card");
+  const doneLabel = wrapEl.querySelector(".swipe-action-done");
+  const holdLabel = wrapEl.querySelector(".swipe-action-hold");
+
+  // 2026-08-05 修正：.swipe-action の高さを .task-card の高さに明示同期 → 見た目を揃える
+  function syncActionHeight(){
+    if(!card) return;
+    const h = card.offsetHeight;
+    if(doneLabel) doneLabel.style.height = h + "px";
+    if(holdLabel) holdLabel.style.height = h + "px";
+  }
+  // 初回同期（DOM 構築直後で offsetHeight が取れるよう、requestAnimationFrame で次フレームに合わせる）
+  requestAnimationFrame(syncActionHeight);
 
   function resetSwipe(){
-    const card = wrapEl.querySelector(".task-card");
     if(card) card.style.transform = "";
     wrapEl.classList.remove("swipe-active", "swipe-mode", "swipe-locked", "show-done-action", "show-hold-action");
   }
 
   function lockAction(actionClass, offsetPx){
     // スワイプ確定 → アクションを固定表示（カード自体をスライドさせ、その下のアクションが現れる）
-    const card = wrapEl.querySelector(".task-card");
     if(card) card.style.transform = `translateX(${offsetPx}px)`;
     wrapEl.classList.add("swipe-locked", actionClass);
   }
@@ -5126,7 +5143,6 @@ function attachSwipeGestures(wrapEl){
 
     const clampedDx = Math.max(-SWIPE_MAX, Math.min(SWIPE_MAX, dx));
     // タスクカードだけを transform でスライド → 下に隠れているアクションが見える
-    const card = wrapEl.querySelector(".task-card");
     if(card) card.style.transform = `translateX(${clampedDx}px)`;
     currentX = clampedDx;
     if(clampedDx > 20){
@@ -5184,7 +5200,6 @@ function attachSwipeGestures(wrapEl){
   wrapEl.addEventListener("mouseleave", () => { if(isSwiping) onEnd(); });
 
   // アクションラベル（完了 / 保留）のクリック処理
-  const doneLabel = wrapEl.querySelector(".swipe-action-done");
   if(doneLabel){
     doneLabel.addEventListener("click", (e) => {
       e.stopPropagation();
@@ -5193,7 +5208,6 @@ function attachSwipeGestures(wrapEl){
       toggleTaskDone(taskId);
     });
   }
-  const holdLabel = wrapEl.querySelector(".swipe-action-hold");
   if(holdLabel){
     holdLabel.addEventListener("click", (e) => {
       e.stopPropagation();
@@ -5204,7 +5218,6 @@ function attachSwipeGestures(wrapEl){
   }
 
   // カード本体（タスク詳細遷移領域）のクリック：ロック中ならリセットのみ、タップ動作も抑制
-  const card = wrapEl.querySelector(".task-card");
   if(card){
     card.addEventListener("click", (e) => {
       if(wrapEl.classList.contains("swipe-locked")){
@@ -5223,6 +5236,22 @@ function resetSwipeFor(wrapEl){
   if(card) card.style.transform = "";
   wrapEl.classList.remove("swipe-active", "swipe-mode", "swipe-locked", "show-done-action", "show-hold-action");
 }
+
+// 2026-08-05 追加：.swipe-action の高さを全 .swipe-wrap に対して一括同期（リサイズ・再描画時の再呼び出し用）
+function syncAllSwipeActionHeights(){
+  document.querySelectorAll(".swipe-wrap").forEach(wrapEl => {
+    const card = wrapEl.querySelector(".task-card");
+    const doneLabel = wrapEl.querySelector(".swipe-action-done");
+    const holdLabel = wrapEl.querySelector(".swipe-action-hold");
+    if(!card) return;
+    const h = card.offsetHeight;
+    if(doneLabel) doneLabel.style.height = h + "px";
+    if(holdLabel) holdLabel.style.height = h + "px";
+  });
+}
+window.addEventListener("resize", syncAllSwipeActionHeights);
+// renderTasks からも呼ぶ（タスク数や内容が変わった時に高さを再同期）
+// → renderTasks の最後で setupAllSwipeGestures 後に syncAllSwipeActionHeights を呼ぶ
 
 /**
  * 復活：Journal/Sourceの新規処理時、アーカイブされたタスクと意味的に近い内容が
