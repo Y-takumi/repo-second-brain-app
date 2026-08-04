@@ -1471,6 +1471,58 @@
   - **選択肢提示**：AskUserQuestion で 3 案（動的化 / 固定値変更 / データ修正）を提示し、Tackman さんが「現在日付（new Date()）に動的化（推奨）」を選択
 - **コミット**: `192eca5`（Task 116, 117, 118 とまとめて）
 
+### Task 119: 再発防止策（YAML 編集ルール + parseError 警告ログ）
+- **状態**: completed
+- **完了評価**: 成功
+- **備考**:
+  - **発覚経緯**：Task 116-118 実装後、ユーザーが h-sleep.md を手動編集したが「データ反映されない」問題が発生。原因は YAML 編集時のトラップ：
+    1. `themes:- healthcare` のように改行が失われる
+    2. 辞書キー（`'2026-07-09':`）のインデント不足
+    3. Markdown エスケープで `\_` が混入（`sleep\_planned\_time` として解釈される）
+  - **修正手順を案内**しつつ、ユーザー側で h-sleep.md と h-wake.md を修正 → 27 件のデータが反映
+  - **再発防止策を実装**（ユーザー要望）：
+    1. CLAUDE.md に「Habit ファイル YAML 編集ルール（2026-08-04 追加）」セクション追加（必須ルール 5 項目 + 調査手順）
+    2. `loadHabitFromDrive` で `parseError` がある場合に `console.warn` で警告ログを出す（以前は items からサイレントにスキップされていた）
+  - **不採用にした対策**：C. `fm["sleep\\_planned\\_time"]` のようなフォールバック対応。CLAUDE.md の「正しい YAML を書くことが前提」方針と整合しないため（姑息的対策で問題を隠蔽）
+- **コミット**: `36a9c7c` chore(prevent-recurrence): Habit YAML 編集ルール追加 + parseFrontmatter 失敗時の警告ログ
+
+---
+
+## 2026-08-04 午後セッション（ジャーナル JSON 解析エラー修正）
+
+### ユーザー報告
+- 長いジャーナル（複数 Knowledge 抽出）を入力したところ、`❌ JSON解析エラー：JSON Parse error: Expected ']'` が発生
+- ユーザー提示の生データ：`knowledge` 配列の 3 件目の途中（`branch_is_new: true,` の直後）で切れている
+
+### Task 120: 原因特定
+- **状態**: completed
+- **完了評価**: 成功
+- **備考**:
+  - **根本原因**: `callClaudeWorker` の `max_tokens` が呼び出し元で不一致
+    - ソース入力（URL/記事）：6000
+    - YouTube 入力：6000
+    - **ジャーナル入力：4000** ← 長い入力で不足
+  - 日本語 Knowledge 1 件あたり 500-800 tokens 使うため、Note + Knowledge 2 件で 2000 tokens 超、4000 でも不足するケースあり
+  - `branch_is_new: true,` の直後（カンマの後）で切れているのは 4000 tokens 到達による `stop_reason: max_tokens`
+
+### Task 121: 修正実装（max_tokens 統一 + エラーメッセージ改善）
+- **状態**: completed
+- **完了評価**: 成功
+- **備考**:
+  - **修正1**: `index.html:2927` の `callClaudeWorker(prompt, 4000)` → `6000` に増量（ソース入力と統一）
+  - **修正2**: JSON 解析失敗時のメッセージを 3 箇所（journal / source / YouTube）統一
+    - `❌ JSON解析エラー：{e.message}` の後に「⚠️ 入力が長すぎる場合、Claude の応答が途中で切れることがあります（知識が複数抽出された場合など）。短い文章に分けて再度入力することをお勧めします。」を追加
+  - **将来の改善（今回は見送り）**: knowledge 配列単位で部分救出するロジック。複雑になるため今回は max_tokens 増量で十分対応
+- **コミット**: dc86023（push 済み）
+
+### Task 122: ドキュメント更新
+- **状態**: completed
+- **完了評価**: 成功
+- **備考**:
+  - TASK_HISTORY.md に本セッション記録（Task 120-122）
+  - メモリ `second-brain-2026-08-04-journal-json-truncation.md` 新規作成（再発時の参照用）
+  - MEMORY.md にエントリ追加
+
 ---
 
 ## 関連ドキュメント
