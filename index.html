@@ -1902,6 +1902,15 @@ const vaultSeedFiles = [
       <div class="settings-hint">今のVault（Note・Knowledge・Task・Great Mind・Habit）をまとめてダウンロードします</div>
       <button class="btn-secondary" style="margin-top:10px;" onclick="alert('（モック）実際にはVault全体をZIPでダウンロードします')">Vaultをエクスポート</button>
     </div>
+
+    <!-- 2026-08-04 セッション：Habit ファイル重複整理ツール。
+         h-wake / h-sleep / weight / h3 などで複数ファイルが存在する場合に、各 habit 種別の最新ファイルだけを残す。 -->
+    <div class="section-label">Habit ファイル整理</div>
+    <div class="dev-card">
+      <div class="settings-hint">09_Habit フォルダ内の同名 habit ファイル（h-wake*, h-sleep*, weight*, h3*）を整理し、各 habit 種別の最新ファイルだけを残します。古いファイルは Drive から削除されます（復元不可）</div>
+      <button class="btn-secondary" style="margin-top:10px;" onclick="consolidateHabitFiles()">🔧 Habit ファイルを整理</button>
+      <div id="dev-habit-consolidate-result" class="settings-hint"></div>
+    </div>
   </div>
 
   <!-- ===== GREAT MIND 一覧 ===== -->
@@ -2196,6 +2205,92 @@ async function handleGoogleAuthResult(tokenResponse){
   } catch(err){
     document.getElementById("drive-status-text").textContent = "連携済み（フォルダ確認でエラー）";
     document.getElementById("drive-hint").textContent = `接続はできましたが、フォルダの確認/作成でエラーが出ました：${err.message}`;
+  }
+}
+
+/** 2026-08-04 セッション：09_Habit フォルダ内の habit 関連ファイルを整理。
+ * - h-wake*, h-sleep*, weight*, h3* で始まるファイルを habit として扱う
+ * - 各 habit 種別の最新ファイルだけを残し、他を Drive から削除
+ * - 実行前に確認モーダルでファイル一覧を表示（誤操作防止） */
+async function consolidateHabitFiles(){
+  const resultEl = document.getElementById("dev-habit-consolidate-result");
+  if(!googleAccessToken){
+    if(resultEl) resultEl.textContent = "❌ 先に Drive に連携してください";
+    return;
+  }
+  if(resultEl) resultEl.textContent = "🔍 09_Habit をスキャン中...";
+  try{
+    // vault → 09_Habit フォルダを取得
+    const vaultId = await ensureVaultFolder();
+    const habitFolderId = await findOrCreateFolder("09_Habit", vaultId);
+    // 09_Habit 内のファイル一覧
+    const q = `'${habitFolderId}' in parents and trashed=false`;
+    const listRes = await fetch(
+      `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(q)}&fields=files(id,name,modifiedTime)`,
+      { headers: { Authorization: `Bearer ${googleAccessToken}` } }
+    );
+    if(!listRes.ok) throw new Error(`ファイル一覧取得失敗 (${listRes.status})`);
+    const listData = await listRes.json();
+    const allFiles = listData.files || [];
+    // habit 関連ファイルをフィルタ
+    const habitFiles = allFiles.filter(f =>
+      /^h-wake/.test(f.name) ||
+      /^h-sleep/.test(f.name) ||
+      /^weight/.test(f.name) ||
+      /^h3/.test(f.name)
+    );
+    if(habitFiles.length === 0){
+      if(resultEl) resultEl.textContent = "✅ habit 関連ファイルが見つかりませんでした（整理不要）";
+      return;
+    }
+    // グループ化（各 habit 種別の最新を残す）
+    const groups = {
+      wake: habitFiles.filter(f => /^h-wake/.test(f.name)),
+      sleep: habitFiles.filter(f => /^h-sleep/.test(f.name)),
+      weight: habitFiles.filter(f => /^weight/.test(f.name)),
+      h3: habitFiles.filter(f => /^h3/.test(f.name)),
+    };
+    const keepFiles = [];
+    const deleteFiles = [];
+    for(const files of Object.values(groups)){
+      if(files.length === 0) continue;
+      // 更新日時でソート（最新が先頭）
+      files.sort((a, b) => new Date(b.modifiedTime) - new Date(a.modifiedTime));
+      keepFiles.push(files[0]);
+      deleteFiles.push(...files.slice(1));
+    }
+    if(deleteFiles.length === 0){
+      if(resultEl) resultEl.textContent = `✅ 整理不要（各 habit 1 ファイルのみ、計 ${keepFiles.length} ファイル）`;
+      return;
+    }
+    // 確認モーダル表示
+    const keepList = keepFiles.map(f => `✅ 残す: ${f.name} (${f.modifiedTime.slice(0,10)})`).join("\n");
+    const delList = deleteFiles.map(f => `🗑️ 削除: ${f.name} (${f.modifiedTime.slice(0,10)})`).join("\n");
+    openConfirmModal({
+      title: "Habit ファイルを整理",
+      message: `${habitFiles.length} 個の habit ファイルが見つかりました。\n各 habit 種別の最新だけを残し、古いファイルを削除します。\n\n${keepList}\n\n${delList}\n\nこの操作は元に戻せません。`,
+      confirmLabel: "整理を実行",
+      cancelLabel: "キャンセル",
+      danger: true,
+      onConfirm: async () => {
+        if(resultEl) resultEl.textContent = "🗑️ 削除中...";
+        let deleted = 0;
+        for(const f of deleteFiles){
+          const delRes = await fetch(`https://www.googleapis.com/drive/v3/files/${f.id}`, {
+            method: "DELETE",
+            headers: { Authorization: `Bearer ${googleAccessToken}` },
+          });
+          if(delRes.ok) deleted++;
+        }
+        if(resultEl) resultEl.textContent = `✅ 整理完了：${deleted} ファイル削除 / ${keepFiles.length} ファイル保持\n（次回起動時にアプリが Habit を再同期します）`;
+      },
+      onCancel: () => {
+        if(resultEl) resultEl.textContent = "❌ キャンセルしました";
+      }
+    });
+  } catch(e){
+    console.error("Habit ファイル整理失敗:", e);
+    if(resultEl) resultEl.textContent = `❌ エラー: ${e.message}`;
   }
 }
 
