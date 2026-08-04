@@ -4,7 +4,7 @@
 
 別のセッションで作業中に問題が発生した場合、このファイルを開いて **直近のタスク実施状況** を確認することで、類似の問題や関連する変更を把握できます。
 
-最終更新：2026-08-04（Tasks タブ Adhoc のみ化 + HOME ウェイト簡略版追加 / Task 125）
+最終更新：2026-08-05（Tasks タブ未完了タスク整理をスワイプ UI に変更 / Task 126）
 
 ---
 
@@ -1580,6 +1580,49 @@
   - **JS 構文チェック OK**
   - **目視確認は Tackman さんに依頼**
 - **コミット**: 71d7f46（push 済み）
+
+---
+
+## 2026-08-05 セッション（未完了タスク整理をスワイプ UI に変更）
+
+### タスク前提
+- ユーザー：「一旦はいい感じです！未完了タスクの整理なんだけど、保留にするか、続けるかのフラグを立てるようにしたいです。これは上部のカードで処理するんじゃなくて、一覧を右にスワイプで継続、左にスワイプで保留にするようにしたいです。」
+- 設計確認のため AskUserQuestion で 3 点確認：
+  - **完了の動線**：「右にスワイプしたら左側に完了ボタンが表示されて、完了をタップしたら実行される、という感じ（カードと同じ高さの緑のボタン）。継続の時は何もしない」→ 右=完了ボタン表示→タップ、左=保留ボタン表示→タップ、継続=現状維持
+  - **カードレビュー**：「完全削除」
+  - **スワイプ対象**：「未完了（open, !isBlocked）のみ」
+
+### Task 126: Tasks タブ未完了タスク整理をスワイプ UI に変更 + カードレビュー完全削除
+- **状態**: completed
+- **完了評価**: 成功（コード変更は確認済み、目視確認は Tackman さんに依頼）
+- **備考**:
+  - **委任モードで 2 つの改修をまとめて実装**：
+    1. **タスク行スワイプ UI（Gmail 風）の追加**：
+       - `taskCardHTML` を改修：未完了タスク（`open && !isBlocked`）のみ `<div class="swipe-wrap">` ラッパーで囲む
+       - ラッパー内に「完了ボタン（左から緑）」「保留ボタン（右からオレンジ）」を配置
+       - `setupAllSwipeGestures` / `attachSwipeGestures` 関数を新設
+       - `touchstart/touchmove/touchend + mousedown/mousemove/mouseup` で PC・スマホ両対応
+       - 横方向の動きが縦より大きい時のみスワイプ判定（縦スクロールと競合しない）
+       - 閾値 80px で確定表示、未満は元に戻る
+       - ロック中は完了 / 保留ラベルのみ反応、それ以外の場所タップで解除
+       - `renderTasks` の最後で `setupAllSwipeGestures()` を呼ぶ
+    2. **未完了レビューカード完全削除**：
+       - HTML: `<div id="stale-review-area">`（Tasks タブ）、`<div id="goodnight-stale-review-area">`（goodnight 画面）を削除
+       - JS 関数削除：`renderStaleReview`, `staleCommitOrReset`, `staleTapDecide`, `staleAttachHandlers`, `staleTouchStart/Move/End/Cancel`, `staleMouseStart`, `staleApplyVisual`, `staleResetVisual`, `staleDecide`
+       - CSS 削除：`.stale-review-wrap`, `.stale-review-label`, `.stale-rail`, `.stale-card`, `.stale-hint-*`, `.stale-btn-row`, `.stale-btn`, `@keyframes stale-*`
+       - 呼び出し箇所削除：`openTasksTab` 内、`openGoodnight` 内
+    3. **既存パターンの活用**：`toggleTaskDone`（完了）と `holdTaskFromDetail`（保留）をそのまま再利用
+    4. **残される機能**：`getUnfinishedQueue`（バッジ計算）、`appSettings.staleReviewDays`（設定項目として互換性のため残置）、タスク詳細画面の保留 / 完了 / 削除ボタン
+  - **新規 CSS**：`.swipe-wrap`, `.swipe-wrap.swipe-active`, `.swipe-action`, `.swipe-action-done`, `.swipe-action-hold`, `.swipe-wrap.show-done-action`, `.swipe-wrap.show-hold-action`, `.swipe-wrap.swipe-locked`
+  - **透明性の報告**：
+    - **スワイプ中も `taskData` の状態は変更しない**：80px 以上スワイプしたら固定表示 → ユーザーが完了 / 保留ボタンをタップした時点で初めて `toggleTaskDone` / `holdTaskFromDetail` が呼ばれる。誤スワイプの場合は行をタップで元に戻るだけで副作用なし
+    - **スワイプ方向の判定**：`Math.abs(dx) > Math.abs(dy) * 1.4` で横スワイプ判定、縦スクロールを阻害しない
+    - **PC テスト対応**：`mousedown/mousemove/mouseup` で PC のマウスドラッグでも動作。`mouseleave` でドラッグ中断処理
+    - **複数行の同時ロック防止**：新しい行で `touchstart` / `mousedown` した時に、既にロック済みの他の行をリセット
+  - **仕様書更新**：4.4.3.1 節（スワイプ式カード）を削除し、4.4.3.2 節（スワイプ UI）を新設。最終更新日を 2026-08-05 に更新
+  - **JS 構文チェック OK**
+  - **目視確認は Tackman さんに依頼**（スマホ実機でのスワイプ感度の確認）
+- **コミット**: 42a1a24（push 済み）
 
 ---
 
