@@ -531,44 +531,43 @@
   .task-compact-row .arrow{color:var(--ink-faint); flex-shrink:0;}
   .task-compact-row .dep{color:var(--business); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
 
-  /* 放置タスクの見直し(スワイプ) */
-  .stale-review-wrap{position:relative; height:150px; margin-bottom:6px;}
-  .stale-review-label{font-size:10.5px; color:var(--ink-faint); margin-bottom:8px;}
-
-  .stale-rail{
-    position:absolute; top:0; bottom:0; width:56px; border-radius:16px;
-    display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px;
-    font-size:10px; font-weight:700; cursor:pointer;
+  /* 2026-08-05 セッション：Tasks タブのタスク行スワイプ UI（Gmail風）
+     - 右スワイプ → 完了ボタン（左から緑）／ 左スワイプ → 保留ボタン（右からオレンジ）
+     - 「継続」は何もしない（スワイプしない = 現状維持）
+     - �値 80px 以上で確定表示 / 未満はスワイプキャンセル → 元に戻る */
+  .swipe-wrap{
+    position:relative; overflow:hidden;
+    background:var(--surface); border-radius:14px;
+    margin-bottom:7px; touch-action:pan-y;
+    transition:transform .25s cubic-bezier(.2,.7,.3,1);
   }
-  .stale-rail.left{left:0; background:linear-gradient(90deg, #e0716e33, transparent); color:#e0716e; align-items:flex-start; padding-left:10px;}
-  .stale-rail.right{right:0; background:linear-gradient(270deg, var(--healthcare)33, transparent); color:var(--healthcare); align-items:flex-end; padding-right:10px;}
-  .stale-rail .chev{font-size:16px; animation:stale-chev-pulse 1.6s ease-in-out infinite;}
-  .stale-rail.left .chev{animation-name:stale-chev-pulse-left;}
-  .stale-rail.right .chev{animation-name:stale-chev-pulse-right;}
-  @keyframes stale-chev-pulse-left{ 0%,100%{transform:translateX(0); opacity:.5;} 50%{transform:translateX(-5px); opacity:1;} }
-  @keyframes stale-chev-pulse-right{ 0%,100%{transform:translateX(0); opacity:.5;} 50%{transform:translateX(5px); opacity:1;} }
-
-  .stale-card{
-    position:absolute; top:0; bottom:0; left:56px; right:56px; background:var(--surface); border:1px solid var(--border); border-radius:16px;
-    padding:16px; display:flex; flex-direction:column; justify-content:center; cursor:grab; user-select:none;
-    transition:transform .25s, opacity .25s; z-index:2; touch-action:none;
-    animation:stale-entrance-wobble 1.1s ease-in-out .3s;
+  .swipe-wrap.swipe-active{transition:none;}
+  .swipe-wrap .task-card{
+    position:relative; z-index:2;
+    background:var(--surface); border-radius:14px;
   }
-  @keyframes stale-entrance-wobble{
-    0%,100%{transform:translateX(0) rotate(0);}
-    25%{transform:translateX(-10px) rotate(-2deg);}
-    55%{transform:translateX(8px) rotate(1.5deg);}
-    75%{transform:translateX(-4px) rotate(-1deg);}
+  .swipe-action{
+    position:absolute; top:0; bottom:0; width:120px;
+    display:flex; align-items:center; justify-content:center;
+    font-size:13px; font-weight:700; color:#fff;
+    z-index:1; cursor:pointer; user-select:none;
+    transition:transform .25s cubic-bezier(.2,.7,.3,1), opacity .25s;
+    opacity:0;
   }
-  .stale-card-q{font-size:11px; color:var(--ink-faint); margin-bottom:8px;}
-  .stale-card-text{font-size:14px; color:var(--ink); font-family:var(--serif); line-height:1.5;}
-  .stale-card-days{font-size:10px; color:var(--business); font-family:var(--mono); margin-top:10px;}
-  .stale-hint-no{position:absolute; top:14px; right:14px; font-size:11px; font-weight:700; color:#e0716e; opacity:0; transform:rotate(8deg); z-index:3;}
-  .stale-hint-yes{position:absolute; top:14px; left:14px; font-size:11px; font-weight:700; color:var(--healthcare); opacity:0; transform:rotate(-8deg); z-index:3;}
-  .stale-btn-row{display:flex; gap:8px; margin-top:8px;}
-  .stale-btn{flex:1; display:flex; align-items:center; justify-content:center; gap:6px; padding:9px; border-radius:12px; font-size:11.5px; cursor:pointer; border:1px solid var(--border);}
-  .stale-btn.no{color:#e0716e; border-color:#e0716e55;}
-  .stale-btn.yes{color:var(--healthcare); border-color:var(--healthcare)55;}
+  .swipe-action-done{
+    left:0; background:var(--healthcare);
+    padding-left:18px; justify-content:flex-start;
+    transform:translateX(-100%);
+  }
+  .swipe-action-hold{
+    right:0; background:var(--business);
+    padding-right:18px; justify-content:flex-end;
+    transform:translateX(100%);
+  }
+  .swipe-wrap.show-done-action .swipe-action-done{transform:translateX(0); opacity:1;}
+  .swipe-wrap.show-hold-action .swipe-action-hold{transform:translateX(0); opacity:1;}
+  .swipe-wrap.swipe-locked .task-card{cursor:pointer;}
+  .swipe-wrap.swipe-locked{cursor:default;}
 
   /* メンターコメントカード（鏡・メンターとしてのフィードバック） */
   .mentor-card{
@@ -1604,8 +1603,8 @@ const vaultSeedFiles = [
     <h1 class="page-title">Tasks</h1>
     <p class="page-sub">その都度発生するタスクを管理します</p>
 
-    <!-- 2026-08-04 セッション：Tasks タブを Ad Hoc のみに整理（Daily は HOME タブの起床・就寝・ウェイト実績に集約） -->
-    <div id="stale-review-area"></div>
+    <!-- 2026-08-04 セッション：Tasks タブを Ad Hoc のみに整理（Daily は HOME タブの起床・就寝・ウェイト実績に集約）
+         2026-08-05 セッション：未完了レビューカード廃止 → タスク行のスワイプ UI（保留 / 完了）に置き換え -->
     <div class="graph-tabs">
       <div class="gtab active" data-theme="all" onclick="renderTasks('all', event)">すべて</div>
       <div class="gtab" data-theme="healthcare" onclick="renderTasks('healthcare', event)">Health</div>
@@ -1722,8 +1721,6 @@ const vaultSeedFiles = [
 
   <!-- ===== GOODNIGHT（おやすみボタンから遷移する締めくくり画面） ===== -->
   <div class="screen" id="screen-goodnight">
-    <div id="goodnight-stale-review-area"></div>
-
     <div class="goodnight-hero">
       <div class="goodnight-icon">🌙</div>
       <h1 class="page-title">お疲れ様でした</h1>
@@ -4778,18 +4775,42 @@ function computeCrossScore(t){
 
 function taskCardHTML(t, showScore){
   const done = t.status==="done";
+  // 2026-08-05 セッション：未完了タスク（open && !isBlocked）に行全体をスワイプ可能なラッパーで囲む。
+  // 右スワイプ → 完了ボタン（左から緑）／ 左スワイプ → 保留ボタン（右からオレンジ）。
+  // 「継続」は何もしない（スワイプしない = 現状維持）。カード本体の onclick（タスク詳細遷移）は維持。
+  // done / blocked のタスクはスワイプ無効（クリックのみ）。
+  const isUnfinished = t.status === "open" && !isBlocked(t);
+  if(!isUnfinished){
+    return `
+    <div class="task-card ${done?'done':''}" onclick="openTaskDetail('${t.id}')">
+      <span class="task-checkbox ${done?'done':''}" onclick="event.stopPropagation(); toggleTaskDone('${t.id}')">${done?'✓':''}</span>
+      <div class="task-body">
+        <div class="task-text ${done?'done':''}">${t.text}</div>
+        <div class="task-meta-row">
+          <span class="task-priority">${showScore ? Math.round(computeCrossScore(t)) : t.priority}</span>
+          <span class="task-type-tag ${t.type}">${t.type==='action'?'Action':'Research'}</span>
+          ${(t.themes||[]).map(x=>`<span class="task-theme-dot" style="background:${themeColors[x]||primaryColor}"></span>`).join("")}
+          ${t.due?`<span class="task-due">due ${t.due}</span>`:""}
+        </div>
+      </div>
+    </div>`;
+  }
   return `
-  <div class="task-card ${done?'done':''}" onclick="openTaskDetail('${t.id}')">
-    <span class="task-checkbox ${done?'done':''}" onclick="event.stopPropagation(); toggleTaskDone('${t.id}')">${done?'✓':''}</span>
-    <div class="task-body">
-      <div class="task-text ${done?'done':''}">${t.text}</div>
-      <div class="task-meta-row">
-        <span class="task-priority">${showScore ? Math.round(computeCrossScore(t)) : t.priority}</span>
-        <span class="task-type-tag ${t.type}">${t.type==='action'?'Action':'Research'}</span>
-        ${(t.themes||[]).map(x=>`<span class="task-theme-dot" style="background:${themeColors[x]||primaryColor}"></span>`).join("")}
-        ${t.due?`<span class="task-due">due ${t.due}</span>`:""}
+  <div class="swipe-wrap" data-task-id="${t.id}">
+    <div class="swipe-action swipe-action-done">✓ 完了</div>
+    <div class="task-card" onclick="openTaskDetail('${t.id}')">
+      <span class="task-checkbox ${done?'done':''}" onclick="event.stopPropagation(); toggleTaskDone('${t.id}')">${done?'✓':''}</span>
+      <div class="task-body">
+        <div class="task-text ${done?'done':''}">${t.text}</div>
+        <div class="task-meta-row">
+          <span class="task-priority">${showScore ? Math.round(computeCrossScore(t)) : t.priority}</span>
+          <span class="task-type-tag ${t.type}">${t.type==='action'?'Action':'Research'}</span>
+          ${(t.themes||[]).map(x=>`<span class="task-theme-dot" style="background:${themeColors[x]||primaryColor}"></span>`).join("")}
+          ${t.due?`<span class="task-due">due ${t.due}</span>`:""}
+        </div>
       </div>
     </div>
+    <div class="swipe-action swipe-action-hold">保留</div>
   </div>`;
 }
 function taskCompactHTML(t){
@@ -4849,6 +4870,8 @@ function renderTasks(theme, event){
   }
   renderArchive();
   updateTaskBadge();
+  // 2026-08-05 セッション：タスク行にスワイプジェスチャー（保留 / 完了）を付与
+  setupAllSwipeGestures();
 }
 function toggleTaskAccordion(accId){
   const acc = document.getElementById(accId);
@@ -5040,143 +5063,154 @@ function getUnfinishedQueue(){
   });
 }
 
-let staleDragStartX = null;
+/** 2026-08-05 セッション：未完了レビューカード廃止 → タスク行スワイプ UI に置き換え。
+ * 右スワイプ → 完了ボタン表示 → タップで完了 ／ 左スワイプ → 保留ボタン表示 → タップで保留。
+ * 「継続」はスワイプしない = 現状維持。 */
+const SWIPE_THRESHOLD = 80;   // 確定ボタン表示開始の距離（px）
+const SWIPE_MAX = 120;        // スワイプの最大距離（px）
 
-function renderStaleReview(targetId = "stale-review-area"){
-  const area = document.getElementById(targetId);
-  if(!area) return;
-  const queue = getUnfinishedQueue();
-  if(!queue.length){ area.innerHTML = ""; return; }
-  const t = queue[0];
-  const days = daysSince(t.created || t.lastConfirmed);
-
-  area.innerHTML = `
-    <div class="stale-review-label">📝 未完了タスクを整理（残り${queue.length}件）</div>
-    <div class="stale-review-wrap">
-      <div class="stale-rail left" onclick="staleTapDecide(false)"><span class="chev">‹‹</span><span>完了</span></div>
-      <div class="stale-rail right" onclick="staleTapDecide(true)"><span>続ける</span><span class="chev">››</span></div>
-      <div class="stale-card" id="stale-card">
-        <span class="stale-hint-no" id="stale-hint-no">完了にする</span>
-        <span class="stale-hint-yes" id="stale-hint-yes">続ける</span>
-        <div class="stale-card-q">このタスク、どうする？</div>
-        <div class="stale-card-text">${t.text}</div>
-        <div class="stale-card-days">優先度: ${t.priority ?? "未設定"}${days > 0 ? ` / ${days}日前から` : ""}</div>
-      </div>
-    </div>`;
-
-  staleAttachHandlers();
+function setupAllSwipeGestures(){
+  document.querySelectorAll(".swipe-wrap").forEach(wrapEl => {
+    attachSwipeGestures(wrapEl);
+  });
 }
 
-/** touchstart/touchmove/touchendを直接使い、moveの度にpreventDefaultしてブラウザにスクロールとして横取りされるのを確実に防ぐ */
-function staleAttachHandlers(){
-  const card = document.getElementById("stale-card");
-  if(!card) return;
-  card.addEventListener("touchstart", staleTouchStart, {passive:true});
-  card.addEventListener("touchmove", staleTouchMove, {passive:false});
-  card.addEventListener("touchend", staleTouchEnd, {passive:true});
-  card.addEventListener("touchcancel", staleTouchCancel, {passive:true});
-  card.addEventListener("mousedown", staleMouseStart);
-}
+function attachSwipeGestures(wrapEl){
+  const taskId = wrapEl.dataset.taskId;
+  let startX = 0, startY = 0, currentX = 0, isSwiping = false;
 
-function staleApplyVisual(dx){
-  const card = document.getElementById("stale-card");
-  if(!card) return;
-  card.style.transform = `translateX(${dx}px) rotate(${dx/22}deg)`;
-  document.getElementById("stale-hint-yes").style.opacity = Math.max(0, Math.min(1, dx/110));
-  document.getElementById("stale-hint-no").style.opacity = Math.max(0, Math.min(1, -dx/110));
-}
-function staleResetVisual(){
-  const card = document.getElementById("stale-card");
-  if(!card) return;
-  card.style.transition = "transform .2s, opacity .2s";
-  card.style.transform = "translateX(0) rotate(0)";
-  document.getElementById("stale-hint-yes").style.opacity = 0;
-  document.getElementById("stale-hint-no").style.opacity = 0;
-}
-function staleCommitOrReset(dx){
-  const card = document.getElementById("stale-card");
-  if(!card) return;
-  card.style.transition = "transform .2s, opacity .2s";
-  const queue = getUnfinishedQueue();
-  if(!queue.length) return;
-  const t = queue[0];
-  if(dx > 110){ card.style.transform = `translateX(400px) rotate(20deg)`; card.style.opacity = "0"; setTimeout(()=>staleDecide(t.id,true),180); }
-  else if(dx < -110){ card.style.transform = `translateX(-400px) rotate(-20deg)`; card.style.opacity = "0"; setTimeout(()=>staleDecide(t.id,false),180); }
-  else { staleResetVisual(); }
-}
-
-/* ---- touch(スマホ実機) ---- */
-function staleTouchStart(e){
-  staleDragStartX = e.touches[0].clientX;
-  const card = e.currentTarget;
-  card.style.animation = "none"; // 出現時のゆらぎアニメーションと競合しないよう止める
-  card.style.transition = "none";
-}
-function staleTouchMove(e){
-  if(staleDragStartX===null) return;
-  e.preventDefault(); // ページのスクロールとして横取りされるのを確実に防ぐ
-  staleApplyVisual(e.touches[0].clientX - staleDragStartX);
-}
-function staleTouchEnd(e){
-  if(staleDragStartX===null) return;
-  const dx = e.changedTouches[0].clientX - staleDragStartX;
-  staleDragStartX = null;
-  staleCommitOrReset(dx);
-}
-function staleTouchCancel(){
-  staleDragStartX = null;
-  staleResetVisual();
-}
-
-/* ---- mouse(PCでの確認用) ---- */
-function staleMouseStart(e){
-  staleDragStartX = e.clientX;
-  const card = e.currentTarget;
-  card.style.animation = "none";
-  card.style.transition = "none";
-  function onMove(ev){ staleApplyVisual(ev.clientX - staleDragStartX); }
-  function onUp(ev){
-    const dx = ev.clientX - staleDragStartX;
-    staleDragStartX = null;
-    document.removeEventListener("mousemove", onMove);
-    document.removeEventListener("mouseup", onUp);
-    staleCommitOrReset(dx);
+  function resetSwipe(){
+    wrapEl.style.transform = "";
+    wrapEl.classList.remove("swipe-active", "swipe-mode", "swipe-locked", "show-done-action", "show-hold-action");
   }
-  document.addEventListener("mousemove", onMove);
-  document.addEventListener("mouseup", onUp);
-}
 
-/** 外側の「アーカイブ」「キープ」の文字（レール）をタップした時：スワイプと同じ結果になる */
-function staleTapDecide(stillImportant){
-  const card = document.getElementById("stale-card");
-  const queue = getUnfinishedQueue();
-  if(!queue.length || !card) return;
-  const t = queue[0];
-  card.style.transition = "transform .2s, opacity .2s";
-  card.style.transform = `translateX(${stillImportant?400:-400}px) rotate(${stillImportant?20:-20}deg)`;
-  card.style.opacity = "0";
-  setTimeout(()=>staleDecide(t.id, stillImportant), 180);
-}
-function staleDecide(id, keepGoing){
-  const t = taskById(id);
-  const today = APP_TODAY.toISOString().slice(0,10);
-  const updates = { last_confirmed: today };
-  if(!keepGoing){
-    // 「完了」→ タスクを完了状態に
-    updates.status = "done";
+  function lockAction(actionClass, offsetPx){
+    // スワイプ確定 → アクションを固定表示
+    wrapEl.style.transform = `translateX(${offsetPx}px)`;
+    wrapEl.classList.add("swipe-locked", actionClass);
   }
-  // ① まずメモリ上を更新して UI 再描画（即座に反映）
-  //    メモリ上はキャメルケース（taskData プロパティ）のまま保持するため、
-  //    キャメル/スネーク両方のキーを更新する
-  const memUpdates = camelizeKeys(updates);
-  Object.assign(t, memUpdates);
-  const activeTab = document.querySelector("#screen-tasks .gtab.active");
-  renderTasks(activeTab?.dataset.theme || "all");
-  // ② Drive に永続化（fire-and-forget）。Drive 側はスネークケース
-  persistTaskChange(t.id, updates);
-  // ③ 次のカードを表示 + バッジ更新
-  renderStaleReview();
-  updateTaskBadge();
+
+  function onStart(clientX, clientY){
+    // 既にロック済みのタスク行があればリセット
+    document.querySelectorAll(".swipe-wrap.swipe-locked").forEach(el => {
+      if(el !== wrapEl) el.style.transform = "";
+      el.classList.remove("swipe-locked", "show-done-action", "show-hold-action");
+    });
+    startX = clientX;
+    startY = clientY;
+    currentX = 0;
+    isSwiping = false;
+    wrapEl.classList.add("swipe-active");
+  }
+
+  function onMove(clientX, clientY){
+    if(!startX && startX !== 0) return;
+    const dx = clientX - startX;
+    const dy = clientY - startY;
+
+    if(!isSwiping){
+      if(Math.abs(dx) < 8 && Math.abs(dy) < 8) return;  // 微小ノイズは無視
+      if(Math.abs(dx) > Math.abs(dy) * 1.4 && Math.abs(dx) > 8){
+        // 横方向の動きが縦より大きく、閾値超過 → スワイプ開始
+        isSwiping = true;
+      } else {
+        // 縦スクロール開始 → スワイプキャンセル
+        startX = 0;
+        wrapEl.classList.remove("swipe-active");
+        return;
+      }
+    }
+
+    const clampedDx = Math.max(-SWIPE_MAX, Math.min(SWIPE_MAX, dx));
+    wrapEl.style.transform = `translateX(${clampedDx}px)`;
+    currentX = clampedDx;
+    if(clampedDx > 20){
+      wrapEl.classList.add("show-done-action");
+      wrapEl.classList.remove("show-hold-action");
+    } else if(clampedDx < -20){
+      wrapEl.classList.add("show-hold-action");
+      wrapEl.classList.remove("show-done-action");
+    } else {
+      wrapEl.classList.remove("show-done-action", "show-hold-action");
+    }
+  }
+
+  function onEnd(){
+    wrapEl.classList.remove("swipe-active");
+    if(!isSwiping){
+      startX = 0;
+      return;
+    }
+    isSwiping = false;
+    if(currentX >= SWIPE_THRESHOLD){
+      lockAction("show-done-action", SWIPE_MAX);
+    } else if(currentX <= -SWIPE_THRESHOLD){
+      lockAction("show-hold-action", -SWIPE_MAX);
+    } else {
+      resetSwipe();
+    }
+    startX = 0;
+  }
+
+  // touch (スマホ実機)
+  wrapEl.addEventListener("touchstart", (e) => {
+    const t = e.touches[0];
+    onStart(t.clientX, t.clientY);
+  }, { passive: true });
+
+  wrapEl.addEventListener("touchmove", (e) => {
+    if(!isSwiping) return;
+    const t = e.touches[0];
+    onMove(t.clientX, t.clientY);
+  }, { passive: true });
+
+  wrapEl.addEventListener("touchend", () => onEnd(), { passive: true });
+  wrapEl.addEventListener("touchcancel", () => onEnd(), { passive: true });
+
+  // mouse (PCでの確認用)
+  wrapEl.addEventListener("mousedown", (e) => {
+    e.preventDefault();
+    onStart(e.clientX, e.clientY);
+  });
+  wrapEl.addEventListener("mousemove", (e) => {
+    if(!isSwiping || e.buttons !== 1) return;
+    onMove(e.clientX, e.clientY);
+  });
+  wrapEl.addEventListener("mouseup", () => onEnd());
+  wrapEl.addEventListener("mouseleave", () => { if(isSwiping) onEnd(); });
+
+  // アクションラベル（完了 / 保留）のクリック処理
+  const doneLabel = wrapEl.querySelector(".swipe-action-done");
+  if(doneLabel){
+    doneLabel.addEventListener("click", (e) => {
+      e.stopPropagation();
+      e.preventDefault();
+      if(!wrapEl.classList.contains("swipe-locked")) return;
+      toggleTaskDone(taskId);
+    });
+  }
+  const holdLabel = wrapEl.querySelector(".swipe-action-hold");
+  if(holdLabel){
+    holdLabel.addEventListener("click", (e) => {
+      e.stopPropagation();
+      e.preventDefault();
+      if(!wrapEl.classList.contains("swipe-locked")) return;
+      holdTaskFromDetail(taskId);
+    });
+  }
+
+  // カード本体（タスク詳細遷移領域）のクリック：ロック中ならリセットのみ、タップ動作も抑制
+  const card = wrapEl.querySelector(".task-card");
+  if(card){
+    card.addEventListener("click", (e) => {
+      if(wrapEl.classList.contains("swipe-locked")){
+        // ロック中：スワイプ状態を解除（タスク詳細遷移はしない）
+        resetSwipe();
+        e.stopPropagation();
+        e.preventDefault();
+      }
+    }, true);  // capture phase で openTaskDetail より先に処理
+  }
 }
 
 /**
@@ -5245,12 +5279,12 @@ renderDraftList(); // 2026-08-02 追加：ジャーナル下書きの復元・�
 renderTasks("all"); // 全定義が揃った後で初回描画
 
 /** Tasksタブを開く：2026-08-04 セッションで Ad Hoc のみに整理。
- * バッジ更新 → 未完了レビュー → 現在テーマでタスク一覧描画 → 画面遷移 */
+ * 2026-08-05 セッション：未完了レビューカード廃止（スワイプ UI に集約）。
+ * バッジ更新 → 現在テーマでタスク一覧描画 → 画面遷移 */
 function openTasksTab(){
   updateTaskBadge();
   const activeTab = document.querySelector("#screen-tasks .gtab.active");
   renderTasks(activeTab?.dataset.theme || "all");
-  renderStaleReview(); // 未完了レビューを上部に表示
   goTo("tasks");
 }
 
@@ -6026,7 +6060,7 @@ function finishGoodnight(){
 
 async function openGoodnight(){
   await doGreetAction("sleep");
-  renderStaleReview("goodnight-stale-review-area");
+  // 2026-08-05 セッション：goodnight 画面の未完了レビューカードも廃止（Tasks タブのスワイプ UI に集約）
 
   // 就寝予定時刻：今日未記録ならデフォルト値を設定
   const todayKey = d(0);
