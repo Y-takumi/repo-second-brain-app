@@ -4,7 +4,7 @@
 
 別のセッションで作業中に問題が発生した場合、このファイルを開いて **直近のタスク実施状況** を確認することで、類似の問題や関連する変更を把握できます。
 
-最終更新：2026-07-30（Phase 3-6 実装：朝のフロー / 夜のフロー / CDN ローカル化 / リズム可視化）
+最終更新：2026-08-04（Tasks タブ Adhoc のみ化 + HOME ウェイト簡略版追加 / Task 125）
 
 ---
 
@@ -1546,6 +1546,40 @@
   - **2026-08-04 時点で `max_tokens: 8000` が安定動作を確認した最適値**として記録
   - 今後 max_tokens を変更する時の参考値（再評価が必要になった場合はこの値を目安）
 - **コミット**: （docs/ 更新のみ）
+
+---
+
+## 2026-08-04 セッション（Tasks タブ Adhoc のみ化 + HOME ウェイト簡略版追加）
+
+### タスク前提
+- ユーザー：「次はTasksタブです。デザイン全般はHOMEタブなどと合わせてください。5分刻みボタンは消しちゃっていいです。起床、就寝、ウェイトトレーニングは朝夜のボタンは消してOKです。ウェイトトレーニングが2つあるので、1つは消して下さい。1日1回は体を,,も消してください。ウェイトトレーニングの実績も簡略化してHOMEタブに表示してもいいかもしれないので、TaskタブはAdhocだけでいいかもね。ざっくり修正お願いします！」
+- 委任モード（2026-07-29 FB）に従い、確認なしで進行
+
+### Task 125: Tasks タブを Ad Hoc のみに整理 + HOME ウェイト簡略版追加
+- **状態**: completed
+- **完了評価**: 成功
+- **備考**:
+  - **委任モードで 4 つの改修をまとめて実装**：
+    1. **Tasks タブから Daily サブタブ削除**：`mode-toggle`（Daily/Ad Hoc トグル）、`tasks-daily-pane`、`tasks-wake-time-edit` を完全削除
+    2. **5分刻みボタン削除**：`renderTasksWakeTimeEdit` 関数を削除
+    3. **朝/夜の切替ボタン削除**：`habitCheckTimeChip` / `setHabitCheckTime` 関数を削除（常に空文字列を返す後方互換関数として残置）。`weightHabit.checkTime` プロパティも削除
+    4. **「1日1回は体を...」相当の残骸削除**：`brief-workout` 関連の HTML コメントと CSS（`.brief-workout-item`, `.brief-workout-note`）を完全削除
+  - **HOME.todaybrief に「ウェイト実績」セクション追加**：
+    - 今日の完了チェックボックス + 14日カレンダー + 連続日数バッジ
+    - `appSettings.showTrainingHabit` が true の時のみ表示（設定の toggle で制御）
+    - Drive 未連携時は disabled + 「Drive 連携が必要」テキスト
+  - **「ウェイトが2つある」問題の解消**：
+    - 旧構成：Tasks タブ Daily の `weightHabit` カード + HOME の `brief-workout`（コメントアウト済み）+ goodnight-streaks のウェイト表示
+    - 新構成：HOME.todaybrief のウェイト実績 + goodnight-streaks のウェイト表示（Tasks タブ Daily 廃止により1つ消滅）
+  - **関連関数の整理**：
+    - `renderDailyHabitList` / `renderTasksWakeTimeEdit` / `setTasksSubTab` 関数を削除（または後方互換用の空関数として残置）
+    - `openTasksTab` を Ad Hoc 専用に簡略化（バッジ更新 → タスク一覧描画 → 画面遷移）
+    - `dismissMorningGate` / `saveSettings` / `refreshTasksFromDrive` の参照を `renderTodayHabitList` → `renderTodayBrief` に統一
+  - **既存パターンの活用**：`habitStreak` / `habitCalRow` / `toggleHabitDone` を再利用（HOME 用簡略版でそのまま使用）
+  - **仕様書更新**：2.10.5 節「日中の記録」を「HOME タブに集約」に改訂、4.4.7 節を「Tasks タブ Daily 廃止、HOME 表示」に改訂、最終更新日を 2026-08-04 に更新
+  - **JS 構文チェック OK**
+  - **目視確認は Tackman さんに依頼**
+- **コミット**: 71d7f46（push 済み）
 
 ---
 
