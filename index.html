@@ -3387,7 +3387,11 @@ async function loadHabitFromDrive(){
   for(const f of files){
     if(f.name.toUpperCase().startsWith("README")) continue;
     const raw = await readDriveFileContent(f.id);
-    const { frontmatter: fm } = parseFrontmatter(raw);
+    const { frontmatter: fm, parseError } = parseFrontmatter(raw);
+    if(parseError){
+      // 2026-08-04 セッション：YAML パース失敗時に警告ログを追加（以前は items からサイレントにスキップされていた）
+      console.warn(`[Habit読み込み] ${f.name} の frontmatter パースに失敗:`, parseError);
+    }
     if(!fm.id || fm.type !== "habit") continue;
     items.push({
       id: fm.id,

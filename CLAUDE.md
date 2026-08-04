@@ -100,6 +100,61 @@ Drive OAuth・Vault読み込みパーサー（Library/Task/Knowledge/GreatMind/H
 - **OAuth 不要な単体テストは積極的に Playwright で実行**：朝のフロー（doGreetAction）、夜のフロー（renderTodayBrief）、リズム可視化（renderRhythmChart）など
 
 
+### Habit ファイル YAML 編集ルール（2026-08-04 追加）
+
+`09_Habit/*.md`（h-wake.md, h-sleep.md など）の YAML frontmatter を編集するときの鉄則。守らないと `parseFrontmatter` が失敗して Habit データが一切読み込まれなくなる（過去 1 時間ハマった事例あり）。
+
+**必須ルール**：
+
+1. **`themes:` の後は必ず改行 + 2 スペースインデント**
+   ```yaml
+   # ✅ 正しい
+   themes:
+     - healthcare
+
+   # ❌ 間違い（改行が失われる）
+   themes:- healthcare
+   ```
+
+2. **辞書キー（`'YYYY-MM-DD'`）の前に 2 スペースのインデント**
+   ```yaml
+   # ✅ 正しい
+   wake_time:
+     '2026-07-09': '06:30'
+     '2026-07-10': '06:45'
+
+   # ❌ 間違い（インデントなし → トップレベルキー扱い）
+   wake_time:
+   '2026-07-09': '06:30'
+   ```
+
+3. **Markdown エスケープ（`\_`）を混入させない**
+   - Drive Web UI のプレビュー画面で `_` が `\_` にエスケープされて表示されることがある
+   - 実際の YAML ソースには `\_` で書かれている場合があるため、**テキストエディタで開いて確認**
+   - 該当キー：`check_time`, `wake_time`, `sleep_planned_time` のアンダースコア
+
+4. **編集後は必ず件数確認**
+   - OAuth 認証済みブラウザで `parseFrontmatter` を実行し、対象フィールドの件数を確認
+   - 例：`Object.keys(fm.sleep_planned_time || {}).length` が期待値と一致するか
+
+5. **Drive 反映には時間がかかる場合がある**
+   - Drive Web UI で保存後、5〜15 分古いファイルが返ることがある
+   - その間は「修正が反映されない」と見えるが、時間を開ける or 完全リロードで解決
+
+**ハマったときの調査手順**：
+
+```javascript
+const files = await listDriveFolderFiles(await findOrCreateFolder("09_Habit", await ensureVaultFolder()));
+const sleepFile = files.find(f => f.name === "h-sleep.md");
+const raw = await readDriveFileContent(sleepFile.id);
+const { frontmatter: fm, parseError } = parseFrontmatter(raw);
+console.log("parseError:", parseError);
+console.log("fm:", JSON.stringify(fm, null, 2));
+```
+
+`parseError` がセットされていれば YAML 構造の問題。`fm` のキー一覧でバックスラッシュ混入を確認できる。
+
+
 ### 指示の出し方
 - **アクションを求めるときは、本当に必要か少し時間がかかっても改めて考えてから指示する**（例：「Dashboard での再設定が必要」と言ったが、`wrangler.toml` に値を完全書いている場合は不要だった、という誤りが過去にあった）
 - **実行手順はステップバイステップで具体的に示す**：箇条書きレベルではなく、「どの画面で、どのボタンをクリックして、何を入力して、何を確認するか」まで詳細に。Tackman さんが「A を実行してください」のような単独指示でも、**その前に前提条件と確認手順を示す**
