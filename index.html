@@ -536,7 +536,7 @@
      - 「継続」は何もしない（スワイプしない = 現状維持）
      - 閾値 80px 以上で確定表示 / 未満はスワイプキャンセル → 元に戻る
      - 2026-08-05 修正：.task-card だけを transform でスライド → アクションが下から顔を出す
-     - 2026-08-05 修正 2：JS で .swipe-action の高さを .task-card に明示同期 + border-radius 調整で見た目を揃える */
+     - 2026-08-05 修正 2：.swipe-action に bottom:0 を追加してカード高さに自動同期 */
   .swipe-wrap{
     position:relative; overflow:hidden;
     background:transparent; border-radius:12px;
@@ -550,8 +550,8 @@
   }
   .swipe-wrap.swipe-active .task-card{transition:none;}
   .swipe-action{
-    /* height は JS で .task-card.offsetHeight に同期 */
-    position:absolute; top:0; width:120px;
+    /* top:0; bottom:0 で .swipe-wrap（= .task-card）と同じ高さに自動追従 */
+    position:absolute; top:0; bottom:0; width:120px;
     display:flex; align-items:center;
     font-size:13.5px; font-weight:700; color:#fff;
     z-index:1; cursor:pointer; user-select:none;
