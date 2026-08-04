@@ -2547,9 +2547,21 @@ function buildExtractionPrompt(journalText, candidates, greatMindCandidates){
     }
   ],
   "tasks": [
-    { "type": "action または research", "text": "（タスク内容）", "themes": ["..."] }
+    {
+      "type": "action または research",
+      "text": "（タスク内容）",
+      "themes": ["..."],
+      "branch": "（テーマ配下のカテゴリ枝。任意。タスクの内容に最も関連する枝を既存Knowledgeの枝一覧から選ぶ。なければ省略可）",
+      "tags": ["（タスクに関連するキーワードを2〜5個。任意。後で検索・分類に使える想起用タグ）"]
+    }
   ]
 }
+
+# タスクのbranch / tagsについて（2026-08-05 追加）
+- **branch**：タスクの内容が特定のカテゴリ枝に明確に該当する場合のみ設定。Knowledge と同じ枝を使って検索・絞り込みを効かせる
+- **tags**：タスクを後からキーワードで検索するためのタグ。テーマとは別（テーマは healthcare/business 等大分類、tags は具体的なキーワード）
+- どちらも **任意**。設定できなければ省略してよい（空文字 / 空配列にする必要なし）
+- 「タグを付けられるようにしたい」というユーザー要望に基づく。ノート / ナレッジと同じ検索体験を目指す
 
 # confidenceの目安
 - 90〜100：高品質ソースで裏付け済み　- 70〜89：比較的信頼できる　- 40〜69：一部推測を含む　- 0〜39：主観・仮説中心
@@ -3160,7 +3172,7 @@ async function commitCaptureResult(){
       knowledgeIds.push(kid);
     }
 
-    // Task：新規作成
+    // Task：新規作成（2026-08-05：branch / tags 追加、ノート/ナレッジと同じ検索体験を目指す）
     for(const t of (pendingCaptureResult.tasks||[])){
       const tid = genId("task");
       const tFm = {
@@ -3168,6 +3180,8 @@ async function commitCaptureResult(){
         text: t.text, themes: t.themes || [], priority: 99, status: "open",
         depends_on: [], due: null, created: today, last_confirmed: null, archived_at: null,
         origin_note: noteId,
+        branch: t.branch || "",   // 任意：テーマ配下のカテゴリ枝
+        tags: Array.isArray(t.tags) ? t.tags : [],  // 任意：想起用キーワード
       };
       const tFolder = await findOrCreateFolder("07_Task", rootId);
       await createOrUpdateFile(`${tid}.md`, tFolder, buildFrontmatterFile(tFm, `\n# ${t.text}\n`));
@@ -3277,6 +3291,9 @@ async function loadTasksFromDrive(){
       text: fm.text || f.name.replace(/\.md$/, ""),
       body: fm.body || "",
       themes: fm.themes || [],
+      // 2026-08-05 追加：ノート/ナレッジと同じ検索体験のため branch / tags を読み込み
+      branch: fm.branch || "",
+      tags: Array.isArray(fm.tags) ? fm.tags : [],
       priority: fm.priority ?? 99,
       status: fm.status || "open",
       dependsOn: fm.depends_on || [],
