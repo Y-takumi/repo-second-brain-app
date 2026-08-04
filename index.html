@@ -5075,11 +5075,13 @@ function getUnfinishedQueue(){
 /** 2026-08-05 セッション：未完了レビューカード廃止 → タスク行スワイプ UI に置き換え。
  * 右スワイプ → 完了ボタン表示 → タップで完了 ／ 左スワイプ → 保留ボタン表示 → タップで保留。
  * 「継続」はスワイプしない = 現状維持。
- * 2026-08-05 微修正：SWIPE_LOCK_OFFSET = 140px で確定 → カードがボタンを 20px 覆い、
- * カード角丸（border-radius:12px）とボタンの矩形境界の隙間を隠す。 */
+ * 2026-08-05 微修正：SWIPE_LOCK_OFFSET = 100px で確定 → カードをボタンの右側に 20px 潜り込ませ、
+ * カード角丸（border-radius:12px）とボタンの矩形境界の隙間を埋める。
+ * ボタン幅は 120px のまま、カードのスライド量を 100px にすることで、
+ * ボタンの右端 20px がカードに覆われて隙間が消える。 */
 const SWIPE_THRESHOLD = 80;   // 確定ボタン表示開始の距離（px）
 const SWIPE_MAX = 120;        // スワイプ中の最大距離（px）
-const SWIPE_LOCK_OFFSET = 140; // 確定時の固定位置（カードがボタンを覆う距離、px）
+const SWIPE_LOCK_OFFSET = 100; // 確定時の固定位置（ボタンの右端 20px をカードに覆わせる、px）
 
 function setupAllSwipeGestures(){
   document.querySelectorAll(".swipe-wrap").forEach(wrapEl => {
