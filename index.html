@@ -2804,7 +2804,7 @@ async function startYouTubeProcessing(videoUrl){
       parsed = JSON.parse(raw.slice(start, end + 1));
     } catch(e){
       console.error("Claudeの生の応答:", raw);
-      if(statusEl) statusEl.innerHTML = `❌ JSON解析エラー：${e.message}<br><br><b>Claudeの応答（生データ）：</b><br><span style="white-space:pre-wrap; word-break:break-all;">${raw.slice(0,1500).replace(/</g,"&lt;")}</span>`;
+      if(statusEl) statusEl.innerHTML = `❌ JSON解析エラー：${e.message}<br>⚠️ 入力が長すぎる場合、Claude の応答が途中で切れることがあります（知識が複数抽出された場合など）。短い文章に分けて再度入力することをお勧めします。<br><br><b>Claudeの応答（生データ）：</b><br><span style="white-space:pre-wrap; word-break:break-all;">${raw.slice(0,1500).replace(/</g,"&lt;")}</span>`;
       return;
     }
 
@@ -2863,7 +2863,7 @@ async function startSourceProcessing(){
       parsed = JSON.parse(raw.slice(start, end + 1));
     } catch(e){
       console.error("Claudeの生の応答:", raw);
-      if(statusEl) statusEl.innerHTML = `❌ JSON解析エラー：${e.message}<br><br><b>Claudeの応答（生データ）：</b><br><span style="white-space:pre-wrap; word-break:break-all;">${raw.slice(0,1500).replace(/</g,"&lt;")}</span>`;
+      if(statusEl) statusEl.innerHTML = `❌ JSON解析エラー：${e.message}<br>⚠️ 入力が長すぎる場合、Claude の応答が途中で切れることがあります（知識が複数抽出された場合など）。短い文章に分けて再度入力することをお勧めします。<br><br><b>Claudeの応答（生データ）：</b><br><span style="white-space:pre-wrap; word-break:break-all;">${raw.slice(0,1500).replace(/</g,"&lt;")}</span>`;
       return;
     }
 
@@ -2924,7 +2924,7 @@ async function startJournalProcessing(){
     const [candidates, gmCandidates] = await Promise.all([fetchCandidateKnowledge(), fetchCandidateGreatMinds()]);
     statusEl.textContent = `② Claudeで処理中…（Knowledge候補${candidates.length}件・Great Mind候補${gmCandidates.length}件を参照）`;
     const prompt = buildExtractionPrompt(journalText, candidates, gmCandidates);
-    const raw = await callClaudeWorker(prompt, 4000);
+    const raw = await callClaudeWorker(prompt, 6000);
 
     let parsed;
     try{
@@ -2936,7 +2936,7 @@ async function startJournalProcessing(){
       parsed = JSON.parse(cleaned);
     } catch(e){
       console.error("Claudeの生の応答:", raw);
-      statusEl.innerHTML = `❌ JSON解析エラー：${e.message}<br><br><b>Claudeの応答（生データ）：</b><br><span style="white-space:pre-wrap; word-break:break-all;">${raw.slice(0,1500).replace(/</g,"&lt;")}</span>`;
+      statusEl.innerHTML = `❌ JSON解析エラー：${e.message}<br>⚠️ 入力が長すぎる場合、Claude の応答が途中で切れることがあります（知識が複数抽出された場合など）。短い文章に分けて再度入力することをお勧めします。<br><br><b>Claudeの応答（生データ）：</b><br><span style="white-space:pre-wrap; word-break:break-all;">${raw.slice(0,1500).replace(/</g,"&lt;")}</span>`;
       return;
     }
 
