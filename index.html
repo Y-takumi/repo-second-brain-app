@@ -4266,6 +4266,43 @@ function renderRhythmChart(){
   document.getElementById("rhythm-avg-wake").textContent = avgWake;
   document.getElementById("rhythm-avg-sleep").textContent = avgSleep;
 
+  // 軸：起床は 4:00-9:00 (240-540 分)、就寝は 21:00-25:00 (1260-1500 分)
+  const wakeMin = 4 * 60, wakeMax = 9 * 60;
+  const sleepMin = 21 * 60, sleepMax = 27 * 60; // 25:00 = 翌日 1:00
+  const yWakeToCanvas = (m) => 30 + (1 - (m - wakeMin) / (wakeMax - wakeMin)) * (H - 60);
+  const ySleepToCanvas = (m) => 30 + (1 - (m - sleepMin) / (sleepMax - sleepMin)) * (H - 60);
+  const xToCanvas = (idx) => 30 + (idx / 29) * (W - 60);
+
+  // 2026-08-04 セッション：縦軸・横軸ラベルを Canvas に追加（生年月日ベースの「いつ・何時」が一目で分かるように）
+  ctx.font = "9px ui-monospace, monospace";
+  ctx.fillStyle = "#888";
+  // 起床軸ラベル（左）
+  ctx.textAlign = "right";
+  [4, 6, 8].forEach(h => {
+    const y = yWakeToCanvas(h * 60);
+    ctx.fillText(`${h}:00`, 26, y + 3);
+  });
+  // 就寝軸ラベル（右）
+  ctx.textAlign = "left";
+  [22, 24].forEach(h => {
+    const y = ySleepToCanvas(h * 60);
+    ctx.fillText(`${h}:00`, W - 26, y + 3);
+  });
+  // 横軸ラベル（下、5日刻み）
+  ctx.textAlign = "center";
+  [25, 20, 15, 10, 5, 0].forEach(d => {
+    const idx = 29 - d;
+    const x = xToCanvas(idx);
+    ctx.fillText(d === 0 ? "今日" : `-${d}d`, x, H - 6);
+  });
+  // 軸線（横軸の基準線）
+  ctx.strokeStyle = "#444";
+  ctx.lineWidth = 0.5;
+  ctx.beginPath();
+  ctx.moveTo(30, H - 20);
+  ctx.lineTo(W - 30, H - 20);
+  ctx.stroke();
+
   if(!wakeData.length && !sleepData.length){
     ctx.fillStyle = "#888";
     ctx.font = "11px var(--serif, sans-serif)";
@@ -4273,13 +4310,6 @@ function renderRhythmChart(){
     ctx.fillText("起床・就寝のデータがありません", W/2, H/2);
     return;
   }
-
-  // 軸：起床は 4:00-9:00 (240-540 分)、就寝は 21:00-25:00 (1260-1500 分)
-  const wakeMin = 4 * 60, wakeMax = 9 * 60;
-  const sleepMin = 21 * 60, sleepMax = 27 * 60; // 25:00 = 翌日 1:00
-  const yWakeToCanvas = (m) => 30 + (1 - (m - wakeMin) / (wakeMax - wakeMin)) * (H - 60);
-  const ySleepToCanvas = (m) => 30 + (1 - (m - sleepMin) / (sleepMax - sleepMin)) * (H - 60);
-  const xToCanvas = (idx) => 30 + (idx / 29) * (W - 60);
 
   // 起床ライン（青）
   if(wakeData.length >= 1){
