@@ -1484,19 +1484,7 @@ const vaultSeedFiles = [
     <h1 class="page-title">探索</h1>
     <p class="page-sub">気になることを聞くか、ノードをタップしてください</p>
 
-    <div class="section-label">生活リズム（過去 30 日）</div>
-    <div class="rhythm-summary">
-      <div class="rhythm-stat">
-        <div class="rhythm-stat-label">平均起床</div>
-        <div class="rhythm-stat-value" id="rhythm-avg-wake">--:--</div>
-      </div>
-      <div class="rhythm-stat">
-        <div class="rhythm-stat-label">平均就寝</div>
-        <div class="rhythm-stat-value" id="rhythm-avg-sleep">--:--</div>
-      </div>
-    </div>
-    <canvas id="rhythm-canvas" width="350" height="160" style="width:100%; max-width:350px; background:var(--surface); border:1px solid var(--border); border-radius:12px; margin-top:8px;"></canvas>
-    <div class="settings-hint" style="margin-top:4px;">折れ線：起床（左軸）／点線：就寝予定（右軸）</div>
+    <!-- 2026-08-04 セッション：生活リズムは HOME タブのリサーチタスク上部に移動 -->
 
     <div class="search-row">
       <input class="url-input" id="graph-search-input" placeholder="今気になることを入力・検索する" style="margin:0;">
@@ -1727,15 +1715,28 @@ const vaultSeedFiles = [
     <!-- <div class="section-label">今日の筋トレメニュー <span class="brief-ext-badge">外部ツール連携予定</span></div>
     <div id="brief-workout"></div> -->
 
+    <!-- 2026-08-04 セッション：生活リズムを HOME に移動（探索タブから）。起床・就寝入力の下に配置 -->
+    <div class="section-label">生活リズム（過去 30 日）</div>
+    <div class="rhythm-summary">
+      <div class="rhythm-stat">
+        <div class="rhythm-stat-label">平均起床</div>
+        <div class="rhythm-stat-value" id="rhythm-avg-wake">--:--</div>
+      </div>
+      <div class="rhythm-stat">
+        <div class="rhythm-stat-label">平均就寝</div>
+        <div class="rhythm-stat-value" id="rhythm-avg-sleep">--:--</div>
+      </div>
+    </div>
+    <canvas id="rhythm-canvas" width="350" height="160" style="width:100%; max-width:350px; background:var(--surface); border:1px solid var(--border); border-radius:12px; margin-top:8px;"></canvas>
+    <div class="settings-hint" style="margin-top:4px;">折れ線：起床（左軸）／点線：就寝予定（右軸）</div>
+
     <!-- 2026-08-03 通勤中にリサーチタスクを消化するためのセクション -->
-    <div class="section-label">リサーチタスク</div>
+    <div class="section-label" style="margin-top:20px;">リサーチタスク</div>
     <div id="brief-research-tasks"></div>
 
-    <!-- 2026-08-04 セッション：保留中のタスク一覧。タップでタスク詳細 → 再開できる -->
-    <div class="section-label" style="margin-top:26px;">保留中のタスク</div>
-    <div id="brief-hold-tasks"></div>
-
-    <div class="section-label" style="margin-top:26px;">気になっているTASK</div>
+    <!-- 2026-08-04 セッション：気になっている TASK を [アクションタスク] にリネーム。
+         保留中のタスク一覧は HOME から削除（保留機能自体はタスク詳細画面で残す）。 -->
+    <div class="section-label" style="margin-top:26px;">[アクションタスク]</div>
     <div id="brief-tasks"></div>
   </div>
 
@@ -5848,11 +5849,6 @@ function renderTodayBrief(){
   const topTasks = taskData.filter(t=>t.status==="open" && !isBlocked(t))
     .sort((a,b)=>computeCrossScore(a)-computeCrossScore(b));
   const briefTaskList = [...new Map([...dueTasks, ...topTasks].map(t=>[t.id,t])).values()].slice(0,3);
-  document.getElementById("brief-tasks").innerHTML = briefTaskList.map(t=>`
-    <div class="task-compact-row" style="cursor:pointer; opacity:.95;" onclick="openTaskDetail('${t.id}')">
-      <span class="dep" style="color:var(--ink); font-size:11.5px;">${t.text}${t.due?` <span style="color:var(--business);">・due ${t.due}</span>`:""}</span>
-    </div>`
-  ).join("") || `<div class="summary-preview-text" style="color:var(--ink-faint); font-size:11px;">今日は特に気になるTASKはありません</div>`;
 
   // 2026-08-03 リサーチタスク一覧：通勤中に消化したくなる research タスクを表示
   const researchTasks = getResearchTasksForBrief();
@@ -5863,14 +5859,18 @@ function renderTodayBrief(){
         </div>`).join("")
     : `<div class="summary-preview-text" style="color:var(--ink-faint); font-size:11px;">リサーチタスクはまだありません</div>`;
 
-  // 2026-08-04 セッション：保留中のタスク一覧。タップでタスク詳細 → 再開できる
-  const holdTasks = taskData.filter(t => t.status === "hold");
-  document.getElementById("brief-hold-tasks").innerHTML = holdTasks.length
-    ? holdTasks.map(t => `
-        <div class="task-compact-row" style="cursor:pointer; opacity:.85;" onclick="openTaskDetail('${t.id}')">
-          <span class="dep" style="color:var(--ink-dim); font-size:11.5px;">⏸ ${t.text}</span>
-        </div>`).join("")
-    : `<div class="summary-preview-text" style="color:var(--ink-faint); font-size:11px;">保留中のタスクはありません</div>`;
+  // 2026-08-04 セッション：HOME から保留中のタスク一覧を削除（保留機能自体はタスク詳細画面で残す）。
+  // 「気になっているTASK」を [アクションタスク] にリネーム。表示ロジックは open / !isBlocked / priority 順のまま。
+  document.getElementById("brief-tasks").innerHTML = briefTaskList.map(t=>`
+    <div class="task-compact-row" style="cursor:pointer; opacity:.95;" onclick="openTaskDetail('${t.id}')">
+      <span class="dep" style="color:var(--ink); font-size:11.5px;">▶️ ${t.text}${t.due?` <span style="color:var(--business);">・due ${t.due}</span>`:""}</span>
+    </div>`
+  ).join("") || `<div class="summary-preview-text" style="color:var(--ink-faint); font-size:11px;">[アクションタスク]はまだありません</div>`;
+
+  // 2026-08-04 セッション：生活リズムを HOME に移動したため、HOME 表示時にもリズムチャートを更新
+  if(typeof renderRhythmChart === "function") renderRhythmChart();
+}
+  ).join("") || `<div class="summary-preview-text" style="color:var(--ink-faint); font-size:11px;">[アクションタスク]はまだありません</div>`;
 }
 /** HOMEタブから直接開いた時：サンライズ演出なしで、内容だけ描画して開く */
 function openTodayBrief(){
