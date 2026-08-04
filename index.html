@@ -534,39 +534,41 @@
   /* 2026-08-05 セッション：Tasks タブのタスク行スワイプ UI（Gmail風）
      - 右スワイプ → 完了ボタン（左から緑）／ 左スワイプ → 保留ボタン（右からオレンジ）
      - 「継続」は何もしない（スワイプしない = 現状維持）
-     - �値 80px 以上で確定表示 / 未満はスワイプキャンセル → 元に戻る */
+     - 閾値 80px 以上で確定表示 / 未満はスワイプキャンセル → 元に戻る
+     - 2026-08-05 修正：.task-card だけを transform でスライド → アクションが下から顔を出す */
   .swipe-wrap{
     position:relative; overflow:hidden;
-    background:var(--surface); border-radius:14px;
+    background:transparent; border-radius:14px;
     margin-bottom:7px; touch-action:pan-y;
-    transition:transform .25s cubic-bezier(.2,.7,.3,1);
   }
-  .swipe-wrap.swipe-active{transition:none;}
   .swipe-wrap .task-card{
     position:relative; z-index:2;
     background:var(--surface); border-radius:14px;
+    transition:transform .25s cubic-bezier(.2,.7,.3,1);
+    will-change:transform;
   }
+  .swipe-wrap.swipe-active .task-card{transition:none;}
   .swipe-action{
     position:absolute; top:0; bottom:0; width:120px;
-    display:flex; align-items:center; justify-content:center;
+    display:flex; align-items:center;
     font-size:13px; font-weight:700; color:#fff;
     z-index:1; cursor:pointer; user-select:none;
-    transition:transform .25s cubic-bezier(.2,.7,.3,1), opacity .25s;
+    transition:opacity .15s;
     opacity:0;
+    pointer-events:none;
   }
   .swipe-action-done{
     left:0; background:var(--healthcare);
     padding-left:18px; justify-content:flex-start;
-    transform:translateX(-100%);
   }
   .swipe-action-hold{
     right:0; background:var(--business);
     padding-right:18px; justify-content:flex-end;
-    transform:translateX(100%);
   }
-  .swipe-wrap.show-done-action .swipe-action-done{transform:translateX(0); opacity:1;}
-  .swipe-wrap.show-hold-action .swipe-action-hold{transform:translateX(0); opacity:1;}
-  .swipe-wrap.swipe-locked .task-card{cursor:pointer;}
+  .swipe-wrap.show-done-action .swipe-action-done,
+  .swipe-wrap.show-hold-action .swipe-action-hold{
+    opacity:1; pointer-events:auto;
+  }
   .swipe-wrap.swipe-locked{cursor:default;}
 
   /* メンターコメントカード（鏡・メンターとしてのフィードバック） */
@@ -5080,21 +5082,22 @@ function attachSwipeGestures(wrapEl){
   let startX = 0, startY = 0, currentX = 0, isSwiping = false;
 
   function resetSwipe(){
-    wrapEl.style.transform = "";
+    const card = wrapEl.querySelector(".task-card");
+    if(card) card.style.transform = "";
     wrapEl.classList.remove("swipe-active", "swipe-mode", "swipe-locked", "show-done-action", "show-hold-action");
   }
 
   function lockAction(actionClass, offsetPx){
-    // スワイプ確定 → アクションを固定表示
-    wrapEl.style.transform = `translateX(${offsetPx}px)`;
+    // スワイプ確定 → アクションを固定表示（カード自体をスライドさせ、その下のアクションが現れる）
+    const card = wrapEl.querySelector(".task-card");
+    if(card) card.style.transform = `translateX(${offsetPx}px)`;
     wrapEl.classList.add("swipe-locked", actionClass);
   }
 
   function onStart(clientX, clientY){
     // 既にロック済みのタスク行があればリセット
     document.querySelectorAll(".swipe-wrap.swipe-locked").forEach(el => {
-      if(el !== wrapEl) el.style.transform = "";
-      el.classList.remove("swipe-locked", "show-done-action", "show-hold-action");
+      if(el !== wrapEl) resetSwipeFor(el);
     });
     startX = clientX;
     startY = clientY;
@@ -5122,7 +5125,9 @@ function attachSwipeGestures(wrapEl){
     }
 
     const clampedDx = Math.max(-SWIPE_MAX, Math.min(SWIPE_MAX, dx));
-    wrapEl.style.transform = `translateX(${clampedDx}px)`;
+    // タスクカードだけを transform でスライド → 下に隠れているアクションが見える
+    const card = wrapEl.querySelector(".task-card");
+    if(card) card.style.transform = `translateX(${clampedDx}px)`;
     currentX = clampedDx;
     if(clampedDx > 20){
       wrapEl.classList.add("show-done-action");
@@ -5152,14 +5157,13 @@ function attachSwipeGestures(wrapEl){
     startX = 0;
   }
 
-  // touch (スマホ実機)
+  // touch (スマホ実機) ─ touchmove で常に onMove を呼ぶ（isSwiping 判定は onMove 内で行う）
   wrapEl.addEventListener("touchstart", (e) => {
     const t = e.touches[0];
     onStart(t.clientX, t.clientY);
   }, { passive: true });
 
   wrapEl.addEventListener("touchmove", (e) => {
-    if(!isSwiping) return;
     const t = e.touches[0];
     onMove(t.clientX, t.clientY);
   }, { passive: true });
@@ -5211,6 +5215,13 @@ function attachSwipeGestures(wrapEl){
       }
     }, true);  // capture phase で openTaskDetail より先に処理
   }
+}
+
+// 別要素のリセット用（attachSwipeGestures のクロージャに依存しない）
+function resetSwipeFor(wrapEl){
+  const card = wrapEl.querySelector(".task-card");
+  if(card) card.style.transform = "";
+  wrapEl.classList.remove("swipe-active", "swipe-mode", "swipe-locked", "show-done-action", "show-hold-action");
 }
 
 /**
