@@ -4,7 +4,7 @@
 
 別のセッションで作業中に問題が発生した場合、このファイルを開いて **直近のタスク実施状況** を確認することで、類似の問題や関連する変更を把握できます。
 
-最終更新：2026-08-05（タスク UI 統一：カード/詳細画面にテーマ名・カテゴリ枝・タグを表示 / Task 128）
+最終更新：2026-08-05（タスク UI 統一：カード/詳細画面にテーマ名・カテゴリ枝・タグを表示 / Task 128 + Library と表示順完全統一 / Task 130）
 
 ---
 
@@ -1699,6 +1699,26 @@
   - Source 経由で生成されたタスクは当面 branch/tags 空のまま運用される（UI 側は空許容で実装済み・Task 128）
   - 着手時は既存 Source タスクへの遡及反映はせず、新規抽出分のみ対応する方針を推奨
   - 影響範囲：プロンプト文字列 1 箇所のみ。再抽出が必要な既存 Source タスクの救済は別タスク
+
+### Task 130: タスクカード/詳細画面を Library（探索タブ）と表示順・スタイル完全統一
+- **状態**: completed（成功）
+- **備考**:
+  - ユーザーFB：「Taskタブのカード内のResearch表示やテーマ色バッジ、Healthcare > 生活習慣改善 とか、タグ表示とかはすべて探索tabのカードと表示順などを合わせてください」
+  - カード（`taskCardHTML`）を Library の `.note-card` と同じ構造に再構成：
+    - `.top` 行：テーマドット → type（`ACTION` / `RESEARCH` の uppercase モノスペース）→ branch-path → due（右寄せ）
+    - `.title` 行：タスク本文を serif フォントに
+    - `#tag` 行：本文直下、最大 3 件
+    - チェックボックス / 優先度バッジは Tasks 固有で左端に維持
+  - 詳細画面（`taskDetailMetaHTML`）を Library の `note-header` パターンに再構成：
+    - 1 行目：type uppercase（背景 `--ink-faint)22`／文字色 `--action` / `--research`）+ 優先度
+    - 2 行目：テーマタグ（最大 3 件、`.note-theme-tags` 流用）
+    - 3 行目：branch-path
+    - 4 行目：#tag（最大 5 件）
+  - `branch` / `tags` どちらも空のときは追加行を出さない（後方互換）
+  - 新規追加 CSS：`.task-card .top` / `.task-card .type` / `.task-card .title` / `.task-card .branch-path` のみ（既存 `.note-card` のスタイルを踏襲）
+  - 不要になった `.task-meta-row` / `.task-type-tag` / `.task-theme-dot` の旧 CSS は除去
+  - Playwright 検証：既存サンプル（無変化）、branch+tags あり（Library と同表示順）、XSS エスケープ、タグ上限（カード 3件 / 詳細 5件）すべて OK
+- **コミット**: <この PR のハッシュ>
 
 
 ---
