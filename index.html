@@ -1853,8 +1853,8 @@ const vaultSeedFiles = [
     </div>
 
     <div class="field-label" style="margin-top:22px;">アカウント名</div>
-    <input class="url-input" type="text" id="set-username" placeholder="表示する名前" onchange="saveSettings()">
-    <div class="settings-hint">アプリ内の挨拶などに使われます</div>
+    <input class="url-input" type="text" id="set-username" placeholder="あなたのお名前" onchange="saveSettings()">
+    <div class="settings-hint">アプリ内でのあなたの呼び方を教えてください</div>
 
     <div class="field-label" style="margin-top:22px;">テーマ</div>
     <div class="habit-time-toggle" id="set-theme-toggle" style="margin-left:0;">
@@ -1863,13 +1863,6 @@ const vaultSeedFiles = [
       <span onclick="setThemeMode('dark')">ダーク</span>
     </div>
     <div class="settings-hint">自動：朝5時〜夕方17時はライト、それ以外はダーク</div>
-
-    <div class="field-label" style="margin-top:22px;">Task 見直しタイム（一番下）</div>
-    <div class="settings-hint">設定した日数、動きがない open タスクを自動で表示。Tasks タブに通知アイコンが出て、ポップアップからカードフリックで整理できます</div>
-    <div class="settings-row-2col">
-      <input class="url-input" type="number" id="set-stale-days" min="1" max="30" onchange="saveSettings()">
-      <div class="settings-col-label" style="margin:0; align-self:center; flex:none;">日、動きがなければ見直し対象に</div>
-    </div>
   </div>
 
   <!-- ===== DEV SETTINGS（開発者専用。フッターのタブには含まれない） ===== -->
@@ -2080,7 +2073,6 @@ function openSettings(){
   document.getElementById("set-wake-time").value = appSettings.targetWakeTime;
   document.getElementById("set-sleep-time").value = appSettings.targetSleepTime;
   document.getElementById("set-username").value = appSettings.userName;
-  document.getElementById("set-stale-days").value = appSettings.staleReviewDays;
   document.getElementById("set-show-wake").checked = appSettings.showWakeHabit;
   document.getElementById("set-show-sleep").checked = appSettings.showSleepHabit;
   document.getElementById("set-show-training").checked = appSettings.showTrainingHabit;
@@ -2094,7 +2086,6 @@ function saveSettings(){
   appSettings.targetWakeTime = document.getElementById("set-wake-time").value || appSettings.targetWakeTime;
   appSettings.targetSleepTime = document.getElementById("set-sleep-time").value || appSettings.targetSleepTime;
   appSettings.userName = document.getElementById("set-username").value || appSettings.userName;
-  appSettings.staleReviewDays = parseInt(document.getElementById("set-stale-days").value, 10) || appSettings.staleReviewDays;
   appSettings.showWakeHabit = document.getElementById("set-show-wake").checked;
   appSettings.showSleepHabit = document.getElementById("set-show-sleep").checked;
   appSettings.showTrainingHabit = document.getElementById("set-show-training").checked;
@@ -2114,7 +2105,10 @@ function setThemeMode(mode){
 }
 function updateGreeting(){
   const el = document.getElementById("capture-greeting");
-  if(el) el.textContent = `おかえりなさい、${appSettings.userName}さん`;
+  if(!el) return;
+  // 2026-08-05 アカウント名未設定時は「さん」なしで挨拶。設定タブの placeholder「あなたのお名前」で案内
+  const name = appSettings.userName ? `${appSettings.userName}さん` : "";
+  el.textContent = name ? `おかえりなさい、${name}` : "おかえりなさい";
 }
 
 /** 開発者専用設定（フッタータブには含まれない。右上の小さな⚙アイコンからのみ開く） */
@@ -4569,8 +4563,7 @@ const appSettings = {
   targetWakeTime: "05:30",
   targetSleepTime: "22:00",
   themeMode: "auto", // "auto" | "light" | "dark"
-  staleReviewDays: 7, // この日数、動きがなければ見直し対象
-  userName: "拓弥",
+  userName: "",
   showWakeHabit: true,       // プリセット：起床（基本の習慣）。Daily タブに表示
   showSleepHabit: true,      // プリセット：就寝（基本の習慣）。Daily タブに表示
   showTrainingHabit: true,   // プリセット：ウェイトトレーニング（基本の習慣、別アプリ連携予定）。HOME タブに表示
@@ -5275,7 +5268,7 @@ async function persistHabitChange(habitId, updates){
 // 完了していない open タスクを 1 件ずつカード表示。スワイプ（外部タップ）で「続ける」/「完了」判定。
 // 2026-07-29 仕様変更：staleReviewDays 経過の絞り込みを廃止し、「未完了（open）タスク全て」に対象を拡大。
 // 2026-07-29 修正：今日すでに整理したタスク（lastConfirmed === 今日）は本日の整理対象から除外。
-// 設定画面の Task 見直しタイム間隔は無関係になったが、互換性のため appSettings.staleReviewDays は残す。
+// 2026-08-05 機能していない staleReviewDays 設定（appSettings / 設定画面 UI）を完全削除。
 function getUnfinishedQueue(){
   const today = APP_TODAY.toISOString().slice(0,10);
   return taskData.filter(t=>{
