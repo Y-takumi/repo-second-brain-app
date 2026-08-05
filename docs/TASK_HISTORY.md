@@ -4,7 +4,7 @@
 
 別のセッションで作業中に問題が発生した場合、このファイルを開いて **直近のタスク実施状況** を確認することで、類似の問題や関連する変更を把握できます。
 
-最終更新：2026-08-05（Tasks タブ未完了タスク整理をスワイプ UI に変更 / Task 126）
+最終更新：2026-08-05（タスク生成時の branch / tags 付与 / Task 127）
 
 ---
 
@@ -1623,6 +1623,55 @@
   - **JS 構文チェック OK**
   - **目視確認は Tackman さんに依頼**（スマホ実機でのスワイプ感度の確認）
 - **コミット**: 42a1a24（push 済み）
+
+---
+
+## 2026-08-05 セッション（スワイプ UI 修正 + 待機中削除 + タスク branch/tags）
+
+### Task 127: タスク生成時に branch / tags を付与可能に
+- **状態**: completed
+- **完了評価**: 成功（動作確認：Tackman さんがジャーナル記録 → 新規タスクに branch="生活習慣改善" / tags=[飲酒, モチベーション, 目標設定] が正しく付与されたことを Drive 上の YAML で確認）
+- **備考**:
+  - **背景**：ユーザー「タスク生成時にもタグとテーマ枝をつけられるようにできますかね？(ノートやナレッジと同じように検索ができるようにしたいです。)」
+  - **AskUserQuestion で 2 点確認**：
+    1. 実装スコープ → 最小実装（推奨）：Journal 抽出プロンプト修正 + commitCaptureResult でタスクに反映。UI は次セッション
+    2. 既存タスクの扱い → サンプルタスクはそのまま（推奨）：新規生成タスクのみ branch / tags を持つ
+  - **委任モードで実装**：
+    1. `buildJournalExtractionPrompt` の tasks 配列に `branch` / `tags` フィールドの説明を追加（「任意」、Knowledge の枝一覧から選べる旨を明記）
+    2. `commitCaptureResult` の Task 新規作成で `branch: t.branch || ""` と `tags: Array.isArray(t.tags) ? t.tags : []` を frontmatter に含める
+    3. `loadTasksFromDrive` で `fm.branch` / `fm.tags` を読み込んでメモリオブジェクトに反映
+  - **既存タスクへの影響**：サンプルタスクは branch="" / tags=[] のまま。新規タスクのみ branch / tags を持つ。マイグレーション不要
+  - **未実装（次セッション候補）**：
+    - タスクカードに branch / tags のバッジ表示
+    - Tasks タブに検索バー（title + branch + tags を対象）
+    - Library タブとの統合（タスクも Knowledge と同じ画面で見られる？）
+  - **動作確認結果**（Tackman さんの手動テスト）：
+    - タスク id: `20260805-task-v9nf`
+    - branch: `生活習慣改善`（Knowledge の枝一覧から適切に選択された）
+    - tags: `[飲酒, モチベーション, 目標設定]`（想起用タグとして適切な粒度）
+  - **JS 構文チェック OK**
+- **コミット**: f7f900a（push 済み）
+
+### Task 126 補足：スワイプ UI の微修正（隙間埋め）
+- **状態**: completed（Task 126 の続き）
+- **完了評価**: 成功
+- **備考**:
+  - ユーザー：「カードでボタンをもう少し隠してもらえますか？」
+  - Playwright で原因特定 → `SWIPE_LOCK_OFFSET = 140px`（誤り）→ `100px`（正しい方向）に修正
+  - **誤り履歴**：「カードをボタンの外側に移動」していたが、正しくは「カードをボタンの**右側に潜り込ませる**」（ボタンの右端 20px がカードに覆われる）
+  - スクショで隙間が解消されたことを視覚的に確認
+- **コミット**: f57f5b7（誤り）, 4f30d83（正しい方向で push 済み）
+
+### Task 125 補足：Tasks タブから待機中タスク削除
+- **状態**: completed
+- **完了評価**: 成功
+- **備考**:
+  - ユーザー：「先行タスクの設定は一旦無くしたので、待機中タスクもなくなりますよね？Taskタブから待機中タスクの表示無くしてください。」
+  - `taskCompactHTML` 関数削除、`renderTaskGroup` の blocked 描画ロジック削除、`.task-pending-label` CSS 削除
+  - `!isBlocked(t)` 条件を `taskCardHTML`, `getUnfinishedQueue`, `computeCrossScore`, `getResearchTasksForBrief`, `computeDueTasks`, `computeTopTasks`, `openCount` の 7 箇所から削除
+  - `isBlocked` 関数定義と `.task-compact-row` / `.task-card.blocked` / `.task-checkbox.blocked` CSS は復活用に**残置**
+  - Playwright 検証：`pendingLabelExists: false`、バッジ 9→12 に増加（待機中だったタスクも含まれるため）
+- **コミット**: 194e316（push 済み）
 
 ---
 
