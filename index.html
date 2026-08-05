@@ -496,6 +496,10 @@
   .task-type-tag.research{background:var(--research)22; color:var(--research);}
   .task-theme-dot{width:7px;height:7px;border-radius:50%;}
   .task-due{font-size:9.5px; color:var(--business); font-family:var(--mono);}
+  /* 2026-08-05：タスクカードに「テーマ名 › カテゴリ枝」と #tag を表示（ノート/ナレッジと統一） */
+  .task-meta-extra{margin-top:6px; display:flex; flex-direction:column; gap:4px;}
+  .task-meta-extra .branch-path{font-size:10.5px; font-family:var(--mono); color:var(--ink-dim);}
+  .task-meta-extra .branch-path .theme-name{color:var(--ink-faint); margin-right:2px;}
   .task-blocked-note{font-size:10px; color:var(--ink-faint); margin-top:5px; display:flex; align-items:center; gap:4px;}
 
   /* フォーカス確認カード */
@@ -4800,6 +4804,29 @@ function computeCrossScore(t){
   return score;
 }
 
+// 2026-08-05：タスクカードに「テーマ名 › カテゴリ枝」と #tag を表示する（ノート/ナレッジと統一）。
+// branch / tags どちらも空のときは何も追加しない（既存タスク・サンプルタスクの後方互換）。
+// テーマのみ（branch 空）のときも何も表示しない：テーマドットで既に表現済みのため。
+function taskCardMetaLine(t){
+  const primaryTheme = (t.themes||[])[0];
+  const themeLabel = primaryTheme ? (taskThemeNames[primaryTheme] || primaryTheme) : "";
+  const branch = t.branch || "";
+  const tags = t.tags || [];
+  // 何も追加しない条件：branch も tags も空（テーマドットは既存 .task-meta-row で表現済み）
+  if(!branch && tags.length === 0) return "";
+  const branchPath = (themeLabel || branch)
+    ? `<span class="branch-path">${
+        themeLabel ? `<span class="theme-name">${escapeHtml(themeLabel)}</span>` : ""
+      }${themeLabel && branch ? " › " : ""}${escapeHtml(branch)}</span>`
+    : "";
+  const tagBadges = tags.slice(0, 3).map(tag =>
+    `<span class="tag" style="background:var(--surface2); color:var(--ink-faint); font-size:9.5px; margin-right:3px;">#${escapeHtml(tag)}</span>`
+  ).join("");
+  return `<div class="task-meta-extra">${branchPath}${
+    tagBadges ? `<div class="task-meta-tags" style="margin-top:4px; display:flex; flex-wrap:wrap; gap:3px;">${tagBadges}</div>` : ""
+  }</div>`;
+}
+
 function taskCardHTML(t, showScore){
   const done = t.status==="done";
   // 2026-08-05 セッション：未完了タスク（open）に行全体をスワイプ可能なラッパーで囲む。
@@ -4819,6 +4846,7 @@ function taskCardHTML(t, showScore){
           ${(t.themes||[]).map(x=>`<span class="task-theme-dot" style="background:${themeColors[x]||primaryColor}"></span>`).join("")}
           ${t.due?`<span class="task-due">due ${t.due}</span>`:""}
         </div>
+        ${taskCardMetaLine(t)}
       </div>
     </div>`;
   }
@@ -4835,6 +4863,7 @@ function taskCardHTML(t, showScore){
           ${(t.themes||[]).map(x=>`<span class="task-theme-dot" style="background:${themeColors[x]||primaryColor}"></span>`).join("")}
           ${t.due?`<span class="task-due">due ${t.due}</span>`:""}
         </div>
+        ${taskCardMetaLine(t)}
       </div>
     </div>
     <div class="swipe-action swipe-action-hold">保留</div>
@@ -5343,15 +5372,39 @@ function updateTaskBadge(){
 
 /* Task詳細・先行タスク検索 */
 let currentTaskDetailId = null;
+// 2026-08-05：タスク詳細画面のメタ行に branch-path（テーマ名 › カテゴリ枝）と #tag チップ（最大 5 件）を追加。
+// td-meta は .k-meta（flex-wrap）なので、flex-basis:100% で改行して 2 行目を出す。
+// branch / tags どちらも空のときは空文字返却（既存タスク対応）。テーマのみは表示しない（既存チップで表現済み）。
+function taskDetailMetaExtra(t){
+  const primaryTheme = (t.themes||[])[0];
+  const themeLabel = primaryTheme ? (taskThemeNames[primaryTheme] || primaryTheme) : "";
+  const branch = t.branch || "";
+  const tags = t.tags || [];
+  if(!branch && tags.length === 0) return "";
+  const branchPath = (themeLabel || branch)
+    ? `<div class="task-detail-branch" style="flex-basis:100%; margin-top:6px;">${
+        themeLabel ? `<span class="theme-name" style="font-size:10.5px; color:var(--ink-faint); font-family:var(--mono);">${escapeHtml(themeLabel)}</span>` : ""
+      }${themeLabel && branch ? ` <span style="color:var(--ink-faint);">›</span> ` : ""}<span class="branch-path" style="font-size:10.5px; color:var(--ink-dim); font-family:var(--mono);">${escapeHtml(branch)}</span></div>`
+    : "";
+  const tagChips = tags.length
+    ? `<div class="task-detail-tags" style="flex-basis:100%; margin-top:4px; display:flex; flex-wrap:wrap; gap:3px;">${
+        tags.slice(0, 5).map(tag =>
+          `<span class="tag" style="background:var(--surface2); color:var(--ink-faint); font-size:9.5px; margin-right:3px;">#${escapeHtml(tag)}</span>`
+        ).join("")
+      }</div>`
+    : "";
+  return branchPath + tagChips;
+}
 function openTaskDetail(id){
   currentTaskDetailId = id;
   const t = taskById(id);
   document.getElementById("td-title").value = t.text;
   document.getElementById("td-body").value = t.body || "";
   document.getElementById("td-meta").innerHTML =
-    `<span class="task-type-tag ${t.type}">${t.type==='action'?'Action':'Research'}</span>` +
-    (t.themes||[]).map(x=>`<span class="tag" style="background:${themeColors[x]||primaryColor}22; color:${themeColors[x]||primaryColor}">${x}</span>`).join("") +
-    `<span class="conf-num">優先度 ${t.priority}</span>`;
+    `<span class="task-type-tag ${escapeHtml(t.type)}">${t.type==='action'?'Action':'Research'}</span>` +
+    (t.themes||[]).map(x=>`<span class="tag" style="background:${themeColors[x]||primaryColor}22; color:${themeColors[x]||primaryColor}">${escapeHtml(x)}</span>`).join("") +
+    `<span class="conf-num">優先度 ${t.priority}</span>` +
+    taskDetailMetaExtra(t);
   document.getElementById("td-due").value = t.due || "";
   // 2026-08-03 夜セッション：先行タスク関連は一旦非表示のため、関連初期化もスキップ
   // renderTaskDeps();

@@ -4,7 +4,7 @@
 
 別のセッションで作業中に問題が発生した場合、このファイルを開いて **直近のタスク実施状況** を確認することで、類似の問題や関連する変更を把握できます。
 
-最終更新：2026-08-05（タスク生成時の branch / tags 付与 / Task 127）
+最終更新：2026-08-05（タスク UI 統一：カード/詳細画面にテーマ名・カテゴリ枝・タグを表示 / Task 128）
 
 ---
 
@@ -1672,6 +1672,34 @@
   - `isBlocked` 関数定義と `.task-compact-row` / `.task-card.blocked` / `.task-checkbox.blocked` CSS は復活用に**残置**
   - Playwright 検証：`pendingLabelExists: false`、バッジ 9→12 に増加（待機中だったタスクも含まれるため）
 - **コミット**: 194e316（push 済み）
+
+---
+
+## 2026-08-05 夜セッション（タスク UI 統一）
+
+### Task 128: タスクカード / 詳細画面にテーマ名・カテゴリ枝・タグを表示
+- **状態**: completed（成功）
+- **備考**:
+  - `taskCardHTML`（open / done 両分岐）の既存 `.task-meta-row` の直後に新ヘルパー `taskCardMetaLine(t)` を出力
+  - `openTaskDetail` の `td-meta` を 2 行構成に変更。1 行目は既存保持（type / theme チップ / 優先度）、2 行目以降に branch-path と tag chips を `flex-basis:100%` で追加
+  - 新ヘルパー `taskDetailMetaExtra(t)` を `openTaskDetail` 直前に新設
+  - タグ上限：カード 3件 / 詳細 5件（ユーザー指定）
+  - `branch` / `tags` どちらも空のときは何も追加表示しない（既存タスク・サンプルタスク対応）。テーマのみ（branch 空）のときも表示しない（テーマドットで表現済みのため）
+  - XSS 対策：`escapeHtml` を `t.branch` / `t.tags` / `t.type` / `t.themes` に適用。Playwright で `<img src=x>` / `<script>alert(2)</script>` を含む入力が実体参照化されることを確認
+  - スタイル設計は Library カード（`renderLibrary`）と完全同一：`.branch-path` / `.theme-name` / `.tag` を再流用し、新規色は追加しない
+  - CSS 追記：`.task-meta-extra` 系のみ（`.task-meta-row` 直後）。既存トークン（`--ink-dim` / `--ink-faint` / `--surface2`）のみ使用
+  - Playwright 検証：既存サンプル（無変化）/ branch+tags ありタスク（正常表示）/ XSS エスケープ / 詳細画面のタグ 5 件上限 / 既存サンプルの詳細（無変化）すべて OK
+- **関連コミット**: <この PR のハッシュ>
+
+### Task 129（保留 / 別 PR）: Source 抽出プロンプトに tasks.branch / tags を追加
+- **状態**: pending
+- **備考**:
+  - `buildSourceExtractionPrompt`（`index.html:2592+`）の tasks 出力スキーマには `branch` / `tags` を含めていない
+  - Journal 経由のタスクは Task 127 で対応済み（branch / tags が YAML に書き込まれる）
+  - Source 経由で生成されたタスクは当面 branch/tags 空のまま運用される（UI 側は空許容で実装済み・Task 128）
+  - 着手時は既存 Source タスクへの遡及反映はせず、新規抽出分のみ対応する方針を推奨
+  - 影響範囲：プロンプト文字列 1 箇所のみ。再抽出が必要な既存 Source タスクの救済は別タスク
+
 
 ---
 
