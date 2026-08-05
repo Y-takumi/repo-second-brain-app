@@ -4,7 +4,7 @@
 
 別のセッションで作業中に問題が発生した場合、このファイルを開いて **直近のタスク実施状況** を確認することで、類似の問題や関連する変更を把握できます。
 
-最終更新：2026-08-05（Tasks タブ無限スクロール実装 / Task 131）
+最終更新：2026-08-05（Tasks タブ タグ・カテゴリ・本文検索バー追加 / Task 132）
 
 ---
 
@@ -1734,6 +1734,31 @@
   - 旧 `toggleTaskAccordion` / `.task-peek-wrap` / `.task-expand-btn` / `.task-accordion` の JS と CSS は完全削除
   - 多発発火防止：ローダー表示中はセンチネルを `display: none` にしてスキップ
   - Playwright 検証：初期 10 件 → スクロール → 20 件 → 30 件 → 32 件（end 表示）、スピナー表示確認、JS エラーなし
+- **関連コミット**: 63cc322（push 済み）
+
+### Task 132: Tasks タブにタグ・カテゴリ・本文の横断検索バーを追加
+- **状態**: completed（成功）
+- **備考**:
+  - ユーザーFB：「タグ検索機能もつけてください！」
+  - Tasks タブ上部に Library（探索タブ）の `.search-bar` と同形式の検索バーを設置
+  - 検索対象：タスク本文（`t.text`）／ カテゴリ枝（`t.branch`）／ タグ（`t.tags[]`）。case-insensitive 部分一致。3 つのいずれかにマッチすればヒット
+  - テーマフィルタとは AND 条件（テーマ選択 + 検索クエリ両方適用）
+  - 入力中のみ `✕` クリアボタンを表示。`clearTaskSearch()` で空文字に戻し全件表示
+  - 件数ラベルが検索後の件数に連動（「全テーマ（3件）」など）
+  - 該当なしのとき「『○○』に一致するTaskがありません」を表示（XSS 対策で `escapeHtml`）
+  - 無限スクロール連動：クエリ変更時は `taskScrollState` を破棄してオフセットリセット
+  - 新規 state：`taskSearchState = { q: "" }`
+  - 新規関数：`onTaskSearchInput` / `clearTaskSearch` / `filterTasksByQuery`
+  - CSS 追加：`.task-search-wrap` / `.task-search-icon` / `.task-search-bar` / `.task-search-clear`（Library の `.search-bar` / `.search-icon` / `.search-clear` と同形式・同トークン）
+  - Playwright 検証：
+    - タグ検索「sleep-quality」→ 1件一致
+    - カテゴリ検索「独立準備」→ 1件一致
+    - 本文検索「瞑想」→ 1件一致
+    - 複数件マッチ「weekly-review」→ 2件
+    - 該当なし「存在しないキーワード」→ 0件（empty メッセージ表示）
+    - クリアボタンで全件復活
+    - テーマ AND「Healthcare + weekly」→ search-2 のみ（mind テーマの search-5 は除外）
+    - 件数ラベル「全テーマ（3件）」が動的に反映
 - **関連コミット**: <この PR のハッシュ>
 
 

@@ -540,6 +540,25 @@
     text-align:center; padding:14px 0 8px; font-size:11px; color:var(--ink-faint);
   }
 
+  /* 2026-08-05 夜セッション：Tasks タブ検索バー（Library の .search-bar と同形式）
+     🔍 アイコンと ✕ クリアボタンを内包。色トークンは既存のみ使用。 */
+  .task-search-wrap{
+    position:relative; display:flex; align-items:center;
+    background:var(--surface); border:1px solid var(--border); border-radius:12px;
+    padding:0 12px; margin-bottom:12px;
+  }
+  .task-search-icon{font-size:13px; opacity:0.6; margin-right:8px; flex-shrink:0;}
+  .task-search-bar{
+    flex:1; min-width:0; border:none; background:transparent; outline:none;
+    padding:11px 0; font-size:13.5px; color:var(--ink); font-family:inherit;
+  }
+  .task-search-bar::placeholder{color:var(--ink-faint);}
+  .task-search-clear{
+    flex-shrink:0; background:transparent; border:none; cursor:pointer;
+    color:var(--ink-faint); font-size:12px; padding:4px 6px; border-radius:50%;
+  }
+  .task-search-clear:active{background:var(--surface2);}
+
   /* 保留タスク（コンパクト）
      2026-08-05：先行タスク機能停止 → .task-pending-label は不要になったため削除。
      .task-compact-row は復活時に備えて残置（CSS のみ、JS 関数 taskCompactHTML は削除済み） */
@@ -1640,6 +1659,13 @@ const vaultSeedFiles = [
       <div class="gtab" data-theme="business" onclick="renderTasks('business', event)">Business</div>
       <div class="gtab" data-theme="mind" onclick="renderTasks('mind', event)">Mind</div>
       <div class="gtab" data-theme="relationships" onclick="renderTasks('relationships', event)">Relations</div>
+    </div>
+
+    <!-- 2026-08-05 夜セッション：タグ・カテゴリ・本文の横断検索バー（Library の lib-search と同形式） -->
+    <div class="task-search-wrap">
+      <span class="task-search-icon">🔍</span>
+      <input type="text" class="task-search-bar" id="task-search" placeholder="タスク・タグ・カテゴリを検索" oninput="onTaskSearchInput(event)" />
+      <button class="task-search-clear" id="task-search-clear" onclick="clearTaskSearch()" style="display:none;" title="クリア">✕</button>
     </div>
 
     <div id="task-list"></div>
@@ -4935,21 +4961,57 @@ function renderTaskGroup(pool, label, useCrossScore, groupKey){
   return html;
 }
 
+// 2026-08-05 夜セッション：タグ・カテゴリ・本文の横断検索バー追加。text / branch / tags を case-insensitive 部分一致。
+// テーマフィルタと AND。クエリ変更時は taskScrollState を破棄して再描画（オフセットリセット）。
+let taskSearchState = { q: "" };
+function onTaskSearchInput(e){
+  taskSearchState.q = (e.target.value || "").trim();
+  const clearBtn = document.getElementById("task-search-clear");
+  if(clearBtn) clearBtn.style.display = taskSearchState.q ? "" : "none";
+  // テーマ切替扱い：state 破棄 → 最初から 10 件
+  taskScrollState = { groupKey: null, offset: 0, total: 0 };
+  const activeTab = document.querySelector("#screen-tasks .gtab.active");
+  renderTasks(activeTab?.dataset.theme || "all");
+}
+function clearTaskSearch(){
+  const input = document.getElementById("task-search");
+  if(input) input.value = "";
+  taskSearchState.q = "";
+  const clearBtn = document.getElementById("task-search-clear");
+  if(clearBtn) clearBtn.style.display = "none";
+  taskScrollState = { groupKey: null, offset: 0, total: 0 };
+  const activeTab = document.querySelector("#screen-tasks .gtab.active");
+  renderTasks(activeTab?.dataset.theme || "all");
+}
+/** 検索クエリで pool を絞り込む。text / branch / tags のいずれかに case-insensitive 部分一致したものを残す。 */
+function filterTasksByQuery(pool, q){
+  if(!q) return pool;
+  const lower = q.toLowerCase();
+  return pool.filter(t =>
+    (t.text || "").toLowerCase().includes(lower) ||
+    (t.branch || "").toLowerCase().includes(lower) ||
+    (t.tags || []).some(tag => (tag || "").toLowerCase().includes(lower))
+  );
+}
+
 function renderTasks(theme, event){
   document.querySelectorAll("#screen-tasks .gtab").forEach(tab=>tab.classList.toggle("active", tab===event?.currentTarget || tab.dataset.theme===theme));
   const list = document.getElementById("task-list");
 
   // 2026-08-04 セッション：hold / deleted のタスクは Tasks タブには表示しない（HOME の保留中セクション or ゴミ箱なしで扱う）
   const visibleTaskData = taskData.filter(t => t.status !== "hold" && t.status !== "deleted");
+  // 2026-08-05 夜セッション：検索クエリで先に絞る（テーマと AND）
+  const q = taskSearchState.q;
+  const searched = filterTasksByQuery(visibleTaskData, q);
 
   if(theme==="all"){
     // クロステーマ：グループ分けせず、スコアで混ぜた1本のリストにする
-    list.innerHTML = renderTaskGroup(visibleTaskData, "全テーマ", true, "all")
-      || `<div class="summary-preview-text" style="color:var(--ink-faint); margin-top:12px;">Taskがありません</div>`;
+    list.innerHTML = renderTaskGroup(searched, "全テーマ", true, "all")
+      || `<div class="summary-preview-text" style="color:var(--ink-faint); margin-top:12px;">${q ? `「${escapeHtml(q)}」に一致するTaskがありません` : "Taskがありません"}</div>`;
   } else {
-    const pool = visibleTaskData.filter(t=>(t.themes||[]).includes(theme));
+    const pool = searched.filter(t=>(t.themes||[]).includes(theme));
     list.innerHTML = renderTaskGroup(pool, taskThemeNames[theme], false, theme)
-      || `<div class="summary-preview-text" style="color:var(--ink-faint); margin-top:12px;">このテーマにはまだTaskがありません</div>`;
+      || `<div class="summary-preview-text" style="color:var(--ink-faint); margin-top:12px;">${q ? `「${escapeHtml(q)}」に一致するTaskがありません` : "このテーマにはまだTaskがありません"}</div>`;
   }
   renderArchive();
   updateTaskBadge();
