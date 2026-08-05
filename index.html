@@ -523,6 +523,23 @@
   .task-accordion{display:none;}
   .task-accordion.open{display:block;}
 
+  /* 2026-08-05 夜セッション：Tasks タブ無限スクロール用スタイル
+     スピナーは border-top を回転させる標準パターン。色トークンは既存のもののみ使用。 */
+  .task-scroll-sentinel{height:1px; width:100%;}
+  .infinite-scroll-loader{
+    display:flex; align-items:center; justify-content:center; gap:10px;
+    padding:18px 0 10px; font-size:11.5px; color:var(--ink-dim);
+  }
+  .infinite-scroll-loader .spinner{
+    width:18px; height:18px; border-radius:50%;
+    border:2px solid var(--border); border-top-color:var(--primary);
+    animation:spin 0.8s linear infinite;
+  }
+  @keyframes spin{ from{transform:rotate(0)} to{transform:rotate(360deg)} }
+  .task-scroll-end{
+    text-align:center; padding:14px 0 8px; font-size:11px; color:var(--ink-faint);
+  }
+
   /* 保留タスク（コンパクト）
      2026-08-05：先行タスク機能停止 → .task-pending-label は不要になったため削除。
      .task-compact-row は復活時に備えて残置（CSS のみ、JS 関数 taskCompactHTML は削除済み） */
@@ -4882,29 +4899,38 @@ function taskCardHTML(t, showScore){
 // taskCompactHTML（待機中タスク用のコンパクト行）は不要になったため関数ごと削除。
 // isBlocked 関数自体は残置（呼び出し箇所は !isBlocked(t) のみなので、関数は常に false を返せば OK）。
 
-/** 1つのプール(単一テーマ or 全テーマ)をtop3+peek+accordion の形でレンダリング。
- * 2026-08-05：先行タスク機能停止 → 待機中タスク（isBlocked）の描画ロジックを削除。
- * 「すべての open タスク」を active として扱うため、!isBlocked フィルタは外した（呼び出し側で isBlocked を評価しない方針）。 */
-function renderTaskGroup(pool, label, useCrossScore){
+/** 1つのプール(単一テーマ or 全テーマ)を初期 10 件だけ描画し、以降のタスクは無限スクロールで
+ * 10 件ずつ追加読み込みする。
+ * 2026-08-05 夜セッション：ユーザーFBにより「もっと見る」アコーディオンを廃止し、
+ * スクロール末尾到達でバッチ追加する方式に変更。描画中の画面下部にスピナー表示。
+ * グローバル state `taskScrollState` でテーマ切替時のオフセット管理も行う。 */
+const TASK_BATCH_SIZE = 10;
+let taskScrollState = { groupKey: null, offset: 0, total: 0 };
+
+function renderTaskGroup(pool, label, useCrossScore, groupKey){
   if(!pool.length) return "";
   const active = pool.filter(t=>t.status==="open")
     .sort((a,b)=> useCrossScore ? computeCrossScore(a)-computeCrossScore(b) : a.priority-b.priority);
   const done = pool.filter(t=>t.status==="done");
+  const sorted = [...active, ...done];
+  const total = sorted.length;
+  const initial = sorted.slice(0, TASK_BATCH_SIZE);
 
-  let html = `<div class="task-theme-label">${label}（${pool.length}件）${useCrossScore?' <span style="color:var(--primary);">・スコア順</span>':''}</div>`;
-
-  const visible = active.slice(0,3);
-  const restActive = active.slice(3);
-  const restCount = restActive.length + done.length;
-
-  html += visible.map(t=>taskCardHTML(t, useCrossScore)).join("");
-
-  if(restCount > 0){
-    const accId = `acc-${label.replace(/\s/g,'')}`;
-    html += `<div class="task-peek-wrap" id="${accId}-peek" onclick="toggleTaskAccordion('${accId}')">${taskCardHTML(restActive[0]||done[0], useCrossScore)}</div>`;
-    html += `<div class="task-accordion" id="${accId}">${restActive.map(t=>taskCardHTML(t,useCrossScore)).join("")}${done.map(t=>taskCardHTML(t,useCrossScore)).join("")}</div>`;
-    html += `<div class="task-expand-btn" id="${accId}-btn" data-label="もっと見る（+${restCount}件）" onclick="toggleTaskAccordion('${accId}')">もっと見る（+${restCount}件）</div>`;
+  // state 初期化（テーマ切替時のみリセット、同一テーマ再描画時は維持）
+  if(taskScrollState.groupKey !== groupKey){
+    taskScrollState = { groupKey, offset: Math.min(TASK_BATCH_SIZE, total), total };
   }
+
+  let html = `<div class="task-theme-label">${label}（${total}件）${useCrossScore?' <span style="color:var(--primary);">・スコア順</span>':''}</div>`;
+  html += `<div class="task-group-cards" data-group="${groupKey}">`;
+  html += initial.map(t=>taskCardHTML(t, useCrossScore)).join("");
+  html += `</div>`;
+  // 末尾マーカー：無限スクロールのトリガー。data 属性で進捗を持たせる
+  html += `<div class="task-scroll-sentinel" data-group="${groupKey}" data-offset="${initial.length}" data-total="${total}"></div>`;
+  // ローダー（初期非表示、CSS で回転アニメ）
+  html += `<div class="infinite-scroll-loader" data-loader="${groupKey}" style="display:none;"><div class="spinner"></div><span>読み込み中…</span></div>`;
+  // 完了メッセージ
+  html += `<div class="task-scroll-end" data-end="${groupKey}" style="display:none;">すべてのタスクを表示しました（${total}件）</div>`;
 
   return html;
 }
@@ -4918,11 +4944,11 @@ function renderTasks(theme, event){
 
   if(theme==="all"){
     // クロステーマ：グループ分けせず、スコアで混ぜた1本のリストにする
-    list.innerHTML = renderTaskGroup(visibleTaskData, "全テーマ", true)
+    list.innerHTML = renderTaskGroup(visibleTaskData, "全テーマ", true, "all")
       || `<div class="summary-preview-text" style="color:var(--ink-faint); margin-top:12px;">Taskがありません</div>`;
   } else {
     const pool = visibleTaskData.filter(t=>(t.themes||[]).includes(theme));
-    list.innerHTML = renderTaskGroup(pool, taskThemeNames[theme], false)
+    list.innerHTML = renderTaskGroup(pool, taskThemeNames[theme], false, theme)
       || `<div class="summary-preview-text" style="color:var(--ink-faint); margin-top:12px;">このテーマにはまだTaskがありません</div>`;
   }
   renderArchive();
@@ -4930,14 +4956,97 @@ function renderTasks(theme, event){
   // 2026-08-05 セッション：タスク行にスワイプジェスチャー（保留 / 完了）を付与
   // CSS の top:0; bottom:0 で .swipe-action が .task-card に自動追従するため、JS の高さ同期は不要
   setupAllSwipeGestures();
+  // 2026-08-05 夜セッション：無限スクロールの IntersectionObserver をバインド
+  setupTaskInfiniteScroll();
+  // 初期描画時点で全件収まるなら完了メッセージを出す
+  maybeShowTaskScrollEnd();
 }
-function toggleTaskAccordion(accId){
-  const acc = document.getElementById(accId);
-  const btn = document.getElementById(accId+"-btn");
-  const peek = document.getElementById(accId+"-peek");
-  const open = acc.classList.toggle("open");
-  if(peek) peek.style.display = open ? "none" : "";
-  btn.textContent = open ? "少なく表示" : btn.dataset.label;
+
+/** 2026-08-05 夜セッション：タスクタブの無限スクロール。
+ * 各 .task-scroll-sentinel を IntersectionObserver で監視し、可視化されたら次の 10 件を追加描画。
+ * 描画中はスピナー表示、完了したら「すべて表示しました」を出す。 */
+let taskInfiniteObserver = null;
+function setupTaskInfiniteScroll(){
+  if(taskInfiniteObserver) taskInfiniteObserver.disconnect();
+  taskInfiniteObserver = new IntersectionObserver((entries)=>{
+    for(const entry of entries){
+      if(entry.isIntersecting){
+        const sentinel = entry.target;
+        const groupKey = sentinel.dataset.group;
+        const offset = parseInt(sentinel.dataset.offset, 10);
+        const total = parseInt(sentinel.dataset.total, 10);
+        if(offset < total){
+          loadMoreTasks(groupKey, offset, total);
+        }
+      }
+    }
+  }, { rootMargin: "200px 0px 200px 0px" });
+  document.querySelectorAll(".task-scroll-sentinel").forEach(el => taskInfiniteObserver.observe(el));
+}
+
+function loadMoreTasks(groupKey, offset, total){
+  const sentinel = document.querySelector(`.task-scroll-sentinel[data-group="${groupKey}"]`);
+  const loader = document.querySelector(`.infinite-scroll-loader[data-loader="${groupKey}"]`);
+  if(!sentinel || !loader) return;
+  // 多重発火防止：ローダーが出ている間はスキップ
+  if(loader.style.display !== "none") return;
+  // 描画中フラグ
+  loader.style.display = "";
+  sentinel.style.display = "none";
+
+  // 実際のソースプールを取り直す（renderTaskGroup のソート順と一致させる）
+  const visibleTaskData = taskData.filter(t => t.status !== "hold" && t.status !== "deleted");
+  const useCrossScore = groupKey === "all";
+  const pool = useCrossScore
+    ? visibleTaskData
+    : visibleTaskData.filter(t => (t.themes||[]).includes(groupKey));
+  const active = pool.filter(t=>t.status==="open")
+    .sort((a,b)=> useCrossScore ? computeCrossScore(a)-computeCrossScore(b) : a.priority-b.priority);
+  const done = pool.filter(t=>t.status==="done");
+  const sorted = [...active, ...done];
+  const next = sorted.slice(offset, offset + TASK_BATCH_SIZE);
+  const newOffset = offset + next.length;
+
+  // 擬似的な遅延を入れてスピナーを視認可能にする（実データ追加は即時）
+  setTimeout(() => {
+    const group = document.querySelector(`.task-group-cards[data-group="${groupKey}"]`);
+    if(group){
+      const cardsHtml = next.map(t => taskCardHTML(t, useCrossScore)).join("");
+      group.insertAdjacentHTML("beforeend", cardsHtml);
+    }
+    // sentinel のオフセット更新
+    sentinel.dataset.offset = String(newOffset);
+    taskScrollState.offset = newOffset;
+    // 残りがあれば sentinel を再表示
+    if(newOffset < total){
+      sentinel.style.display = "";
+      loader.style.display = "none";
+    } else {
+      // 完了：ローダー消して「すべて表示しました」を出す
+      loader.style.display = "none";
+      maybeShowTaskScrollEnd();
+    }
+    // 追加したカードにスワイプジェスチャー再バインド
+    setupAllSwipeGestures();
+  }, 220);
+}
+
+function maybeShowTaskScrollEnd(){
+  document.querySelectorAll(".task-scroll-sentinel").forEach(s => {
+    const groupKey = s.dataset.group;
+    const offset = parseInt(s.dataset.offset, 10);
+    const total = parseInt(s.dataset.total, 10);
+    const end = document.querySelector(`.task-scroll-end[data-end="${groupKey}"]`);
+    const loader = document.querySelector(`.infinite-scroll-loader[data-loader="${groupKey}"]`);
+    if(!end) return;
+    if(offset >= total){
+      // 完了
+      end.style.display = "";
+      end.textContent = `すべてのタスクを表示しました（${total}件）`;
+      if(loader) loader.style.display = "none";
+      s.style.display = "none";
+    }
+  });
 }
 async function toggleTaskDone(id){
   const t = taskById(id);

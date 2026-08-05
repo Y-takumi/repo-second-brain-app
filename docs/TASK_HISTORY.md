@@ -4,7 +4,7 @@
 
 別のセッションで作業中に問題が発生した場合、このファイルを開いて **直近のタスク実施状況** を確認することで、類似の問題や関連する変更を把握できます。
 
-最終更新：2026-08-05（タスク UI 統一：カード/詳細画面にテーマ名・カテゴリ枝・タグを表示 / Task 128 + Library と表示順完全統一 / Task 130）
+最終更新：2026-08-05（Tasks タブ無限スクロール実装 / Task 131）
 
 ---
 
@@ -1718,7 +1718,23 @@
   - 新規追加 CSS：`.task-card .top` / `.task-card .type` / `.task-card .title` / `.task-card .branch-path` のみ（既存 `.note-card` のスタイルを踏襲）
   - 不要になった `.task-meta-row` / `.task-type-tag` / `.task-theme-dot` の旧 CSS は除去
   - Playwright 検証：既存サンプル（無変化）、branch+tags あり（Library と同表示順）、XSS エスケープ、タグ上限（カード 3件 / 詳細 5件）すべて OK
-- **コミット**: <この PR のハッシュ>
+- **関連コミット**: 4bf6c94（push 済み）
+
+### Task 131: Tasks タブ無限スクロール実装（「もっと見る」廃止）
+- **状態**: completed（成功）
+- **備考**:
+  - ユーザーFB：「もっと見るを押して全件表示するのはやめようと思います。最初から全件表示表示すると描画に時間がかかってしまうので、上から10件だけ最初から読み込んで、それ以降はスクロールしたらそのたびに読み込む感じにできますか？読み込み中は画面下部に読み込み中のくるくる回るアニメーションを入れたいです。」
+  - `renderTaskGroup` を top3+peek+accordion から「**初期 10 件 + 末尾センチネル + IntersectionObserver**」方式に変更
+  - 「もっと見る」アコーディオンは廃止（ユーザー指示）
+  - 初期表示 10 件、バッチサイズ 10 件（`TASK_BATCH_SIZE` 定数）
+  - センチネル可視化で `loadMoreTasks` 発火 → 220ms 後に DOM 追加（スピナー視認のため擬似遅延）
+  - スピナー：`.infinite-scroll-loader` ＋ `border-top` 回転の `◯` ＋「読み込み中…」テキスト（`@keyframes spin`）
+  - 完了時：「すべてのタスクを表示しました（N件）」を表示
+  - `taskScrollState.groupKey` でテーマ切替検出 → テーマ変更時は offset リセット
+  - 旧 `toggleTaskAccordion` / `.task-peek-wrap` / `.task-expand-btn` / `.task-accordion` の JS と CSS は完全削除
+  - 多発発火防止：ローダー表示中はセンチネルを `display: none` にしてスキップ
+  - Playwright 検証：初期 10 件 → スクロール → 20 件 → 30 件 → 32 件（end 表示）、スピナー表示確認、JS エラーなし
+- **関連コミット**: <この PR のハッシュ>
 
 
 ---
