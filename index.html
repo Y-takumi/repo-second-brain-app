@@ -502,11 +502,12 @@
   /* 2026-08-06 修正：type バッジを四角化（背景色 + padding + border-radius）。
      色は --action / --research を使用。テーマ 4 色とは明確に区別。
      .task-card の一覧カード用と、.type-badge クラスで詳細画面でも同じスタイルを共有 */
-  .task-card .type{font-size:9.5px; font-family:var(--mono); text-transform:uppercase; padding:2px 6px; border-radius:4px; display:inline-block; background:var(--action-bg); color:var(--action); flex-shrink:0;}
+  .task-card .type{font-size:10px; font-family:var(--mono); text-transform:uppercase; padding:3px 8px; border-radius:4px; display:inline-block; background:var(--action-bg); color:var(--action); flex-shrink:0; line-height:1.2;}
   .task-card .type.action{background:var(--action-bg); color:var(--action);}
   .task-card .type.research{background:var(--research-bg); color:var(--research);}
-  /* 詳細画面用 type-badge クラス（task-card と同スタイル） */
-  .type-badge{font-size:9.5px; font-family:var(--mono); text-transform:uppercase; padding:2px 6px; border-radius:4px; display:inline-block;}
+  /* 詳細画面用 type-badge クラス（task-card と同スタイル）。
+     2026-08-06 修正：padding/font-size を .tag（mind/business ピル）と揃えてバッジ高さを統一。 */
+  .type-badge{font-size:10px; font-family:var(--mono); text-transform:uppercase; padding:3px 8px; border-radius:4px; display:inline-block; line-height:1.2;}
   .type-badge.action{background:var(--action-bg); color:var(--action);}
   .type-badge.research{background:var(--research-bg); color:var(--research);}
   .task-card .branch-path{font-size:10.5px; font-family:var(--mono); color:var(--ink-dim);}
@@ -770,7 +771,7 @@
   .tag{font-size:10px; padding:3px 8px; border-radius:20px; font-family:var(--mono);}
   .conf-bar{flex:1; min-width:60px; height:4px; background:var(--border); border-radius:2px; overflow:hidden;}
   .conf-fill{height:100%; border-radius:2px;}
-  .conf-num{font-family:var(--mono); font-size:10.5px; color:var(--ink-dim);}
+  .conf-num{font-family:var(--mono); font-size:10px; color:var(--ink-dim); line-height:1.2; padding:3px 0;}
 
   .task-row{display:flex; align-items:center; gap:10px; padding:10px 0; border-bottom:1px solid var(--border);}
   .checkbox{width:18px;height:18px;border-radius:5px;border:1.5px solid var(--ink-faint); flex-shrink:0;}
@@ -5579,7 +5580,7 @@ function taskDetailMetaHTML(t){
   const topRow = `
     <div class="note-header-top" style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
       <span class="type-badge ${typeClass}">${escapeHtml(typeLabel)}</span>
-      <span class="conf-num" style="font-family:var(--mono); font-size:10.5px; color:var(--ink-dim);">優先度 ${escapeHtml(String(t.priority))}</span>
+      <span class="conf-num" style="font-family:var(--mono); color:var(--ink-dim);">優先度 ${escapeHtml(String(t.priority))}</span>
     </div>
   `;
 
