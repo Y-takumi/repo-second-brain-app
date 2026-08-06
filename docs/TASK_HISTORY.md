@@ -4,7 +4,7 @@
 
 別のセッションで作業中に問題が発生した場合、このファイルを開いて **直近のタスク実施状況** を確認することで、類似の問題や関連する変更を把握できます。
 
-最終更新：2026-08-06（ジャーナル振り返り機能 .mentor-card 完全削除 / Task 149）
+最終更新：2026-08-06（処理中カード + 処理結果を見るフロー / Task 150）
 
 ---
 
@@ -2095,6 +2095,47 @@
     - JS 側にも関数なし（`onclick="goTo('greatmind')"` の遷移先は削除）
   - **仕様書更新**：2.9 節に「実装状況」サブセクションを追加し、仮実装 → 完全削除の経緯と**復活時の判断基準**を明記
 - **関連コミット**: 未 commit（Task 149 用）
+
+---
+
+## 2026-08-06 セッション（寝る前セッション：処理中カード追加）
+
+### Task 150: ジャーナル処理中カード + 「処理結果を見る」フロー
+- **セッション / 日付**: 2026-08-06 寝る前セッション
+- **タスク名**: 処理するボタン押下後、textarea をクリアして下書き欄に処理中カードを表示。ハイライト + スピナー。完了時に「処理結果を見る」ボタンから結果表示画面へ遷移
+- **状態**: completed（成功）
+- **完了時の評価**: 成功
+- **備考**:
+  - **背景・ユーザーFB**：「今日はもう寝るので、進められるところまでお願いします。ジャーナルを入力して処理するボタンを押した後、処理の時間が結構時間がかかりますよね。処理するボタンを押したら、下書き・処理中欄に移動させて、処理中カードは少し目立つような色でハイライトしつつ、進行中のくるくるアニメーションをつけてください。処理が完了したら、処理結果を見る、みたいなボタンから結果表示画面に遷移させてください。」
+  - **問題**：
+    - `startJournalProcessing` で Claude API 呼び出しに時間がかかる（10〜30 秒）
+    - 従来、処理中ユーザーは textarea を見続けるだけで「動いているか」分かりにくかった
+    - 完了時は自動で `journal-confirm` タブへ遷移 → ユーザーから「明示的にボタンから遷移したい」フィードバック
+  - **実装**：
+    - **下書きオブジェクトに `status` フィールド追加**：`"draft"` / `"processing"` / `"done"`
+      - 後方互換：既存下書きは `status` 未設定 → `renderDraftList` で `d.status || "draft"` 扱い
+    - **CSS 追加**：`.draft-item.processing`（linear-gradient + primary 枠 + スピナー + pulse dot）、`.draft-item.done`（healthcare 枠）、`.draft-result-btn`（処理結果を見るボタン）、`@keyframes spin` / `@keyframes pulse`
+    - **`startJournalProcessing` の動作変更**：
+      - 押下時：`saveDraftNow()` → `status: "processing"` に更新 → textarea を即クリア（次の入力UIを即提供）
+      - 完了時：下書きを `status: "done"` + `processedSourceText` 保存 → 自動で `journal-confirm` タブへ遷移（既存動作維持）
+      - エラー時：下書きを `status: "draft"` に戻し `errorMessage` 保存（ユーザーが再編集できる）
+    - **`renderDraftList` の status 別表示**：
+      - `processing`：ハイライト + スピナー、`cursor:default`（textarea ロードしない）
+      - `done`：「処理結果を見る →」ボタン
+      - `draft`：既存通り
+    - **新規関数 `openProcessedDraftResult(draftId)`**：
+      - `pendingCaptureResult.sourceText` と下書きの `processedSourceText` が一致すれば `renderCaptureConfirm` + `goTo("journal-confirm")` で復帰
+      - 一致しない場合は Library タブへ
+  - **トレードオフ**：
+    - `pendingCaptureResult` は単一変数なので、**連続処理**すると最後の結果のみ保持
+    - 下書きから「処理結果を見る」を押すと最後の結果が表示される
+    - 本格的な履歴管理は将来課題（`processedKnowledgeIds` の配列保持など）
+  - **既存動作への影響**：
+    - `commitCaptureResult` 成功時の `pruneDraftByContent` はそのまま動作（保存成功で下書き削除）
+    - `status: "done"` のカードは保存ボタン押下まで残る
+  - **仕様書更新**：4.7.4 節「処理中カードと『処理結果を見る』フロー（2026-08-06 Task 150）」追加
+  - **目視確認は Tackman さんに依頼**：処理するボタン押下後、textarea がクリアされ、下書き欄にスピナー付きハイライトカードが表示されるか、完了後に「処理結果を見る」ボタンから遷移できるか
+- **関連コミット**: 未 commit（Task 150 用）
 
 ---
 

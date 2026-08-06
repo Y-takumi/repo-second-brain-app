@@ -168,6 +168,35 @@
   .draft-clear{flex-shrink:0; color:var(--ink-faint); font-size:14px; padding:4px 8px; border-radius:8px; cursor:pointer; user-select:none;}
   .draft-clear:hover{background:var(--surface2); color:var(--primary);}
   .draft-clear:active{opacity:0.6;}
+  /* 処理中ハイライト + スピナー（2026-08-06 Task 150） */
+  .draft-item.processing{
+    background:linear-gradient(135deg, var(--primary-soft), var(--surface));
+    border-color:var(--primary);
+    cursor:default;
+  }
+  .draft-item.processing .dot{background:var(--primary); animation:pulse 1.4s ease-in-out infinite;}
+  .draft-item.processing .title{color:var(--primary);}
+  .draft-status.processing{color:var(--primary); display:flex; align-items:center; gap:6px;}
+  .draft-status.processing::before{
+    content:""; display:inline-block; width:10px; height:10px;
+    border:2px solid var(--primary); border-top-color:transparent;
+    border-radius:50%; animation:spin 0.8s linear infinite; flex-shrink:0;
+  }
+  /* 完了カード（2026-08-06 Task 150） */
+  .draft-item.done{
+    border-color:var(--healthcare); background:var(--healthcare)11; cursor:default;
+  }
+  .draft-item.done .dot{background:var(--healthcare);}
+  .draft-status.done{color:var(--healthcare);}
+  .draft-result-btn{
+    flex-shrink:0; background:var(--primary); color:#fff;
+    font-size:10px; padding:5px 11px; border-radius:14px; cursor:pointer;
+    white-space:nowrap; font-family:var(--mono); border:none;
+  }
+  .draft-result-btn:hover{filter:brightness(1.1);}
+  .draft-result-btn:active{opacity:0.7;}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  @keyframes pulse{0%,100%{opacity:1} 50%{opacity:0.45}}
 
   /* Explore：グラフタブ */
   .graph-tabs{display:flex; gap:6px; overflow-x:auto; margin-bottom:12px; padding-bottom:2px;}
@@ -2957,7 +2986,20 @@ async function startJournalProcessing(){
   const journalText = textEl.value.trim();
   if(!journalText){ statusEl.textContent = "内容を入力してください"; return; }
   if(!googleAccessToken){ statusEl.textContent = "先に開発者設定からGoogle Driveと連携してください"; return; }
-  saveDraftNow(); // 処理するボタンを押した瞬間に下書きにも保存（Drive保存成功時にpruneDraftByContentで削除される）
+
+  // 2026-08-06 Task 150 追加：
+  //   - 押下時に textarea をクリア（即座に次の入力UIを提供）
+  //   - 下書きを status: "processing" に更新して下書き欄にハイライト表示
+  saveDraftNow();
+  const drafts1 = loadDraftsFromStorage();
+  const target1 = drafts1.find(x => x.content === journalText);
+  if(target1){
+    target1.status = "processing";
+    target1.processingStartedAt = new Date().toISOString();
+    saveDraftsToStorage(drafts1);
+    renderDraftList();
+  }
+  textEl.value = "";
 
   statusEl.textContent = "① 既存Knowledge・Great Mindを確認中…";
   try{
@@ -2977,15 +3019,47 @@ async function startJournalProcessing(){
     } catch(e){
       console.error("Claudeの生の応答:", raw);
       statusEl.innerHTML = `❌ JSON解析エラー：${e.message}<br>⚠️ 入力が長すぎる場合、Claude の応答が途中で切れることがあります（知識が複数抽出された場合など）。短い文章に分けて再度入力することをお勧めします。<br><br><b>Claudeの応答（生データ）：</b><br><span style="white-space:pre-wrap; word-break:break-all;">${raw.slice(0,1500).replace(/</g,"&lt;")}</span>`;
+      // 2026-08-06 Task 150：JSON 解析エラー時は下書きを "draft" に戻す（ユーザーが再編集できる）
+      const draftsErr = loadDraftsFromStorage();
+      const targetErr = draftsErr.find(x => x.content === journalText);
+      if(targetErr){
+        targetErr.status = "draft";
+        targetErr.errorMessage = "JSON解析エラー";
+        saveDraftsToStorage(draftsErr);
+        renderDraftList();
+      }
       return;
     }
 
     pendingCaptureResult = { ...parsed, sourceText: journalText, kind: "journal" };
     renderCaptureConfirm(pendingCaptureResult);
     statusEl.textContent = "";
+
+    // 2026-08-06 Task 150 追加：下書きを status: "done" に更新し、sourceText を記録
+    //   - 「処理結果を見る」ボタンから journal-confirm へ復帰できるようにする
+    //   - pendingCaptureResult は単一変数だが、下書きに sourceText を持たせて照合する
+    const drafts2 = loadDraftsFromStorage();
+    const target2 = drafts2.find(x => x.content === journalText);
+    if(target2){
+      target2.status = "done";
+      target2.processedAt = new Date().toISOString();
+      target2.processedSourceText = journalText;
+      saveDraftsToStorage(drafts2);
+      renderDraftList();
+    }
+
     goTo("journal-confirm");
   } catch(e){
     statusEl.textContent = `❌ エラー：${e.message}`;
+    // 2026-08-06 Task 150：エラー時も下書きを "draft" に戻し、エラーメッセージを保存
+    const drafts3 = loadDraftsFromStorage();
+    const target3 = drafts3.find(x => x.content === journalText);
+    if(target3){
+      target3.status = "draft";
+      target3.errorMessage = e.message;
+      saveDraftsToStorage(drafts3);
+      renderDraftList();
+    }
   }
 }
 
@@ -4654,6 +4728,7 @@ function saveDraftNow(){
       title: content.slice(0, 30).replace(/\n/g, " "),
       content: content,
       updatedAt: new Date().toISOString(),
+      status: "draft",  // 2026-08-06 Task 150 追加："draft" / "processing" / "done"
     });
   }
   // 空 content の draft は除外
@@ -4696,16 +4771,67 @@ function renderDraftList(){
     wrap.innerHTML = `<div class="settings-hint">入力中のジャーナルがあると、ここに表示されます（自動保存）</div>`;
     return;
   }
-  wrap.innerHTML = drafts.map(d => `
-    <div class="draft-item" onclick="loadDraftIntoTextarea('${d.id}')">
-      <span class="dot" style="background:var(--primary)"></span>
-      <div class="meta">
-        <div class="title">${escapeHtml(d.title)}</div>
-        <div class="draft-status">入力中 ・ ${fmtDraftDate(d.updatedAt)}</div>
+  wrap.innerHTML = drafts.map(d => {
+    // 2026-08-06 Task 150: status 別の表示
+    // 後方互換：既存の下書きは status 未設定なので "draft" 扱い
+    const status = d.status || "draft";
+    const statusLabel = status === "processing" ? `処理中… ・ ${fmtDraftDate(d.updatedAt)}`
+                     : status === "done" ? `完了 ・ ${fmtDraftDate(d.updatedAt)}`
+                     : `入力中 ・ ${fmtDraftDate(d.updatedAt)}`;
+
+    if(status === "processing"){
+      // 処理中：ハイライト + スピナー、クリックで textarea にロードしない
+      return `
+        <div class="draft-item processing">
+          <span class="dot"></span>
+          <div class="meta">
+            <div class="title">${escapeHtml(d.title)}</div>
+            <div class="draft-status processing">${statusLabel}</div>
+          </div>
+        </div>
+      `;
+    }
+    if(status === "done"){
+      // 完了：「処理結果を見る」ボタン
+      return `
+        <div class="draft-item done">
+          <span class="dot"></span>
+          <div class="meta">
+            <div class="title">${escapeHtml(d.title)}</div>
+            <div class="draft-status done">${statusLabel}</div>
+          </div>
+          <button class="draft-result-btn" onclick="event.stopPropagation(); openProcessedDraftResult('${d.id}')">処理結果を見る →</button>
+          <span class="draft-clear" onclick="event.stopPropagation(); deleteDraft('${d.id}')" title="この下書きを削除">✕</span>
+        </div>
+      `;
+    }
+    // 通常の draft（入力中）
+    return `
+      <div class="draft-item" onclick="loadDraftIntoTextarea('${d.id}')">
+        <span class="dot" style="background:var(--primary)"></span>
+        <div class="meta">
+          <div class="title">${escapeHtml(d.title)}</div>
+          <div class="draft-status">${statusLabel}</div>
+        </div>
+        <span class="draft-clear" onclick="event.stopPropagation(); deleteDraft('${d.id}')" title="この下書きを削除">✕</span>
       </div>
-      <span class="draft-clear" onclick="event.stopPropagation(); deleteDraft('${d.id}')" title="この下書きを削除">✕</span>
-    </div>
-  `).join("");
+    `;
+  }).join("");
+}
+// 2026-08-06 Task 150 追加：処理結果を見るボタン押下時
+function openProcessedDraftResult(draftId){
+  const drafts = loadDraftsFromStorage();
+  const d = drafts.find(x => x.id === draftId);
+  if(!d) return;
+  // pendingCaptureResult の sourceText と下書きの processedSourceText が一致すれば
+  // 同じ処理結果なので journal-confirm へ復帰できる
+  if(pendingCaptureResult && pendingCaptureResult.sourceText === (d.processedSourceText || d.content)){
+    if(typeof renderCaptureConfirm === "function") renderCaptureConfirm(pendingCaptureResult);
+    goTo("journal-confirm");
+    return;
+  }
+  // 一致しない場合（他で pendingCaptureResult が上書きされた等）は Library タブへ
+  goTo("library");
 }
 function loadDraftIntoTextarea(draftId){
   const drafts = loadDraftsFromStorage();
