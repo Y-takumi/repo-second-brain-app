@@ -5630,13 +5630,19 @@ function openTaskDetail(id){
 /** 2026-08-03 夜セッション：Task詳細画面の「アクション」エリアを描画。
  * - open 状態：完了 / 保留 / 削除 ボタン
  * - hold 状態：再開 / 削除 ボタン
- * - done 状態：「完了済み」表示（取り消し不可、要望に応じて表示のみ） */
+ * - done 状態：「完了済み」ボタン（押せば取り消し = uncomplete）+ 削除
+ *   2026-08-06 修正：旧仕様は「✅ 完了済み」テキスト表示（取り消し不可）だったが、
+ *   ユーザーFB「もう一度ボタンを押して未完了に戻せるようにしてください」で
+ *   取り消し可に変更。completeTaskFromDetail 押下後の表示と統一 */
 function renderTaskActionArea(){
   const t = taskById(currentTaskDetailId);
   if(!t) return;
   const area = document.getElementById("td-action-area");
   if(t.status === "done"){
-    area.innerHTML = `<div style="font-size:12px; color:var(--ink-dim); padding:8px 0;">✅ 完了済み</div>`;
+    area.innerHTML = `
+      <button class="btn-complete" id="td-uncomplete-btn" onclick="uncompleteTaskFromDetail()" title="もう一度押すと未完了に戻せます">完了済み</button>
+      <button class="btn-delete" onclick="deleteTaskFromDetail()" title="削除">🗑️</button>
+    `;
   } else if(t.status === "hold"){
     area.innerHTML = `
       <button class="btn-complete" id="td-resume-btn" onclick="resumeTaskFromDetail()">再開する</button>
@@ -5688,19 +5694,61 @@ async function completeTaskFromDetail(){
         alert(`Drive保存に失敗しました：${e.message}\n次回のリロードまで変更は保持されません。`);
       }
     }
-    // ボタン個別制御：完了ボタンは「完了済み」表示で disabled、保留ボタンは disabled（グレーアウト）
+    // ボタン個別制御：完了ボタンは「完了済み」表示（押せば取り消し可）、保留ボタンは disabled（グレーアウト）
+    // 2026-08-06 修正：ユーザーFB「もう一度ボタンを押して未完了に戻せるようにしてください」
+    //   → 完了ボタンは disabled=false にして押せるように、onclick を uncompleteTaskFromDetail() に変更
     const completeBtn = document.getElementById("td-complete-btn");
     const holdBtn = document.getElementById("td-hold-btn");
     if(completeBtn){
       completeBtn.textContent = "完了済み";
-      completeBtn.disabled = true;
+      completeBtn.disabled = false;  // 押せる（変更）
       completeBtn.classList.add("success");
+      completeBtn.title = "もう一度押すと未完了に戻せます";
+      completeBtn.setAttribute("onclick", "uncompleteTaskFromDetail()");
     }
     if(holdBtn){
       holdBtn.disabled = true;
       holdBtn.style.opacity = "0.4";
       holdBtn.style.cursor = "not-allowed";
     }
+  }, 1000);
+}
+
+/** 2026-08-06 追加：Task詳細画面の取り消しボタン押下時（done → open）。
+ * ユーザーFB「完了ボタン押下した後は、もう一度ボタンを押して未完了に戻せるようにしてください」
+ *
+ * 旧仕様：done 状態のタスクは「✅ 完了済み」テキスト表示のみで取り消し不可だった
+ * 新仕様：「完了済み」ボタンを押すと未完了に戻せる（toggle パターン）
+ *
+ * - done → open に変更
+ * - 1秒間成功状態（「取り消し中...」）を見せてから、詳細画面に留まり、
+ *   renderTaskActionArea() で「完了 / 保留 / 🗑️」ボタン表示に戻す
+ * - ボタン取得は querySelector を使用（id は completeTaskFromDetail 後の td-complete-btn
+ *   か、openTaskDetail 経由の td-uncomplete-btn のどちらでも取得可能） */
+async function uncompleteTaskFromDetail(){
+  const t = taskById(currentTaskDetailId);
+  if(!t || t.status !== "done") return;
+  // id は completeTaskFromDetail 後と renderTaskActionArea の done 状態で異なるが、
+  // どちらも .btn-complete クラスが付いているので querySelector で取得
+  const btn = document.querySelector("#td-action-area .btn-complete");
+  if(!btn || btn.disabled) return; // 連続押下防止
+  btn.disabled = true;
+  btn.classList.add("success");
+  btn.textContent = "取り消し中";
+  t.status = "open";
+  setTimeout(async () => {
+    if(!googleAccessToken){
+      console.warn("Drive 未接続：未完了戻しはメモリ上のみ。次回リロードで元に戻ります");
+    } else {
+      try{
+        await updateTaskStatusInDrive(t.id, "open");
+      } catch(e){
+        console.error("Task取り消しのDrive保存に失敗:", e);
+        alert(`Drive保存に失敗しました：${e.message}\n次回のリロードまで変更は保持されません。`);
+      }
+    }
+    // 詳細画面に留まる。ボタン領域を「完了 / 保留 / 🗑️」に戻す。
+    renderTaskActionArea();
   }, 1000);
 }
 
@@ -6034,7 +6082,8 @@ function computeWakePresetTimes(){
 
 /** 2026-08-06 追加：おやすみ画面の就寝予定プリセット。
  * ユーザーFB「現在時刻から10分おきのボタンを選択できるようにしてください」
- * - 現在時刻を 10 分刻みに丸め、過去 2 個 + 未来 9 個 = 11 個を生成
+ * 2026-08-06 修正：ユーザーFB「現在時刻より未来のボタンのみでいいですよ」
+ *   → 過去ボタンは廃止、現在時刻 + 0〜100 分後 = 11 個（現在時刻含む）
  * - 24時をまたぐ場合は 0:00, 0:10, ... と折り返す
  * - goodnight 画面の #goodnight-sleep-presets に横スクロールで描画
  * - 選択中の時刻は .active クラスでハイライト（setSleepPlannedPreset で制御） */
@@ -6043,7 +6092,7 @@ function computeGoodnightSleepPresetTimes(){
   const baseMin = Math.floor(now.getMinutes() / 10) * 10;
   const baseHour = now.getHours();
   const out = [];
-  for(let i = -2; i < 9; i++){
+  for(let i = 0; i <= 10; i++){
     let totalMin = baseHour * 60 + baseMin + i * 10;
     if(totalMin < 0) totalMin += 24 * 60;
     if(totalMin >= 24 * 60) totalMin -= 24 * 60;
