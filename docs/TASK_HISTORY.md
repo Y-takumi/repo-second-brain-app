@@ -1982,6 +1982,30 @@
 
 ---
 
+## 2026-08-06 セッション（バッジ高さ揃え）
+
+### Task 146: タスク詳細バッジ高さ揃え
+- **セッション / 日付**: 2026-08-06 セッション
+- **タスク名**: 詳細画面の type-badge / conf-num / theme tag の高さを統一
+- **状態**: completed（成功）
+- **完了時の評価**: 成功
+- **備考**:
+  - **背景・ユーザーFB**：「スクショのバッチなどの高さを合わせられますか？」
+  - スクショで詳細画面の 1 行目（type-badge + 優先度）と 2 行目（テーマタグ mind/business）の**高さがバラバラ**だった
+  - 現状の 3 種類の padding / font-size が異なっていた
+  - **修正**：
+    - `.type-badge` / `.task-card .type`: padding 2px 6px → 3px 8px、font-size 9.5px → 10px、line-height 1.2 追加
+    - `.conf-num`: padding 0 → 3px 0、font-size 10.5px → 10px、line-height 1.2 追加
+    - 詳細画面 line 5583 のインライン style から `font-size:10.5px` 削除（CSS の 10px が効くように）
+  - **統一後の高さ**：すべて約 18px（padding 3*2 + line-height 12）
+  - **判断理由**：`.tag` クラスが他で多用されているので `.tag` 側に寄せた。`.conf-num` は枠なしテキストなので、左右 padding 0 + 上下 padding 3px で**枠の高さだけ**揃える
+  - **Playwright 検証**：computed style で typeBadge / confNum / themeTags とも font-size:10px、padding-top:3px、line-height:1.2 (12px) 確認
+  - **仕様書更新**：4.4.11 節を新設
+  - **目視確認は Tackman さんに依頼**（実機ブラウザで高さ揃えの見た目確認）
+- **関連コミット**: 未 commit
+
+---
+
 ## 関連ドキュメント
 
 - `docs/OAUTH_AND_STORAGE.md`：OAuth・LocalStorage・データアクセス権限
