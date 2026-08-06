@@ -4,7 +4,7 @@
 
 別のセッションで作業中に問題が発生した場合、このファイルを開いて **直近のタスク実施状況** を確認することで、類似の問題や関連する変更を把握できます。
 
-最終更新：2026-08-05（Tasks タブ タグ・カテゴリ・本文検索バー追加 / Task 132）
+最終更新：2026-08-06（タスク詳細バッジ高さ揃え根本対応 / Task 148）
 
 ---
 
@@ -2034,7 +2034,38 @@
     - `.tag` の line-height を 18px にしたので、Library カード / Note カード / Task カードの #tag 等でも font が縦中央配置になる（padding: 3px 8px → 0 8px で見た目は少し変わるが、line-height 18px で 4px 上下余白なので元の見た目に近い）
   - **仕様書更新**：4.4.11 節に「2026-08-06 追加修正（Task 147）」追記
   - **目視確認は Tackman さんに依頼**（実機ブラウザ）
-- **関連コミット**: 未 commit
+- **関連コミット**: 未 commit（→ `892c861` で commit 済み、Task 148 時に修正）
+
+---
+
+## 2026-08-06 セッション（タスク詳細バッジ高さ揃え根本対応）
+
+### Task 148: テーマタグを 1 行目に統合（構造的揃え）
+- **セッション / 日付**: 2026-08-06 セッション
+- **タスク名**: タスク詳細画面の business 等テーマタグを 1 行目に統合し、縦位置揃えを完全化
+- **状態**: completed（成功）
+- **完了時の評価**: 成功（CSS 分析による根本対応）
+- **備考**:
+  - **背景・ユーザーFB**：「前のセッションで改善出来なかったので、ここで再チャレンジ。スクショのタスク詳細画面のバッジの表示の高さをそろえてほしいです。(Action 優先度　Business　のところ)」
+  - **スクショの状況**：「優先度 2」と「business」が同じ行に並んで見えるが、`business` の方が縦に少しずれているように見えた
+  - **Task 146 / 147 の対応範囲**：
+    - `.type-badge` / `.task-card .type` / `.tag` / `.conf-num` の高さを 18px に統一（CSS 上の修正）
+    - ただし DOM 構造的には、1 行目に `.note-header-top`（type-badge + conf-num）、2 行目に `.note-theme-tags`（margin-top:10px、theme tag）という別 div
+    - CSS 上は 18px で揃っていても、`margin-top:10px` のために**視覚的に 10px 下に見える**
+  - **根本原因**：テーマタグが別 div 構造に置かれていた
+  - **Playwright 検証不可**：ローカルサーバーに Playwright からアクセスできない環境制約のため、コード解析のみで修正
+  - **修正**：
+    - `taskDetailMetaHTML`（`index.html:5582`）で `.note-theme-tags` を 1 行目に**統合**
+    - 1 行目の中身を左 div（type-badge + conf-num）と右 div（tag）に分け、外側 div に `display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap;` を設定
+    - `.note-header-top` クラスと `.note-theme-tags` クラスを**外した**（既存 CSS の `margin-bottom:8px` / `margin-top:10px` の干渉を防ぐため）
+    - `themeRow` は空にして 2 行目を作らない
+  - **理由**：CSS だけで揃えるのは限界。テーマタグを 1 行目に統合すれば、構造的に「揃っている」状態になる。`align-items:center` ですべてのバッジの縦位置が一致する
+  - **影響範囲**：
+    - タスク詳細画面（`td-meta` の中身）のみ
+    - タスク一覧（`.task-card`）や Note 詳細、Knowledge 詳細の `.note-header-top` には影響なし（別の `.note-header-top` 使用箇所）
+  - **仕様書更新**：4.4.11 節に「2026-08-06 追加修正（Task 148）：構造的な揃え（根本対応）」追記
+  - **目視確認は Tackman さんに依頼**：タスク詳細画面でテーマタグが 1 行目に表示され、縦位置が揃っているか確認
+- **関連コミット**: 175d1eb
 
 ---
 
