@@ -1900,6 +1900,48 @@
 
 ---
 
+## 2026-08-06 セッション（詳細画面ボタン改善・横スクロール・完了タスク遷移）
+
+### Tasks 140-142: 詳細画面ボタン状態管理 / goodnight 横スクロール / 完了タスクから詳細遷移
+- **セッション / 日付**: 2026-08-06 セッション
+- **タスク名**: Tasks 135-139 の追加改善 3 件
+- **状態**: completed（成功）
+- **完了時の評価**: 成功（バグ修正 1 件含む）
+- **備考**:
+  - **背景・ユーザーFB**：
+    1. 「完了ボタン押下時、保留ボタン押下時はボタンは残したいです。完了ボタン押下時は完了ボタンを完了済み表示にして、保留ボタンは非活性。保留ボタン押下時は、再開する表示にして、完了ボタンは非活性にしたいです」→ Task 140
+    2. 「おやすみ画面の10分刻みボタンは横スクロールにしてください」→ Task 141
+    3. 「おやすみ画面の完了タスクは、タスク詳細に飛べるようにしてください」→ Task 142
+  - **Task 140（ボタン状態管理）**：
+    - 修正前の Tasks 135-139 では `renderTaskActionArea()` を再呼出していて、ボタンが消える仕様だった
+    - **新仕様**：ボタン個別制御で「残す」設計に変更
+    - 完了ボタン押下後：完了ボタン=`text="完了済み"`、`disabled=true`、`.success` クラス
+    - 完了ボタン押下後：保留ボタン=`disabled=true`、`opacity=0.4`、`cursor=not-allowed`
+    - 保留ボタン押下後：保留ボタン=`text="再開する"`、`.btn-hold` 削除 + `.btn-complete.success` 追加、`disabled=false`（押せる）、`onclick="resumeTaskFromDetail()"` に変更
+    - 保留ボタン押下後：完了ボタン=`disabled=true`、`opacity=0.4`
+    - `resumeTaskFromDetail` も HOME 遷移を廃止：`renderTaskActionArea()` 再呼出して「完了 / 保留 / 🗑️」に戻す
+    - **設計判断の変遷**：最初は保留ボタンの id を `td-hold-btn` → `td-resume-btn` に変える設計だったが、Playwright 検証で `getElementById("td-hold-btn")` が null になる問題発覚 → id 保持設計に変更、`resumeTaskFromDetail` の参照 id を `td-hold-btn` に修正
+  - **Task 141（横スクロール）**：
+    - line 1807 の `class="time-preset-row"` → `class="time-preset-row-scrollable"`
+    - computed style: `overflow-x: auto` 確認 ✅
+    - `.time-preset-row-scrollable .time-preset-btn` の CSS（line 416）で font-size:13px、padding:8px 14px に上書き → HOME 統一感
+  - **Task 142（完了タスク詳細遷移）**：
+    - line 6477 の `style="cursor:default;"` → `style="cursor:pointer;"` + `onclick="openTaskDetail('${t.id}')"` 追加
+    - 検証：完了タスク（テスト用に 1 件 done に変更）の `<div>` に `cursor: pointer`、`onclick="openTaskDetail('t-vision')"` が設定
+    - クリックで `screen-task-detail` に遷移、`currentTaskDetailId` が `'t-vision'` にセット ✅
+  - **Playwright 検証まとめ**：
+    - ページロード JS エラー：Google Identity Services CDN ブロックのみ（既存・想定済み）
+    - **Task 140 完了シナリオ**：完了ボタン押下 → 1.3秒後 screen-task-detail に留まる、完了ボタン="完了済み"+disabled、保留ボタン=disabled+opacity:0.4 ✅
+    - **Task 140 保留シナリオ**：保留ボタン押下 → 1.3秒後 screen-task-detail に留まる、保留ボタン="再開する"+押せる、完了ボタン=disabled+opacity:0.4 ✅
+    - **Task 140 再開シナリオ**：「再開する」ボタン押下 → 1.3秒後 元の「完了にする / 保留にする」表示に戻る ✅
+    - **Task 141**：#goodnight-sleep-presets のクラス = `time-preset-row-scrollable`、computed style `overflow-x: auto` ✅
+    - **Task 142**：完了タスクに `cursor: pointer` + `onclick="openTaskDetail('t-vision')"` 設定、クリックで `screen-task-detail` に遷移 ✅
+  - **仕様書更新**：4.4.10 節に「Tasks 140-142 追加」サブセクション追記
+  - **目視確認は Tackman さんに依頼**（実機 Drive 接続での動作）
+- **関連コミット**: 未 commit
+
+---
+
 ## 関連ドキュメント
 
 - `docs/OAUTH_AND_STORAGE.md`：OAuth・LocalStorage・データアクセス権限
