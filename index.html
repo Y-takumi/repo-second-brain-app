@@ -5901,11 +5901,16 @@ function onHomeSleepTimeChange(v){
 /** 2026-08-03 リデザイン：HOME.todaybrief の起床時刻「変更」ボタン押下時
  * - Drive に保存
  * - ステータス表示を更新（「HH:MM に起床済み」）
- * - チェックマーク + 緑背景を 3 秒間表示 */
+ * - チェックマーク + 緑背景を 3 秒間表示
+ *
+ * 2026-08-06 修正：persistHabitChange を fire-and-forget に変更。
+ *   元は await していたが、Drive 往復の待ち時間で「変更」ボタン押下→緑チェック表示が遅く
+ *   ユーザビリティが悪かった。Task 編集系（saveTaskTitle 等）と同じ「UI 即時→裏で Drive」
+ *   パターンに揃える。失敗は persistHabitChange 内の console.error のみ。 */
 async function confirmHomeWakeTimeEdit(){
   const todayKey = d(0);
   if(wakeHabit.wakeTime[todayKey]){
-    await persistHabitChange(wakeHabit.id, { wake_time: wakeHabit.wakeTime });
+    persistHabitChange(wakeHabit.id, { wake_time: wakeHabit.wakeTime });
   }
   // ステータス表示を更新
   const statusEl = document.querySelector("#brief-wake-sleep .brief-wake-sleep-status");
@@ -5913,11 +5918,12 @@ async function confirmHomeWakeTimeEdit(){
   showCheckMark(document.getElementById("brief-wake-save-btn"));
 }
 
-/** 2026-08-03 リデザイン：HOME.todaybrief の就寝予定時刻「変更」ボタン押下時 */
+/** 2026-08-03 リデザイン：HOME.todaybrief の就寝予定時刻「変更」ボタン押下時
+ *  2026-08-06 修正：confirmHomeWakeTimeEdit と同じく fire-and-forget 化 */
 async function confirmHomeSleepTimeEdit(){
   const todayKey = d(0);
   if(sleepHabit.sleepPlannedTime[todayKey]){
-    await persistHabitChange(sleepHabit.id, { sleep_planned_time: sleepHabit.sleepPlannedTime });
+    persistHabitChange(sleepHabit.id, { sleep_planned_time: sleepHabit.sleepPlannedTime });
   }
   // ステータス表示を更新
   const statusEl = document.querySelectorAll("#brief-wake-sleep .brief-wake-sleep-status")[1];

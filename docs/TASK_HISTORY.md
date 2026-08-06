@@ -1792,6 +1792,46 @@
 
 ---
 
+## 2026-08-06 セッション（HOME 起床/就寝「変更」ボタン fire-and-forget 化）
+
+### Task 134: HOME 起床/就寝「変更」ボタンを fire-and-forget 化
+- **セッション / 日付**: 2026-08-06 セッション
+- **タスク名**: HOME.todaybrief の起床/就寝時刻「変更」ボタンの Drive 反映をバックグラウンド化し、UI を即時反映
+- **状態**: completed（成功）
+- **完了時の評価**: 成功
+- **備考**:
+  - **背景・ユーザーFB**：「起床時間とか就寝時間を変更したら、Driveに反映しに行くので、UI反映が遅くてユーザビリティが悪いです。そこでローカルに一時保存してUIに反映、そのあとバックグラウンドでDriveに反映しに行くのがいいかなと思っています」
+  - **調査による前提整理**：
+    - Task 編集系（4.4.2 節、`saveTaskTitle` / `saveTaskBody` 等）は既に fire-and-forget パターン確立済み（`persistTaskChange` を await なしで呼ぶ）
+    - 一方、HOME の `confirmHomeWakeTimeEdit` / `confirmHomeSleepTimeEdit` だけが `await persistHabitChange(...)` していて、UX 悪化の主因
+    - `persistHabitChange` 内に try-catch があり unhandled promise rejection は構造的に発生しないため、await を外しても安全
+  - **委任モードで着手する案 A**（最小修正、5 分で完了）：
+    - ユーザー了承：「一旦 A でいきましょう！」
+    - 変更：`await persistHabitChange(...)` → `persistHabitChange(...)`（2 関数 × 1 箇所ずつ = 計 2 箇所）
+    - 関数自体は `async function` のまま（呼び出し側のみ fire-and-forget）
+  - **案 B（リトライキュー）は保留**：失敗頻度を実感してから判断する方針。IndexedDB / localStorage 設計は「大きな設計変更」に該当するため、まず案 A 運用後に再評価
+  - **Playwright 検証**（OAuth なし環境）：
+    - 起動時 JS エラー：Google Identity Services CDN ブロックのみ（既存・想定済み）
+    - `renderTodayBrief()` 強制呼出し → `#brief-wake-save-btn` / `#brief-sleep-save-btn` が DOM に存在
+    - 押下前：`text="変更"` / `disabled=false` / `class="time-preset-btn time-edit-toggle"`
+    - 関数呼出し直後（同期部完了）：`text="✓"` / `disabled=true` / `class="...success-check"` ← **即時反映成功**
+    - `thrown: null`（同期部で例外なし）
+    - ステータス表示：`"07:30 に起床済み"` / `"22:00 に就寝予定"` ← メモリ上の値が即時反映
+    - Drive 未接続警告ログが wake/sleep の 2 件 = fire-and-forget で async 部が走った証跡
+    - unhandled promise rejection なし
+  - **影響範囲**：2 関数の `await` を取っただけ。仕様変更なし
+  - **透明性の報告**：
+    - 失敗時の挙動は Task 編集系と同じ：`console.error` のみ。リロードすると Drive 上の値で上書きされる（変更消失）
+    - Tackman さんに明示的に伝えていないが、これは 4.4.2 節で確立済みの挙動と同じ
+  - **ドキュメント更新**：
+    - 仕様書 4.4.4 節に「2026-08-06 修正：HOME 起床/就寝「変更」ボタンを fire-and-forget 化」セクションを追記
+    - 仕様書ヘッダーの最終更新日を 2026-08-06 に更新
+  - **JS 構文チェック OK**
+  - **目視確認は Tackman さんに依頼**（実機 Drive 接続での「変更」ボタン押下速度）
+- **関連コミット**: 未 commit
+
+---
+
 ## 関連ドキュメント
 
 - `docs/OAUTH_AND_STORAGE.md`：OAuth・LocalStorage・データアクセス権限
