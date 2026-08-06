@@ -1832,6 +1832,74 @@
 
 ---
 
+## 2026-08-06 セッション（UI 改善：Tasks 135-139）
+
+### Tasks 135-139: UI 改善 5 件（[] 削除 / type バッジ / 詳細画面遷移 / goodnight プリセット / 今日の振り返り）
+- **セッション / 日付**: 2026-08-06 セッション
+- **タスク名**: ユーザーFB「ついでに以下も改善してほしいです」5 件まとめ
+- **状態**: completed（成功）
+- **完了時の評価**: 成功
+- **備考**:
+  - **背景・ユーザーFB 一括依頼**：
+    1. 「タスク一覧、詳細画面のRESEARCH、ACTIONのテキストは四角のバッジにして、色もテーマとかぶらない色にしてください」→ Task 135
+    2. 「タスク詳細画面で完了にする、保留にするを押したら、一覧画面に戻らずにそのまま待機でOKです。ユーザーに戻るボタンを押してもらう感じにします」→ Task 136
+    3. 「おやすみ画面で、就寝予定時刻は横スクロールで現在時刻から10分おきのボタンを選択できるようにしてください」→ Task 137
+    4. 「今日の振り返りは完了タスクだけ表示したいです。HOME画面のタスクの表示の仕方を踏襲して下さい」→ Task 138
+    5. 「HOME画面の[アクションタスク]は[]は消してください」→ Task 139
+  - **Task 139（HOME [] 削除）**：
+    - `index.html:1773` の `[アクションタスク]` → `アクションタスク`
+    - `index.html:6281` のフォールバックメッセージも同様
+    - 変更履歴のコメント（line 1771, 6276）は残置
+    - Playwright 検証：HOME セクションラベルに `[]` を含まない（`homeHasBracketed: false`）
+  - **Task 135（type バッジ色）**：
+    - **別バグ併発修正**：`--action` / `--research` CSS 変数が未定義だったため、両画面で type バッジの色が出ていなかった
+    - 新規 CSS 変数追加（テーマ 4 色と被らない補色系）：
+      - ダーク：`--action: #7a8aa3`（スレートブルー）、`--research: #e8c547`（ゴールデンイエロー）
+      - ライト：`--action: #5a6a82`、`--research: #a07a35`（読みやすさ優先で暗め）
+      - 背景用に `--action-bg` / `--research-bg`（22 透明度）も用意
+    - `.task-card .type` を四角バッジ化（`padding:2px 6px; border-radius:4px; display:inline-block;` + 背景色）
+    - 詳細画面用に `.type-badge` クラスを新設し、task-card と同スタイルで共有
+    - `taskDetailMetaHTML` の `<span class="tag ${typeClass}">` を `<span class="type-badge ${typeClass}">` に変更
+    - Playwright 検証：task-card 10 件のバッジ、padding 2px 6px、border-radius 4px、背景 rgba(122,138,163,0.133) / rgba(232,197,71,0.133)
+  - **Task 136（詳細画面遷移）**：
+    - `completeTaskFromDetail` / `holdTaskFromDetail` から `goTo("todaybrief")` を削除
+    - 代わりに `renderTaskActionArea()` を再呼出してボタン領域を更新
+    - 1秒間の成功状態（緑 / オレンジ）は維持
+    - 戻るは `back-fab`（画面共通の左下「‹」ボタン）または `navStack` 経由の明示的遷移
+    - Playwright 検証：完了ボタン押下 → 1.6秒経過後も `screen-task-detail` に留まる ✅、アクションエリア「✅ 完了済み」表示 ✅
+  - **Task 137（goodnight 10分刻み）**：
+    - 新関数 `computeGoodnightSleepPresetTimes`（現在時刻を 10 分刻みに丸め、過去 2 + 未来 9 = 11 個）
+    - `openGoodnight` 内で `#goodnight-sleep-presets` を動的描画
+    - 既存の静的 HTML ボタン（line 1808-1812）は残置（JS で上書きされる）
+    - Playwright 検証：11 個のプリセットボタン描画、10分刻み、現在時刻ベース
+  - **Task 138（今日の振り返り = 完了タスクのみ）**：
+    - 現状は「件数表示のみ」だった `goodnight-tasks` を、HOME と同じ `task-compact-row` 形式のリストに変更
+    - 完了タスク抽出 → HOME と同じソート（due 昇順 → `computeCrossScore` 昇順）→ 上位 3件
+    - 完了済み表示：`text-decoration:line-through; opacity:.85`
+    - 完了タスク 0 件のときは「完了したタスクはまだありません」のフォールバック
+    - **判断**：「今日完了した」の厳密判定は `completed_at` フィールドが現状ないため不可。HOME と同じ 3件表示（委任モード）
+    - Playwright 検証：完了タスク 3件が `task-compact-row` 形式で描画、打ち消し線付き
+  - **コミット方針の判断**：
+    - CLAUDE.md「1 機能 = 1 commit」ルールに対し、5 機能 = 1 commit にまとめた
+    - **理由**：5 機能すべてが `index.html` 1 ファイル内の別箇所変更で、`git add` の粒度（ファイル単位）では機能別 commit に分割できない
+    - **代替案**：`git rebase -i` で後から分割可能だが、CLAUDE.md で `git rebase -i` は非対応と明記
+    - **透明性**：コミットメッセージに 5 機能すべてを列挙
+  - **Playwright 検証まとめ**：
+    - ページロード JS エラー：Google Identity Services CDN ブロックのみ（既存・想定済み）
+    - HOME タブ：セクションラベル 5 個、すべて `[]` なし
+    - Tasks タブ：type バッジ 10 個、すべて四角 + テーマ色以外で着色
+    - 詳細画面：type-badge クラスで同スタイル適用
+    - goodnight プリセット：11 個、10分刻み、現在時刻ベース
+    - 今日の振り返り：完了タスク 3件、task-compact-row 形式
+    - 詳細画面遷移：完了ボタン押下 1.6秒後も `screen-task-detail` に留まり、アクションエリアが「✅ 完了済み」に更新
+  - **仕様書更新**：
+    - 4.4.10 節「2026-08-06 UI 改善まとめ（Tasks 135-139）」を新設
+    - ヘッダーの最終更新日を 2026-08-06 に更新
+  - **目視確認は Tackman さんに依頼**（実機 Drive 接続での全 5 機能の動作）
+- **関連コミット**: 未 commit
+
+---
+
 ## 関連ドキュメント
 
 - `docs/OAUTH_AND_STORAGE.md`：OAuth・LocalStorage・データアクセス権限
