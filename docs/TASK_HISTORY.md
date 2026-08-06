@@ -1942,6 +1942,46 @@
 
 ---
 
+## 2026-08-06 セッション（プリセット未来のみ・完了取り消し・詳細画面ボタン統一）
+
+### Tasks 143-145: goodnight プリセット未来のみ / 完了取り消し / 詳細画面ボタン統一
+- **セッション / 日付**: 2026-08-06 セッション
+- **タスク名**: Tasks 140-142 の追加改善 3 件
+- **状態**: completed（成功）
+- **完了時の評価**: 成功（仕様変更 1 件含む）
+- **備考**:
+  - **背景・ユーザーFB**：
+    1. 「おやすみ画面の10分刻みボタンは現在時刻より未来のボタンのみでいいですよ」→ Task 143
+    2. 「完了ボタン押下した後は、もう一度ボタンを押して未完了に戻せるようにしてください」→ Task 144
+    3. 「お休み画面の今日の振り返りのタスクからタスク詳細に飛んだときは完了ボタン押下後のボタン保持が反映されていないように見えます。タスク詳細画面はすべて同じ設計でお願いします」→ Task 145
+  - **Task 143（プリセット未来のみ）**：
+    - `computeGoodnightSleepPresetTimes` のループ: `for(let i = -2; i < 9; i++)` → `for(let i = 0; i <= 10; i++)`
+    - 11個すべてが現在時刻以降（現在時刻 + 0分含む）
+    - 検証：22:38 時点で `22:40, 22:50, 23:00, 23:10, 23:20, 23:30, 23:40, 23:50, 00:00, 00:10, 00:20` の11個
+  - **Task 144（完了取り消し機能）**：
+    - **既存仕様変更**：旧「done 状態は取り消し不可」を「取り消し可」に変更（仕様書 line 665 該当）
+    - 新関数 `uncompleteTaskFromDetail` 追加（done → open 戻し）
+    - `completeTaskFromDetail` 完了後の表示を変更：
+      - `text="完了済み"`、`disabled=false`（押せる）、`title="もう一度押すと未完了に戻せます"`、`onclick="uncompleteTaskFromDetail()"`
+    - `uncompleteTaskFromDetail` 実装：Drive 永続化 + 1秒成功状態（「取り消し中」）+ `renderTaskActionArea()` で元に戻す
+    - ボタン取得は `querySelector("#td-action-area .btn-complete")` で id 依存を回避
+    - **透明性**：既存仕様を覆す変更だが、ユーザーの明示的要望により採用
+  - **Task 145（詳細画面ボタン統一）**：
+    - 問題：goodnight 完了タスクから詳細に飛んだ時、`renderTaskActionArea` の done 状態が「✅ 完了済み」テキストのみで、`completeTaskFromDetail` 押下後の「完了済み（押せる）」と**表示が違った**
+    - 修正：`renderTaskActionArea` の done 状態を「取り消し可ボタン」+「🗑️」ボタンに変更
+    - `openTaskDetail` 経由（goodnight の完了タスクから詳細に飛ぶ）と、`completeTaskFromDetail` 経由の**表示を統一**
+  - **Playwright 検証まとめ**：
+    - **Task 143**：`goodnightPresets = ['22:40', '22:50', ..., '00:20']`、`allFuture: true`、`count: 11` ✅
+    - **Task 144 完了シナリオ**：完了ボタン押下 → 1.3秒後 text="完了済み"、disabled=false、title="もう一度押すと未完了に戻せます"、onclick="uncompleteTaskFromDetail()" ✅
+    - **Task 144 取り消しシナリオ**：取り消しボタン押下 → 1.3秒後 text="取り消し中"、disabled=true ✅
+    - **Task 144 取り消し完了後**：text="完了にする"、disabled=false、hold="保留にする"（元の表示に戻る）✅
+    - **Task 145**：openTaskDetail で done タスクを開く → `td-uncomplete-btn` 取得、text="完了済み"、onclick="uncompleteTaskFromDetail()" ✅
+  - **仕様書更新**：4.4.10 節に「Tasks 143-145 追加」サブセクション追記
+  - **目視確認は Tackman さんに依頼**（実機 Drive 接続での動作）
+- **関連コミット**: 未 commit
+
+---
+
 ## 関連ドキュメント
 
 - `docs/OAUTH_AND_STORAGE.md`：OAuth・LocalStorage・データアクセス権限
