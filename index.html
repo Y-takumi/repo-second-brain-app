@@ -1804,7 +1804,7 @@ const vaultSeedFiles = [
       <input type="time" step="300" id="goodnight-sleep-time" onchange="updateSleepPlannedTimeNow(this.value)">
       <span class="brief-wake-sleep-status" id="goodnight-default-sleep-hint"></span>
     </div>
-    <div class="time-preset-row" id="goodnight-sleep-presets">
+    <div class="time-preset-row-scrollable" id="goodnight-sleep-presets">
       <button class="time-preset-btn" onclick="setSleepPlannedPreset('22:00')">22:00</button>
       <button class="time-preset-btn" onclick="setSleepPlannedPreset('22:30')">22:30</button>
       <button class="time-preset-btn" onclick="setSleepPlannedPreset('23:00')">23:00</button>
@@ -5660,8 +5660,12 @@ function renderTaskActionArea(){
  *
  * 2026-08-06 修正：HOME へ自動遷移する挙動を廃止。
  *   ユーザーFB「一覧画面に戻らずにそのまま待機でOKです。ユーザーに戻るボタンを押してもらう感じにします」
- *   → 成功状態（1秒）後に詳細画面に留まり、renderTaskActionArea() で表示を
- *     「✅ 完了済み」に更新する。戻るは back-fab または navStack 経由の明示的遷移 */
+ *   → 成功状態（1秒）後に詳細画面に留まり、ボタン個別制御で表示を更新。戻るは back-fab。
+ *
+ * 2026-08-06 追加修正：ボタン個別制御（ユーザーFB「ボタンは残したいです」）。
+ *   - 完了ボタン → text="完了済み" + disabled + .success クラス
+ *   - 保留ボタン → disabled + グレーアウト
+ *   - 削除ボタンはそのまま（押せる） */
 async function completeTaskFromDetail(){
   const t = taskById(currentTaskDetailId);
   if(!t || t.status === "done") return;
@@ -5672,7 +5676,7 @@ async function completeTaskFromDetail(){
   btn.textContent = "完了";
   // メモリ上を即座に done にする（HOME や Tasks タブ一覧で正しく消えるように）
   t.status = "done";
-  // 1秒間緑の成功状態を見せてから、詳細画面に留まったままアクションエリアを更新
+  // 1秒間緑の成功状態を見せてから、詳細画面に留まったままボタン状態を更新
   setTimeout(async () => {
     if(!googleAccessToken){
       console.warn("Drive 未接続：完了状態はメモリ上のみ。次回リロードで元に戻ります");
@@ -5684,9 +5688,19 @@ async function completeTaskFromDetail(){
         alert(`Drive保存に失敗しました：${e.message}\n次回のリロードまで変更は保持されません。`);
       }
     }
-    // 詳細画面に留まる。ボタン領域を「✅ 完了済み」表示に更新。
-    // 戻るは back-fab（画面共通の左下「‹」ボタン）でユーザー操作。
-    renderTaskActionArea();
+    // ボタン個別制御：完了ボタンは「完了済み」表示で disabled、保留ボタンは disabled（グレーアウト）
+    const completeBtn = document.getElementById("td-complete-btn");
+    const holdBtn = document.getElementById("td-hold-btn");
+    if(completeBtn){
+      completeBtn.textContent = "完了済み";
+      completeBtn.disabled = true;
+      completeBtn.classList.add("success");
+    }
+    if(holdBtn){
+      holdBtn.disabled = true;
+      holdBtn.style.opacity = "0.4";
+      holdBtn.style.cursor = "not-allowed";
+    }
   }, 1000);
 }
 
@@ -5695,7 +5709,12 @@ async function completeTaskFromDetail(){
  * - 1秒間オレンジの成功状態を表示（完了ボタンと同じ UX パターン）
  *
  * 2026-08-06 修正：HOME へ自動遷移する挙動を廃止（completeTaskFromDetail と同じ理由）。
- *   成功状態後に詳細画面に留まり、renderTaskActionArea() で「再開する」ボタン表示に更新 */
+ *   成功状態後に詳細画面に留まり、renderTaskActionArea() で「再開する」ボタン表示に更新
+ *
+ * 2026-08-06 追加修正：ボタン個別制御（ユーザーFB「ボタンは残したいです」）。
+ *   - 保留ボタン → text="再開する" + onclick=resumeTaskFromDetail() に変更 + 緑表示（押せる状態）
+ *   - 完了ボタン → disabled + グレーアウト
+ *   - 削除ボタンはそのまま */
 async function holdTaskFromDetail(){
   const t = taskById(currentTaskDetailId);
   if(!t || t.status !== "open") return;
@@ -5716,17 +5735,37 @@ async function holdTaskFromDetail(){
         alert(`Drive保存に失敗しました：${e.message}\n次回のリロードまで変更は保持されません。`);
       }
     }
-    // 詳細画面に留まる。ボタン領域を「再開する / 削除」に更新。
-    renderTaskActionArea();
+    // ボタン個別制御：保留ボタンは「再開する」表示（押せる）、完了ボタンは disabled
+    const completeBtn = document.getElementById("td-complete-btn");
+    const holdBtn = document.getElementById("td-hold-btn");
+    if(completeBtn){
+      completeBtn.disabled = true;
+      completeBtn.style.opacity = "0.4";
+      completeBtn.style.cursor = "not-allowed";
+    }
+    if(holdBtn){
+      holdBtn.textContent = "再開する";
+      holdBtn.classList.remove("btn-hold");
+      holdBtn.classList.add("btn-complete");
+      holdBtn.classList.add("success");
+      holdBtn.disabled = false;  // 押せる状態
+      // id は変えない（td-hold-btn のまま）。resumeTaskFromDetail 内の getElementById も td-hold-btn を参照する
+      holdBtn.setAttribute("onclick", "resumeTaskFromDetail()");
+    }
   }, 1000);
 }
 
 /** 2026-08-04 セッション：Task詳細画面の再開ボタン押下時（hold → open）。
- * - 1秒間緑の成功状態を見せてから HOME へ遷移 */
+ * - 1秒間緑の成功状態を表示
+ *
+ * 2026-08-06 修正：HOME へ自動遷移する挙動を廃止（completeTaskFromDetail / holdTaskFromDetail と同じ理由）。
+ *   詳細画面に留まり、renderTaskActionArea() で元の「完了 / 保留 / 🗑️」ボタン表示に戻す */
 async function resumeTaskFromDetail(){
   const t = taskById(currentTaskDetailId);
   if(!t || t.status !== "hold") return;
-  const btn = document.getElementById("td-resume-btn");
+  // 2026-08-06 修正：getElementById の id を td-hold-btn に変更。
+  //   holdTaskFromDetail で「再開する」ボタンに変わる際、id は td-hold-btn のまま保持される
+  const btn = document.getElementById("td-hold-btn");
   if(!btn || btn.disabled) return; // 連続押下防止
   btn.disabled = true;
   btn.classList.add("success");
@@ -5743,8 +5782,8 @@ async function resumeTaskFromDetail(){
         alert(`Drive保存に失敗しました：${e.message}\n次回のリロードまで変更は保持されません。`);
       }
     }
-    renderTodayBrief();
-    goTo("todaybrief");
+    // 詳細画面に留まる。ボタン領域を「完了 / 保留 / 🗑️」に戻す。
+    renderTaskActionArea();
   }, 1000);
 }
 
@@ -6437,7 +6476,7 @@ async function openGoodnight(){
   const completedList = [...new Map([...completedDueTasks, ...completedByScore].map(t=>[t.id,t])).values()].slice(0,3);
   const completedHtml = completedList.length
     ? completedList.map(t => `
-        <div class="task-compact-row" style="cursor:default; opacity:.85;">
+        <div class="task-compact-row" style="cursor:pointer; opacity:.85;" onclick="openTaskDetail('${t.id}')">
           <span class="dep" style="color:var(--ink-dim); font-size:11.5px; text-decoration:line-through;">✅ ${escapeHtml(t.text)}${t.due?` <span style="color:var(--ink-faint);">・due ${t.due}</span>`:""}</span>
         </div>`).join("")
     : `<div class="summary-preview-text" style="color:var(--ink-faint); font-size:11px;">完了したタスクはまだありません</div>`;
