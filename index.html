@@ -502,12 +502,14 @@
   /* 2026-08-06 修正：type バッジを四角化（背景色 + padding + border-radius）。
      色は --action / --research を使用。テーマ 4 色とは明確に区別。
      .task-card の一覧カード用と、.type-badge クラスで詳細画面でも同じスタイルを共有 */
-  .task-card .type{font-size:10px; font-family:var(--mono); text-transform:uppercase; padding:3px 8px; border-radius:4px; display:inline-block; background:var(--action-bg); color:var(--action); flex-shrink:0; line-height:1.2;}
+  .task-card .type{font-size:10px; font-family:var(--mono); text-transform:uppercase; height:18px; line-height:18px; padding:0 8px; border-radius:4px; display:inline-block; background:var(--action-bg); color:var(--action); flex-shrink:0; box-sizing:border-box; overflow:hidden; vertical-align:middle;}
   .task-card .type.action{background:var(--action-bg); color:var(--action);}
   .task-card .type.research{background:var(--research-bg); color:var(--research);}
   /* 詳細画面用 type-badge クラス（task-card と同スタイル）。
-     2026-08-06 修正：padding/font-size を .tag（mind/business ピル）と揃えてバッジ高さを統一。 */
-  .type-badge{font-size:10px; font-family:var(--mono); text-transform:uppercase; padding:3px 8px; border-radius:4px; display:inline-block; line-height:1.2;}
+     2026-08-06 修正：padding/font-size を .tag（mind/business ピル）と揃えてバッジ高さを統一。
+     2026-08-06 追加修正：height:18px + line-height:18px + overflow:hidden で物理的に高さを固定。
+       フォントの ascender/descender が line box を超えて描画される問題（環境依存）を防ぐ */
+  .type-badge{font-size:10px; font-family:var(--mono); text-transform:uppercase; height:18px; line-height:18px; padding:0 8px; border-radius:4px; display:inline-block; box-sizing:border-box; overflow:hidden; vertical-align:middle;}
   .type-badge.action{background:var(--action-bg); color:var(--action);}
   .type-badge.research{background:var(--research-bg); color:var(--research);}
   .task-card .branch-path{font-size:10.5px; font-family:var(--mono); color:var(--ink-dim);}
@@ -768,10 +770,10 @@
   .k-card{background:var(--surface); border:1px solid var(--border); border-radius:14px; padding:14px 16px; margin-bottom:10px;}
   .k-card .title{font-size:13.5px; color:var(--ink); line-height:1.5; margin-bottom:8px;}
   .k-meta{display:flex; align-items:center; gap:8px; flex-wrap:wrap;}
-  .tag{font-size:10px; padding:3px 8px; border-radius:20px; font-family:var(--mono); line-height:1.2;}
+  .tag{font-size:10px; padding:0 8px; border-radius:20px; font-family:var(--mono); height:18px; line-height:18px; box-sizing:border-box; overflow:hidden; display:inline-block; vertical-align:middle;}
   .conf-bar{flex:1; min-width:60px; height:4px; background:var(--border); border-radius:2px; overflow:hidden;}
   .conf-fill{height:100%; border-radius:2px;}
-  .conf-num{font-family:var(--mono); font-size:10px; color:var(--ink-dim); line-height:1.2; padding:3px 0;}
+  .conf-num{font-family:var(--mono); font-size:10px; color:var(--ink-dim); height:18px; line-height:18px; padding:0; box-sizing:border-box; overflow:hidden; display:inline-block; vertical-align:middle;}
 
   .task-row{display:flex; align-items:center; gap:10px; padding:10px 0; border-bottom:1px solid var(--border);}
   .checkbox{width:18px;height:18px;border-radius:5px;border:1.5px solid var(--ink-faint); flex-shrink:0;}

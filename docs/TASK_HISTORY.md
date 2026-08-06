@@ -2006,6 +2006,38 @@
 
 ---
 
+## 2026-08-06 セッション（バッジ高さ物理固定）
+
+### Task 147: バッジ高さ物理固定（height: 18px 明示）
+- **セッション / 日付**: 2026-08-06 セッション
+- **タスク名**: type-badge / conf-num / tag の高さを物理的に 18px に固定
+- **状態**: completed（成功）
+- **完了時の評価**: 成功
+- **備考**:
+  - **背景**：Task 146 で line-height: 1.2 + padding: 3px 8px で bounding rect は 18px になっていたが、ユーザー環境で「ハードリロードしてもまだずれている」報告
+  - **原因**：フォント（`var(--mono)` = `ui-monospace,"SF Mono",Menlo,Consolas,monospace`）の ascender/descender が line box を超えて描画され、**bounding rect と visual rendering がズレる**。環境依存
+  - **Playwright 検証**：3 要素とも height: 18px、line-height: 18px、padding: 0px 8px で物理的に揃っている ✅
+  - **修正**：
+    - `.type-badge` / `.task-card .type` / `.tag` / `.conf-num` すべてに以下を追加
+      - `height: 18px`
+      - `line-height: 18px`（line box = height で font 10px が中央配置）
+      - `padding: 0 8px`（左右 8px、上下 0）
+      - `box-sizing: border-box`
+      - `overflow: hidden`（glyph はみ出し防止）
+      - `vertical-align: middle`
+      - `display: inline-block`
+  - **判断理由**：
+    - フォント環境に依存しない解決
+    - line-height 18px で font 10px が中央配置（vertical-align 的な効果）
+    - overflow: hidden で万一の glyph はみ出しを隠す
+  - **トレードオフ**：
+    - `.tag` の line-height を 18px にしたので、Library カード / Note カード / Task カードの #tag 等でも font が縦中央配置になる（padding: 3px 8px → 0 8px で見た目は少し変わるが、line-height 18px で 4px 上下余白なので元の見た目に近い）
+  - **仕様書更新**：4.4.11 節に「2026-08-06 追加修正（Task 147）」追記
+  - **目視確認は Tackman さんに依頼**（実機ブラウザ）
+- **関連コミット**: 未 commit
+
+---
+
 ## 関連ドキュメント
 
 - `docs/OAUTH_AND_STORAGE.md`：OAuth・LocalStorage・データアクセス権限
