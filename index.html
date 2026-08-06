@@ -5576,23 +5576,28 @@ function taskDetailMetaHTML(t){
   const branch = t.branch || "";
   const tags = t.tags || [];
 
-  // 1 行目：type uppercase + priority
+  // 1 行目：type uppercase + priority + テーマタグ
+  // 2026-08-06 追加修正：テーマタグを別div(.note-theme-tags)に分けると margin-top:10px で
+  //   「優先度」より 10px 下にずれて「揃っていない」ように見える問題があった。
+  //   1 行目に統合し、justify-content:space-between で左(type+priority)/右(theme)に分け、
+  //   align-items:center ですべてのバッジの縦位置を揃える。
   const typeLabel = t.type === "action" ? "ACTION" : t.type === "research" ? "RESEARCH" : (t.type || "").toUpperCase();
   const typeClass = t.type === "action" ? "action" : t.type === "research" ? "research" : "";
-  const topRow = `
-    <div class="note-header-top" style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
-      <span class="type-badge ${typeClass}">${escapeHtml(typeLabel)}</span>
-      <span class="conf-num" style="font-family:var(--mono); color:var(--ink-dim);">優先度 ${escapeHtml(String(t.priority))}</span>
-    </div>
-  `;
-
-  // 2 行目：テーマタグ（最大 3 件、Library と同じ .tag スタイル）
   const themeTags = (t.themes||[]).slice(0, 3).map(x =>
     `<span class="tag" style="background:${themeColors[x]||primaryColor}22; color:${themeColors[x]||primaryColor}">${escapeHtml(x)}</span>`
   ).join("");
-  const themeRow = themeTags
-    ? `<div class="note-theme-tags" style="display:flex; gap:6px; margin-top:10px; flex-wrap:wrap;">${themeTags}</div>`
-    : "";
+  const topRow = `
+    <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap; justify-content:space-between;">
+      <div style="display:flex; align-items:center; gap:8px;">
+        <span class="type-badge ${typeClass}">${escapeHtml(typeLabel)}</span>
+        <span class="conf-num" style="font-family:var(--mono); color:var(--ink-dim);">優先度 ${escapeHtml(String(t.priority))}</span>
+      </div>
+      ${themeTags ? `<div style="display:flex; align-items:center; gap:6px;">${themeTags}</div>` : ""}
+    </div>
+  `;
+
+  // 2 行目：テーマタグは 1 行目に統合済みのため空
+  const themeRow = "";
 
   // 3 行目：branch-path（テーマ名 › カテゴリ枝）
   const branchPath = (themeLabel || branch)
