@@ -1223,7 +1223,7 @@ const vaultSeedFiles = [
         <div style="display:flex; justify-content:flex-end; align-items:center; gap:8px; flex-wrap:wrap; margin-top:12px;">
           <span id="cap-journal-status" class="settings-hint" style="margin-right:auto;"></span>
           <button class="btn-secondary" style="width:auto; padding:9px 16px; font-size:12.5px;" onclick="saveDraftNow()">下書きに保存</button>
-          <button class="btn-primary" style="width:auto; padding:9px 16px; font-size:12.5px; display:flex; align-items:center; gap:6px;" onclick="startJournalProcessing()">
+          <button id="btn-start-journal-processing" class="btn-primary" style="width:auto; padding:9px 16px; font-size:12.5px; display:flex; align-items:center; gap:6px;" onclick="startJournalProcessing()">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" style="width:15px;height:15px;"><path d="M13 2L3 14h7l-1 8 10-12h-7l1-8z"/></svg>
             処理する
           </button>
@@ -2986,6 +2986,11 @@ async function startJournalProcessing(){
   const journalText = textEl.value.trim();
   if(!journalText){ statusEl.textContent = "内容を入力してください"; return; }
   if(!googleAccessToken){ statusEl.textContent = "先に開発者設定からGoogle Driveと連携してください"; return; }
+  // 2026-08-06 Task 151 追加：他の処理が進行中なら連続押下を防止
+  if(loadDraftsFromStorage().some(d => d.status === "processing")){
+    statusEl.textContent = "他の処理を完了するまでお待ちください";
+    return;
+  }
 
   // 2026-08-06 Task 150 追加：
   //   - 押下時に textarea をクリア（即座に次の入力UIを提供）
@@ -4769,6 +4774,7 @@ function renderDraftList(){
   const drafts = loadDraftsFromStorage();
   if(!drafts.length){
     wrap.innerHTML = `<div class="settings-hint">入力中のジャーナルがあると、ここに表示されます（自動保存）</div>`;
+    setJournalButtonState(); // 2026-08-06 Task 151：処理ボタンの活性状態を更新
     return;
   }
   wrap.innerHTML = drafts.map(d => {
@@ -4817,6 +4823,24 @@ function renderDraftList(){
       </div>
     `;
   }).join("");
+  setJournalButtonState(); // 2026-08-06 Task 151：処理ボタンの活性状態を更新
+}
+// 2026-08-06 Task 151 追加：処理中レコードがある場合、処理するボタンを非活性にする
+function setJournalButtonState(){
+  const btn = document.getElementById("btn-start-journal-processing");
+  if(!btn) return;
+  const hasProcessing = loadDraftsFromStorage().some(d => d.status === "processing");
+  if(hasProcessing){
+    btn.disabled = true;
+    btn.style.opacity = "0.45";
+    btn.style.cursor = "not-allowed";
+    btn.title = "他の処理を完了するまでお待ちください";
+  } else {
+    btn.disabled = false;
+    btn.style.opacity = "1";
+    btn.style.cursor = "pointer";
+    btn.title = "";
+  }
 }
 // 2026-08-06 Task 150 追加：処理結果を見るボタン押下時
 function openProcessedDraftResult(draftId){
