@@ -17,6 +17,11 @@
     --ink:#f7f5f2; --ink-dim:#bcb9c9; --ink-faint:#8d8a9b;
     --healthcare:#5ec8a6; --business:#e2a63b; --mind:#c98fd6; --relationships:#d9678c;
     --primary:#9b8afb; --primary-soft:#9b8afb22;
+    /* 2026-08-06 追加：Task type バッジ専用色。テーマ 4 色（healthcare/business/mind/relationships）
+       とかぶらない補色系を選んだ。action=スレートブルー（ニュートラル）、
+       research=ゴールデンイエロー（暖色だがテーマに無い） */
+    --action:#7a8aa3; --action-bg:#7a8aa322;
+    --research:#e8c547; --research-bg:#e8c54722;
     --serif: -apple-system,BlinkMacSystemFont,"Segoe UI","Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif;
     --sans: -apple-system,BlinkMacSystemFont,"Segoe UI","Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif;
     --mono: ui-monospace,"SF Mono",Menlo,Consolas,monospace;
@@ -27,6 +32,9 @@
     --ink:#3a2f20; --ink-dim:#7d6a4d; --ink-faint:#ab9670;
     --healthcare:#2f9c78; --business:#c9791c; --mind:#9a5aa8; --relationships:#b8446a;
     --primary:#8a6fd1; --primary-soft:#8a6fd11f;
+    /* 2026-08-06 追加：ライトテーマ版 type バッジ色（暗めで読みやすく） */
+    --action:#5a6a82; --action-bg:#5a6a8222;
+    --research:#a07a35; --research-bg:#a07a3522;
   }
   .phone.theme-light{ background:linear-gradient(180deg, #fff3dd 0%, var(--bg) 22%, var(--bg) 100%); }
   *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
@@ -491,9 +499,16 @@
   /* 2026-08-05 夜セッション：カード表示を Library（探索タブ）の .note-card と統一。
      .top（テーマドット → type uppercase → branch-path → due）、.title、tag 行の順。 */
   .task-card .top{display:flex; align-items:center; gap:8px; margin-bottom:6px; flex-wrap:wrap;}
-  .task-card .type{font-size:9.5px; font-family:var(--mono); color:var(--ink-faint); text-transform:uppercase;}
-  .task-card .type.action{color:var(--action);}
-  .task-card .type.research{color:var(--research);}
+  /* 2026-08-06 修正：type バッジを四角化（背景色 + padding + border-radius）。
+     色は --action / --research を使用。テーマ 4 色とは明確に区別。
+     .task-card の一覧カード用と、.type-badge クラスで詳細画面でも同じスタイルを共有 */
+  .task-card .type{font-size:9.5px; font-family:var(--mono); text-transform:uppercase; padding:2px 6px; border-radius:4px; display:inline-block; background:var(--action-bg); color:var(--action); flex-shrink:0;}
+  .task-card .type.action{background:var(--action-bg); color:var(--action);}
+  .task-card .type.research{background:var(--research-bg); color:var(--research);}
+  /* 詳細画面用 type-badge クラス（task-card と同スタイル） */
+  .type-badge{font-size:9.5px; font-family:var(--mono); text-transform:uppercase; padding:2px 6px; border-radius:4px; display:inline-block;}
+  .type-badge.action{background:var(--action-bg); color:var(--action);}
+  .type-badge.research{background:var(--research-bg); color:var(--research);}
   .task-card .branch-path{font-size:10.5px; font-family:var(--mono); color:var(--ink-dim);}
   .task-card .branch-path .theme-name{color:var(--ink-faint); margin-right:2px;}
   .task-card .title{font-size:13.5px; color:var(--ink); line-height:1.5; font-family:var(--serif);}
@@ -1769,8 +1784,9 @@ const vaultSeedFiles = [
     <div id="brief-research-tasks"></div>
 
     <!-- 2026-08-04 セッション：気になっている TASK を [アクションタスク] にリネーム。
+         2026-08-06 修正：[] 表記を削除（ユーザーFB「[]は消してください」）。
          保留中のタスク一覧は HOME から削除（保留機能自体はタスク詳細画面で残す）。 -->
-    <div class="section-label" style="margin-top:26px;">[アクションタスク]</div>
+    <div class="section-label" style="margin-top:26px;">アクションタスク</div>
     <div id="brief-tasks"></div>
   </div>
 
@@ -5562,7 +5578,7 @@ function taskDetailMetaHTML(t){
   const typeClass = t.type === "action" ? "action" : t.type === "research" ? "research" : "";
   const topRow = `
     <div class="note-header-top" style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
-      <span class="tag ${typeClass}" style="background:var(--ink-faint)22; color:${t.type==='action'?'var(--action)':t.type==='research'?'var(--research)':'var(--ink-dim)'};">${escapeHtml(typeLabel)}</span>
+      <span class="type-badge ${typeClass}">${escapeHtml(typeLabel)}</span>
       <span class="conf-num" style="font-family:var(--mono); font-size:10.5px; color:var(--ink-dim);">優先度 ${escapeHtml(String(t.priority))}</span>
     </div>
   `;
@@ -5637,10 +5653,15 @@ function renderTaskActionArea(){
 }
 
 /** 2026-08-03 夜セッション：Task詳細画面の完了ボタン押下時。
- * - 押下後、ボタンを緑化し、1秒後に HOME 画面へ遷移
+ * - 押下後、ボタンを緑化し、1秒間その状態を維持
  * - 連続押下防止のためボタンを disabled 化
  * - メモリ上は即座に done にして HOME の再描画でタスクを消す
- * - Drive 永続化は遷移後にバックグラウンドで実行（UX 優先） */
+ * - Drive 永続化はバックグラウンドで実行（UX 優先）
+ *
+ * 2026-08-06 修正：HOME へ自動遷移する挙動を廃止。
+ *   ユーザーFB「一覧画面に戻らずにそのまま待機でOKです。ユーザーに戻るボタンを押してもらう感じにします」
+ *   → 成功状態（1秒）後に詳細画面に留まり、renderTaskActionArea() で表示を
+ *     「✅ 完了済み」に更新する。戻るは back-fab または navStack 経由の明示的遷移 */
 async function completeTaskFromDetail(){
   const t = taskById(currentTaskDetailId);
   if(!t || t.status === "done") return;
@@ -5649,9 +5670,9 @@ async function completeTaskFromDetail(){
   btn.disabled = true;
   btn.classList.add("success");
   btn.textContent = "完了";
-  // メモリ上を即座に done にして HOME に戻った時にタスクが一覧から消えるようにする
+  // メモリ上を即座に done にする（HOME や Tasks タブ一覧で正しく消えるように）
   t.status = "done";
-  // 1秒間緑の成功状態を見せてから HOME へ遷移
+  // 1秒間緑の成功状態を見せてから、詳細画面に留まったままアクションエリアを更新
   setTimeout(async () => {
     if(!googleAccessToken){
       console.warn("Drive 未接続：完了状態はメモリ上のみ。次回リロードで元に戻ります");
@@ -5663,14 +5684,18 @@ async function completeTaskFromDetail(){
         alert(`Drive保存に失敗しました：${e.message}\n次回のリロードまで変更は保持されません。`);
       }
     }
-    renderTodayBrief();
-    goTo("todaybrief");
+    // 詳細画面に留まる。ボタン領域を「✅ 完了済み」表示に更新。
+    // 戻るは back-fab（画面共通の左下「‹」ボタン）でユーザー操作。
+    renderTaskActionArea();
   }, 1000);
 }
 
 /** 2026-08-04 セッション：Task詳細画面の保留ボタン押下時。
  * - open → hold に変更
- * - 1秒間オレンジの成功状態を見せてから HOME へ遷移（完了ボタンと同じ UX パターン） */
+ * - 1秒間オレンジの成功状態を表示（完了ボタンと同じ UX パターン）
+ *
+ * 2026-08-06 修正：HOME へ自動遷移する挙動を廃止（completeTaskFromDetail と同じ理由）。
+ *   成功状態後に詳細画面に留まり、renderTaskActionArea() で「再開する」ボタン表示に更新 */
 async function holdTaskFromDetail(){
   const t = taskById(currentTaskDetailId);
   if(!t || t.status !== "open") return;
@@ -5691,8 +5716,8 @@ async function holdTaskFromDetail(){
         alert(`Drive保存に失敗しました：${e.message}\n次回のリロードまで変更は保持されません。`);
       }
     }
-    renderTodayBrief();
-    goTo("todaybrief");
+    // 詳細画面に留まる。ボタン領域を「再開する / 削除」に更新。
+    renderTaskActionArea();
   }, 1000);
 }
 
@@ -5959,6 +5984,28 @@ function computeWakePresetTimes(){
   const out = [];
   for(let i = -11; i <= 0; i++){
     let totalMin = baseHour * 60 + baseMin + i * 5;
+    if(totalMin < 0) totalMin += 24 * 60;
+    if(totalMin >= 24 * 60) totalMin -= 24 * 60;
+    const h = Math.floor(totalMin / 60);
+    const m = totalMin % 60;
+    out.push(`${String(h).padStart(2,"0")}:${String(m).padStart(2,"0")}`);
+  }
+  return out;
+}
+
+/** 2026-08-06 追加：おやすみ画面の就寝予定プリセット。
+ * ユーザーFB「現在時刻から10分おきのボタンを選択できるようにしてください」
+ * - 現在時刻を 10 分刻みに丸め、過去 2 個 + 未来 9 個 = 11 個を生成
+ * - 24時をまたぐ場合は 0:00, 0:10, ... と折り返す
+ * - goodnight 画面の #goodnight-sleep-presets に横スクロールで描画
+ * - 選択中の時刻は .active クラスでハイライト（setSleepPlannedPreset で制御） */
+function computeGoodnightSleepPresetTimes(){
+  const now = new Date();
+  const baseMin = Math.floor(now.getMinutes() / 10) * 10;
+  const baseHour = now.getHours();
+  const out = [];
+  for(let i = -2; i < 9; i++){
+    let totalMin = baseHour * 60 + baseMin + i * 10;
     if(totalMin < 0) totalMin += 24 * 60;
     if(totalMin >= 24 * 60) totalMin -= 24 * 60;
     const h = Math.floor(totalMin / 60);
@@ -6278,7 +6325,7 @@ function renderTodayBrief(){
     <div class="task-compact-row" style="cursor:pointer; opacity:.95;" onclick="openTaskDetail('${t.id}')">
       <span class="dep" style="color:var(--ink); font-size:11.5px;">▶️ ${t.text}${t.due?` <span style="color:var(--business);">・due ${t.due}</span>`:""}</span>
     </div>`
-  ).join("") || `<div class="summary-preview-text" style="color:var(--ink-faint); font-size:11px;">[アクションタスク]はまだありません</div>`;
+  ).join("") || `<div class="summary-preview-text" style="color:var(--ink-faint); font-size:11px;">アクションタスクはまだありません</div>`;
 
   // 2026-08-04 セッション：生活リズムを HOME に移動したため、HOME 表示時にもリズムチャートを更新
   if(typeof renderRhythmChart === "function") renderRhythmChart();
@@ -6370,11 +6417,31 @@ async function openGoodnight(){
   document.getElementById("goodnight-sleep-time").value = sleepHabit.sleepPlannedTime[todayKey] || computeDefaultSleepPlannedTime();
   document.getElementById("goodnight-default-sleep-hint").textContent = `目標 ${appSettings.targetSleepTime} (現在時刻ベース)`;
 
+  // 2026-08-06 追加：就寝予定時刻のプリセットボタン（現在時刻から 10 分刻み、横スクロール）
+  // ユーザーFB「現在時刻から10分おきのボタンを選択できるようにしてください」
+  const sleepPlannedTime = sleepHabit.sleepPlannedTime[todayKey] || "";
+  const sleepPresets = computeGoodnightSleepPresetTimes();
+  document.getElementById("goodnight-sleep-presets").innerHTML = sleepPresets
+    .map(t => `<button class="time-preset-btn ${t===sleepPlannedTime?"active":""}" onclick="setSleepPlannedPreset('${t}')">${t}</button>`)
+    .join("");
+
   const doneCount = taskData.filter(t=>t.status==="done").length;
   // 2026-08-05：先行タスク機能停止 → isBlocked 条件を削除
   const openCount = taskData.filter(t=>t.status==="open").length;
-  document.getElementById("goodnight-tasks").innerHTML = `
-    <div class="k-card"><div class="title" style="font-size:13px;">✅ 完了済み ${doneCount}件 ・ 残り ${openCount}件</div></div>`;
+  // 2026-08-06 修正：完了タスクを HOME のアクションタスク表示（task-compact-row 形式、優先度ソート + 上位 3件）と同じ形式で表示
+  // ユーザーFB「今日の振り返りは完了タスクだけ表示したいです。HOME画面のタスクの表示の仕方を踏襲して下さい」
+  // 完了済みなので、due ソートは open ほど重要ではないが、HOME と同じ優先度で並べる
+  const completedTasks = taskData.filter(t=>t.status==="done");
+  const completedDueTasks = completedTasks.filter(t=>t.due).sort((a,b)=> new Date(a.due) - new Date(b.due));
+  const completedByScore = [...completedTasks].sort((a,b)=> computeCrossScore(a)-computeCrossScore(b));
+  const completedList = [...new Map([...completedDueTasks, ...completedByScore].map(t=>[t.id,t])).values()].slice(0,3);
+  const completedHtml = completedList.length
+    ? completedList.map(t => `
+        <div class="task-compact-row" style="cursor:default; opacity:.85;">
+          <span class="dep" style="color:var(--ink-dim); font-size:11.5px; text-decoration:line-through;">✅ ${escapeHtml(t.text)}${t.due?` <span style="color:var(--ink-faint);">・due ${t.due}</span>`:""}</span>
+        </div>`).join("")
+    : `<div class="summary-preview-text" style="color:var(--ink-faint); font-size:11px;">完了したタスクはまだありません</div>`;
+  document.getElementById("goodnight-tasks").innerHTML = completedHtml;
 
   // プリセット Habit（wake/sleep/weight）と habitData を結合
   const presetHabits = [];
