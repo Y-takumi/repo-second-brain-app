@@ -2263,6 +2263,7 @@ async function handleGoogleAuthResult(tokenResponse){
     refreshTasksFromDrive();
     refreshGreatMindFromDrive();
     refreshHabitFromDrive();
+    refreshEdgesFromDrive();
   } catch(err){
     document.getElementById("drive-status-text").textContent = "連携済み（フォルダ確認でエラー）";
     document.getElementById("drive-hint").textContent = `接続はできましたが、フォルダの確認/作成でエラーが出ました：${err.message}`;
@@ -2489,6 +2490,7 @@ async function uploadVaultToDrive(){
     refreshTasksFromDrive();
     refreshGreatMindFromDrive();
     refreshHabitFromDrive();
+    refreshEdgesFromDrive();
     showParserSummary(resultEl);
   } catch(err){
     resultEl.textContent = `❌ エラー：${err.message}`;
@@ -3465,6 +3467,58 @@ async function loadKnowledgeFromDrive(){
     });
   }
   return items;
+}
+
+/** 10_Edges/edges.json から実データを読み込む（ファイルなし/中身空なら空配列、Task 153 で追加） */
+async function loadEdgesFromDrive(){
+  const rootId = await ensureVaultFolder();
+  const folderId = await findOrCreateFolder("10_Edges", rootId);
+  // edges.json を直接検索（listDriveFolderFiles は .md フィルタなので使えない）
+  const q = `'${folderId}' in parents and trashed=false and name='edges.json'`;
+  const res = await fetch(
+    `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(q)}&fields=files(id,name)`,
+    { headers: { Authorization: `Bearer ${googleAccessToken}` } }
+  );
+  if(!res.ok) throw new Error(`edges.json 検索失敗 (${res.status})`);
+  const data = await res.json();
+  const edgesFile = (data.files && data.files[0]);
+  if(!edgesFile) return []; // ファイルなし → 空配列
+  const raw = await readDriveFileContent(edgesFile.id);
+  const { frontmatter: fm, body } = parseFrontmatter(raw);
+  try{
+    const parsed = JSON.parse(body);
+    return parsed.edges || [];
+  } catch(e){
+    console.error("edges.json パースエラー:", e);
+    return [];
+  }
+}
+
+/** 10_Edges/edges.json を保存する（Task 153 で追加） */
+async function saveEdgesToDrive(edges){
+  const rootId = await ensureVaultFolder();
+  const folderId = await findOrCreateFolder("10_Edges", rootId);
+  const fm = {
+    type: "edges",
+    schema_version: 1,
+    updated: new Date().toISOString().slice(0,10),
+  };
+  const body = JSON.stringify({ edges }, null, 2);
+  const content = buildFrontmatterFile(fm, body);
+  await createOrUpdateFile("edges.json", folderId, content);
+}
+
+/** Drive から edges.json を読み込んで edgesData を更新（OAuth 認証後に呼び出す、Task 153 で追加） */
+async function refreshEdgesFromDrive(){
+  if(!googleAccessToken) return;
+  try{
+    const items = await loadEdgesFromDrive();
+    edgesData.length = 0;
+    edgesData.push(...items);
+    console.log(`edges.json ロード成功: ${items.length}件のエッジ`);
+  } catch(e){
+    console.error("edges.json 読み込みエラー:", e);
+  }
 }
 
 /** 06_GreatMind/ から実データを読み込み、greatMindData配列を丸ごと差し替える（新：独立ファイル＋idあり構造） */
@@ -4964,6 +5018,9 @@ const taskData = [
   { id:"20260707-task-03", type:"research", text:"お金の計画ツールを第二の脳に統合するか、別ツールにするか検討する", themes:["business"], priority:8, status:"open", dependsOn:[], created:"2026-07-07", due:null, lastConfirmed:null },
 ];
 const taskThemeNames = {healthcare:"Healthcare", business:"Business", mind:"Mind", relationships:"Relationships"};
+
+/** Knowledge間の関連性エッジ配列（10_Edges/edges.json から読み込む、Task 153 で追加） */
+const edgesData = [];
 const focusedThemeAt = {}; // theme -> Dateオブジェクト。フォーカス確認で選ばれた時刻
 
 function daysSince(dateStr){ return Math.floor((APP_TODAY - new Date(dateStr)) / 86400000); }
