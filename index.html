@@ -4018,6 +4018,9 @@ function renderGraph(theme, event){
   currentFocus = null;
   document.querySelectorAll(".gtab").forEach(t=>t.classList.toggle("active", t===event?.currentTarget || t.dataset.theme===theme));
   buildGraph();
+  // Task A: 下部のノート / ナレッジカードもテーマ変更に連動して再描画
+  if(typeof renderLibrary === "function") renderLibrary();
+  if(typeof renderKnowledgeList === "function") renderKnowledgeList(currentFocus);
 }
 
 function buildGraph(){
