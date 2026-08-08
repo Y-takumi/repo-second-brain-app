@@ -4304,6 +4304,9 @@ function runSearch(){
   if(!query){
     searchResultsEl.style.display = "none";
     list.innerHTML = "";
+    // Task 175: 両タブ再描画（ノート / ナレッジ）
+    if(typeof renderLibrary === "function") renderLibrary();
+    if(typeof renderKnowledgeList === "function") renderKnowledgeList(currentFocus);
     return;
   }
 
@@ -4320,6 +4323,9 @@ function runSearch(){
   searchResultsEl.style.display = "block";
   if(!results.length){
     list.innerHTML = `<div class="summary-preview-text" style="color:var(--ink-faint); padding:14px;">「${query.replace(/</g,"&lt;")}」に一致するナレッジはありません</div>`;
+    // Task 175: 両タブ再描画（ノート / ナレッジ）
+    if(typeof renderLibrary === "function") renderLibrary();
+    if(typeof renderKnowledgeList === "function") renderKnowledgeList(currentFocus);
     return;
   }
 
@@ -4332,6 +4338,9 @@ function runSearch(){
         <div class="match">${n.theme || ""}${n.parent ? " ・ "+n.parent : ""}${n.confidence !== undefined ? " ・ confidence "+n.confidence : ""}</div>
       </div>
     </div>`).join("");
+  // Task 175: 両タブ再描画（ノート / ナレッジ）
+  if(typeof renderLibrary === "function") renderLibrary();
+  if(typeof renderKnowledgeList === "function") renderKnowledgeList(currentFocus);
 }
 
 // 候補を選んだ（ステップ1→2）：どちらの見方で開くか選ばせる
