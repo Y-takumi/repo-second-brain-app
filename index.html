@@ -1569,27 +1569,6 @@ const vaultSeedFiles = [
 
     <input class="url-input" id="graph-search-input" placeholder="ナレッジタイトル、テーマ、カテゴリ、タグで検索する" oninput="runSearch()" style="margin:0;">
 
-    <!-- 検索候補（ステップ1：選ぶ） -->
-    <div id="search-results" style="display:none; margin-top:14px;">
-      <div class="section-label" style="margin-top:0;">候補</div>
-      <div id="search-results-list"></div>
-    </div>
-
-    <!-- 候補を選んだ後（ステップ2：どう見るか選ぶ） -->
-    <div id="candidate-action" style="display:none; margin-top:14px;">
-      <div class="k-card" id="candidate-card"></div>
-      <div class="btn-row">
-        <button class="btn-secondary" style="margin-top:0;" onclick="viewCandidateInGraph()">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="6" cy="7" r="2"/><circle cx="18" cy="7" r="2"/><circle cx="12" cy="18" r="2"/><path d="M8 8L11 16 M16 8L13 16"/></svg>
-          グラフで見る
-        </button>
-        <button class="btn-primary" style="margin-top:0;" onclick="openCandidateNote()">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 5.5A1.5 1.5 0 015.5 4H10v16H5.5A1.5 1.5 0 014 18.5v-13zM20 5.5A1.5 1.5 0 0018.5 4H14v16h4.5a1.5 1.5 0 001.5-1.5v-13z"/></svg>
-          ノートを開く
-        </button>
-      </div>
-    </div>
-
     <div class="section-label" id="graph-section-label">グラフ</div>
     <div class="graph-tabs">
       <div class="gtab active" data-theme="all" onclick="renderGraph('all', event)">すべて</div>
@@ -4295,50 +4274,7 @@ let selectedCandidateId = null;
 
 // 検索実行（タイトル・テーマ・カテゴリ（branch）・タグの部分一致検索、Task 161 で実装）
 function runSearch(){
-  const query = document.getElementById("graph-search-input").value.trim().toLowerCase();
-  const searchResultsEl = document.getElementById("search-results");
-  const list = document.getElementById("search-results-list");
-  document.getElementById("candidate-action").style.display = "none";
-
-  // 空クエリは結果非表示で終了
-  if(!query){
-    searchResultsEl.style.display = "none";
-    list.innerHTML = "";
-    // Task 175: 両タブ再描画（ノート / ナレッジ）
-    if(typeof renderLibrary === "function") renderLibrary();
-    if(typeof renderKnowledgeList === "function") renderKnowledgeList(currentFocus);
-    return;
-  }
-
-  // graphNodes から title / theme / branch (parent) / tags で部分一致検索
-  const results = graphNodes.filter(n => {
-    if(n.type !== "atom") return false; // atom ノードのみ
-    const title = (n.title || n.id || "").toLowerCase();
-    const theme = (n.theme || "").toLowerCase();
-    const branch = (n.parent || "").toLowerCase();
-    const tags = (n.tags || []).map(t => t.toLowerCase()).join(" ");
-    return title.includes(query) || theme.includes(query) || branch.includes(query) || tags.includes(query);
-  });
-
-  searchResultsEl.style.display = "block";
-  if(!results.length){
-    list.innerHTML = `<div class="summary-preview-text" style="color:var(--ink-faint); padding:14px;">「${query.replace(/</g,"&lt;")}」に一致するナレッジはありません</div>`;
-    // Task 175: 両タブ再描画（ノート / ナレッジ）
-    if(typeof renderLibrary === "function") renderLibrary();
-    if(typeof renderKnowledgeList === "function") renderKnowledgeList(currentFocus);
-    return;
-  }
-
-  list.innerHTML = results.map(n => `
-    <div class="search-result-item" onclick="selectCandidate('${n.id.replace(/'/g,"\\'")}')">
-      <span class="dot" style="background:${themeColors[n.theme]||primaryColor}; margin-top:3px;"></span>
-      <div class="meta">
-        <div class="title">${(n.title || n.id).replace(/\n/g," ")}</div>
-        <div class="snippet">${(n.desc || "").replace(/</g,"&lt;")}</div>
-        <div class="match">${n.theme || ""}${n.parent ? " ・ "+n.parent : ""}${n.confidence !== undefined ? " ・ confidence "+n.confidence : ""}</div>
-      </div>
-    </div>`).join("");
-  // Task 175: 両タブ再描画（ノート / ナレッジ）
+  // Task 177: 候補リスト削除。両タブ再描画のみ。
   if(typeof renderLibrary === "function") renderLibrary();
   if(typeof renderKnowledgeList === "function") renderKnowledgeList(currentFocus);
 }
