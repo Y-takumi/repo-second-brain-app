@@ -1606,8 +1606,8 @@ const vaultSeedFiles = [
 
     <!-- 探索タブ（ノート / ナレッジ、Task 171 で追加） -->
     <div class="explore-tabs">
-      <div class="explore-tab active" data-tab="note">ノート</div>
-      <div class="explore-tab" data-tab="knowledge">ナレッジ</div>
+      <div class="explore-tab active" data-tab="note" onclick="switchExploreTab('note')">ノート</div>
+      <div class="explore-tab" data-tab="knowledge" onclick="switchExploreTab('knowledge')">ナレッジ</div>
     </div>
 
     <!-- タブコンテンツ（Task 171 で追加） -->
@@ -4758,6 +4758,27 @@ function renderKnowledgeList(focusId){
     </div>`;
   }).join("");
   document.getElementById("knowledge-list").innerHTML = html || `<div class="summary-preview-text" style="color:var(--ink-faint); margin-top:12px;">見つかりませんでした</div>`;
+}
+
+/** 探索タブ切替（Task 173 で追加） */
+let currentExploreTab = "note"; // 初期は「ノート」タブ
+function switchExploreTab(tabName){
+  currentExploreTab = tabName;
+  // 1. active クラス制御
+  document.querySelectorAll(".explore-tab").forEach(el => {
+    el.classList.toggle("active", el.dataset.tab === tabName);
+  });
+  // 2. display 切替
+  const noteVisible = (tabName === "note");
+  document.getElementById("lib-count").style.display = noteVisible ? "" : "none";
+  document.getElementById("lib-list").style.display = noteVisible ? "" : "none";
+  document.getElementById("knowledge-list").style.display = noteVisible ? "none" : "";
+  // 3. 該当タブのレンダリング
+  if(tabName === "note"){
+    renderLibrary();
+  } else if(tabName === "knowledge"){
+    renderKnowledgeList(currentFocus);
+  }
 }
 /** Drive連携済みなら、実データを読み込んでLibraryを再描画する */
 async function refreshLibraryFromDrive(){
