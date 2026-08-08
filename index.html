@@ -3450,7 +3450,7 @@ async function refreshTasksFromDrive(){
   } catch(e){ console.error("Task読み込みエラー:", e); }
 }
 
-/** 08_Knowledge/ から実データを読み込む（グラフ描画用。今は件数のみ確認できる形） */
+/** 08_Knowledge/ から実データを読み込む（グラフ描画用。title フォールバック付き） */
 async function loadKnowledgeFromDrive(){
   const rootId = await ensureVaultFolder();
   const folderId = await findOrCreateFolder("08_Knowledge", rootId);
@@ -3462,7 +3462,7 @@ async function loadKnowledgeFromDrive(){
     if(!fm.id) continue;
     items.push({
       id: fm.id,
-      title: fm.title || f.name.replace(/\.md$/, ""),
+      title: fm.title || f.name.replace(/^[0-9]+-(atom|source|journal|insight)-/, "").replace(/\.md$/, ""),
       summary: fm.summary || "",
       themes: fm.themes || [],
       branch: fm.branch || "",
