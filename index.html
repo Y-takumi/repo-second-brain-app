@@ -4181,6 +4181,10 @@ async function loadGraphData(){
     graphNodes = buildGraphNodesFromKnowledge(knowledge);
     graphLinksRaw = buildGraphLinksFromEdges();
     console.log(`グラフデータ更新: graphNodes=${graphNodes.length}件, graphLinksRaw=${graphLinksRaw.length}件`);
+    // Task 179: グラフデータ更新後にグラフを再描画
+    if(typeof buildGraph === "function"){
+      buildGraph();
+    }
   } catch(e){
     console.error("グラフデータ読み込みエラー:", e);
   }
