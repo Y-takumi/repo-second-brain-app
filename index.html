@@ -3270,6 +3270,7 @@ async function commitCaptureResult(){
         title: k.title, summary: k.summary,
         evidence: [{ date: today, source: noteId, note: k.evidence_note || k.summary }],
         themes: k.themes || [], branch: k.branch || "",
+        tags: k.tags || [], // Task 182: 想起用タグを frontmatter に保存
         confidence: k.confidence ?? 50, source_quality: k.source_quality || "Medium",
         revises: null, origin_note: noteId,
       };
