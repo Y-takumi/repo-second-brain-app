@@ -2592,6 +2592,7 @@ function buildExtractionPrompt(journalText, candidates, greatMindCandidates){
       "themes": ["..."],
       "branch": "（下記「既存の枝一覧」から選ぶ。どれにも当てはまらなければ新しい枝名を作ってよい）",
       "branch_is_new": true または false（新しい枝名を作った場合はtrue。既存から選んだ場合はfalse）,
+      "tags": ["（Knowledge を後からキーワード検索するためのタグ。任意）"],
       "confidence": 0から100の数値（下記の目安に従う）,
       "source_quality": "High または Medium または Low"（下記の目安に従う）,
       "evidence_note": "（今回の入力から得られた、この気づきの根拠となる一言）",
@@ -2686,6 +2687,7 @@ function buildSourceExtractionPrompt(articleMeta, articleText, candidates, gmCan
       "themes": ["..."],
       "branch": "（下記「既存の枝一覧」から選ぶ。どれにも当てはまらなければ新しい枝名を作ってよい）",
       "branch_is_new": true または false,
+      "tags": ["（Knowledge を後からキーワード検索するためのタグ。任意）"],
       "confidence": 0から100の数値,
       "source_quality": "High または Medium または Low",
       "evidence_note": "（今回の記事から得られた、この気づきの根拠となる一言）"
