@@ -4267,6 +4267,10 @@ function focusNode(id){
   document.getElementById("graph-info").innerHTML =
     `<b>${d.id.replace(/\n/g," ")}</b>${meta}<br>${d.desc||d.type}<br>` +
     `<span class="focus-clear" onclick="clearFocus()">✕ 解除</span> ・ <span class="info-link" onclick="openKnowledgeDetail('${d.id.replace(/'/g,"\\'")}')">Knowledgeを開く ›</span>`;
+  // Task 174: atom ノードタップ時にナレッジタブへ自動切替（branch ノードは切替えない）
+  if(d.type === "atom"){
+    switchExploreTab("knowledge");
+  }
 }
 
 function clearFocus(){
