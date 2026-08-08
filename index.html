@@ -4624,12 +4624,21 @@ function setLibBranch(branch, event){
 let driveLibraryCache = null; // Driveから読み込んだ実データのキャッシュ
 
 function renderLibrary(){
-  // Task 162-163 修正：lib-search 削除に伴い、クエリチェックを削除。
+  // Task 178: 検索窓（graph-search-input）からクエリ取得してフィルタに反映
   // テーマフィルタはグラフ用 currentTheme を共有（タスク 163 で統合）。
+  const q = document.getElementById("graph-search-input").value.trim().toLowerCase();
   const sourceData = driveLibraryCache || libraryData;
-  const filtered = sourceData.filter(n=>
-    (currentTheme==="all" || (n.themes||[]).includes(currentTheme))
-  );
+  const filtered = sourceData.filter(n => {
+    if(currentTheme !== "all" && !(n.themes||[]).includes(currentTheme)) return false;
+    if(q){
+      const title = (n.title || "").toLowerCase();
+      const branch = (n.branch || "").toLowerCase();
+      const tags = (n.tags || []).join(" ").toLowerCase();
+      const themes = (n.themes || []).join(" ").toLowerCase();
+      return title.includes(q) || branch.includes(q) || tags.includes(q) || themes.includes(q);
+    }
+    return true;
+  });
   const label = driveLibraryCache ? `${filtered.length}件のノート（Drive実データ）` : `${filtered.length}件のノート（サンプル）`;
   document.getElementById("lib-count").textContent = label;
   const themeLabels = { healthcare:"Healthcare", business:"Business", mind:"Mind", relationships:"Relationships" };
