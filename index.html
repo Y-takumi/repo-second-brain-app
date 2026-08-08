@@ -1562,13 +1562,7 @@ const vaultSeedFiles = [
 
     <!-- 2026-08-04 セッション：生活リズムは HOME タブのリサーチタスク上部に移動 -->
 
-    <div class="search-row">
-      <input class="url-input" id="graph-search-input" placeholder="今気になることを入力・検索する" style="margin:0;">
-      <button class="mic-btn-small" onclick="voiceSearch()" aria-label="音声で検索">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 15a3 3 0 003-3V6a3 3 0 00-6 0v6a3 3 0 003 3z"/><path d="M17 12a5 5 0 01-10 0M12 18v3"/></svg>
-      </button>
-    </div>
-    <button class="btn-secondary" style="margin-top:8px;" onclick="runSearch()">検索する</button>
+    <input class="url-input" id="graph-search-input" placeholder="ナレッジタイトル、テーマ、カテゴリ、タグで検索する" oninput="runSearch()" style="margin:0;">
 
     <!-- 検索候補（ステップ1：選ぶ） -->
     <div id="search-results" style="display:none; margin-top:14px;">
@@ -1593,11 +1587,11 @@ const vaultSeedFiles = [
 
     <div class="section-label" id="graph-section-label">グラフ</div>
     <div class="graph-tabs">
-      <div class="gtab active" data-theme="healthcare" onclick="renderGraph('healthcare', event)">Health</div>
+      <div class="gtab active" data-theme="all" onclick="renderGraph('all', event)">すべて</div>
+      <div class="gtab" data-theme="healthcare" onclick="renderGraph('healthcare', event)">Health</div>
       <div class="gtab" data-theme="business" onclick="renderGraph('business', event)">Business</div>
       <div class="gtab" data-theme="mind" onclick="renderGraph('mind', event)">Mind</div>
       <div class="gtab" data-theme="relationships" onclick="renderGraph('relationships', event)">Relations</div>
-      <div class="gtab" data-theme="all" onclick="renderGraph('all', event)">すべて</div>
     </div>
 
     <div class="graph-container">
@@ -1605,16 +1599,6 @@ const vaultSeedFiles = [
     </div>
     <div class="graph-info" id="graph-info">ノードをタップすると、ここに詳細が表示されます</div>
 
-    <div class="section-label">ノートを探す（Library）</div>
-    <input class="url-input" id="lib-search" placeholder="タイトルで検索…" oninput="renderLibrary()">
-    <div class="filter-chips" id="lib-chips">
-      <div class="chip active" data-theme="all" onclick="setLibTheme('all', event)" style="background:var(--ink); color:#14101f;">すべて</div>
-      <div class="chip" data-theme="healthcare" onclick="setLibTheme('healthcare', event)" style="border-color:var(--healthcare); color:var(--healthcare)">Healthcare</div>
-      <div class="chip" data-theme="business" onclick="setLibTheme('business', event)" style="border-color:var(--business); color:var(--business)">Business</div>
-      <div class="chip" data-theme="mind" onclick="setLibTheme('mind', event)" style="border-color:var(--mind); color:var(--mind)">Mind</div>
-      <div class="chip" data-theme="relationships" onclick="setLibTheme('relationships', event)" style="border-color:var(--relationships); color:var(--relationships)">Relationships</div>
-    </div>
-    <div class="filter-chips" id="lib-branch-chips" style="margin-top:6px;"></div>
     <p class="page-sub" id="lib-count" style="margin-top:10px;">13件のノート</p>
     <div id="lib-list"></div>
   </div>
@@ -2264,6 +2248,7 @@ async function handleGoogleAuthResult(tokenResponse){
     refreshGreatMindFromDrive();
     refreshHabitFromDrive();
     refreshEdgesFromDrive();
+    await loadGraphData();
   } catch(err){
     document.getElementById("drive-status-text").textContent = "連携済み（フォルダ確認でエラー）";
     document.getElementById("drive-hint").textContent = `接続はできましたが、フォルダの確認/作成でエラーが出ました：${err.message}`;
@@ -3297,6 +3282,16 @@ async function commitCaptureResult(){
       const kFolder = await findOrCreateFolder("08_Knowledge", rootId);
       await createOrUpdateFile(`${kid}.md`, kFolder, buildFrontmatterFile(kFm, kBody));
       knowledgeIds.push(kid);
+      // Task 155 で追加：新規 Knowledge と既存 Knowledge の関連性を edges.json に追加
+      await addEdgesForNewKnowledge({
+        id: kid,
+        themes: k.themes || [],
+        branch: k.branch || "",
+        tags: k.tags || [],
+        title: k.title,
+        summary: k.summary,
+        confidence: k.confidence ?? 50,
+      });
     }
 
     // Task：新規作成（2026-08-05：branch / tags 追加、ノート/ナレッジと同じ検索体験を目指す）
@@ -3366,6 +3361,16 @@ async function appendEvidenceToKnowledge(knowledgeId, evidenceEntry, alignmentEn
   }
   fm.updated = new Date().toISOString().slice(0,10);
   await createOrUpdateFile(`${knowledgeId}.md`, folderId, buildFrontmatterFile(fm, body));
+  // Task 156 で追加：Knowledge 更新時にその Knowledge を起点とするエッジを凍結
+  const frozenCount = freezeEdgesForKnowledge(knowledgeId);
+  if(frozenCount > 0){
+    try{
+      await saveEdgesToDrive(edgesData);
+      console.log(`edges.json 更新: Knowledge(${knowledgeId}) 更新により ${frozenCount}件のエッジを凍結`);
+    } catch(e){
+      console.error("edges.json 凍結保存エラー:", e);
+    }
+  }
 }
 
 /** Drive上のVaultから、Library一覧に必要なNote系ファイル(Journal/Sources/Insights/Inbox)を読み込む */
@@ -3519,6 +3524,149 @@ async function refreshEdgesFromDrive(){
   } catch(e){
     console.error("edges.json 読み込みエラー:", e);
   }
+}
+
+/**
+ * 基本の関連性を機械的に判定する（テーマ + タグ + branch の一致、Task 154 で追加）
+ * 判定ロジック：(テーマ一致) AND (branch一致 OR 1つ以上のタグ共通)
+ * @param {Object} newKnowledge - 新規または更新されたKnowledge（id, themes, branch, tags を持つ）
+ * @param {Array} existingKnowledge - 既存Knowledgeの配列
+ * @returns {Array} 生成されたエッジの配列（thematic）
+ */
+function computeBasicEdges(newKnowledge, existingKnowledge){
+  const edges = [];
+  const newThemes = newKnowledge.themes || [];
+  const newBranch = newKnowledge.branch || "";
+  const newTags = newKnowledge.tags || [];
+
+  if(newThemes.length === 0) return edges; // テーマなし → 関連判定不可
+
+  for(const existing of existingKnowledge){
+    if(existing.id === newKnowledge.id) continue; // 自分自身はスキップ
+
+    const existingThemes = existing.themes || [];
+    if(existingThemes.length === 0) continue;
+
+    const existingBranch = existing.branch || "";
+    const existingTags = existing.tags || [];
+
+    // ① テーマ一致チェック
+    const matchedTheme = newThemes.find(th => existingThemes.includes(th));
+    if(!matchedTheme) continue;
+
+    // ② branch一致 OR タグ共通のいずれか
+    const branchMatch = newBranch && existingBranch && newBranch === existingBranch;
+    const tagsMatch = newTags.length > 0 && existingTags.length > 0 && newTags.some(tag => existingTags.includes(tag));
+
+    if(!branchMatch && !tagsMatch) continue;
+
+    // 強度計算：branch一致は強い関連(+0.3)、タグ一致は中程度(+0.2)、テーマのみ一致は 0.5
+    let strength = 0.5;
+    if(branchMatch) strength += 0.3;
+    if(tagsMatch) strength += 0.2;
+
+    // 正規化：from_id < to_id で 1 方向に統一（無向グラフとして扱う、重複防止）
+    const [fromId, toId] = newKnowledge.id < existing.id
+      ? [newKnowledge.id, existing.id]
+      : [existing.id, newKnowledge.id];
+
+    const today = new Date().toISOString().slice(0,10);
+    edges.push({
+      from_id: fromId,
+      to_id: toId,
+      type: "thematic",
+      reason: `テーマ「${matchedTheme}」で一致${branchMatch ? `・同じ branch「${newBranch}」` : ""}${tagsMatch ? "・タグ共通" : ""}`,
+      strength: Math.min(strength, 1.0),
+      created: today,
+      frozen: false,
+      evidence_note_id: null,
+    });
+  }
+
+  return edges;
+}
+
+/**
+ * 新規Knowledge作成時に、既存Knowledgeとの基本の関連性を edges.json に追加（Task 155 で追加）
+ * @param {Object} newKnowledge - 新規作成されたKnowledge（id, themes, branch, tags など）
+ */
+async function addEdgesForNewKnowledge(newKnowledge){
+  if(!googleAccessToken) return;
+  try{
+    const existingKnowledge = await loadKnowledgeFromDrive();
+    const newEdges = computeBasicEdges(newKnowledge, existingKnowledge);
+    let addedCount = 0;
+    for(const newEdge of newEdges){
+      const duplicate = edgesData.some(e =>
+        e.from_id === newEdge.from_id &&
+        e.to_id === newEdge.to_id &&
+        e.type === newEdge.type
+      );
+      if(!duplicate){
+        edgesData.push(newEdge);
+        addedCount++;
+      }
+    }
+    if(addedCount > 0){
+      await saveEdgesToDrive(edgesData);
+      console.log(`edges.json 更新: 新規エッジ ${addedCount}件を追加`);
+    }
+  } catch(e){
+    console.error("エッジ自動生成エラー:", e);
+  }
+}
+
+/**
+ * Knowledge更新時に、そのKnowledge起点のエッジを凍結（Task 156 で追加）
+ * 凍結エッジは buildGraphLinksFromEdges で除外される
+ * @param {string} knowledgeId
+ * @returns {number} 凍結したエッジ数
+ */
+function freezeEdgesForKnowledge(knowledgeId){
+  let frozenCount = 0;
+  for(const edge of edgesData){
+    if((edge.from_id === knowledgeId || edge.to_id === knowledgeId) && !edge.frozen){
+      edge.frozen = true;
+      frozenCount++;
+    }
+  }
+  return frozenCount;
+}
+
+/**
+ * Knowledgeのmerged_into処理：エッジのfrom/toを統合先に付け替え（Task 156 で追加）
+ * @param {string} fromId - 統合される側のKnowledge id
+ * @param {string} toId - 統合先のKnowledge id
+ */
+function remapEdgesForMerge(fromId, toId){
+  let remappedCount = 0;
+  for(const edge of edgesData){
+    if(edge.from_id === fromId){
+      edge.from_id = toId;
+      remappedCount++;
+    }
+    if(edge.to_id === fromId){
+      edge.to_id = toId;
+      remappedCount++;
+    }
+  }
+  return remappedCount;
+}
+
+/**
+ * Knowledge削除時に、そのKnowledgeを含むエッジを削除（Task 156 で追加）
+ * @param {string} knowledgeId
+ * @returns {number} 削除したエッジ数
+ */
+function removeEdgesForKnowledge(knowledgeId){
+  const before = edgesData.length;
+  for(let i = edgesData.length - 1; i >= 0; i--){
+    const edge = edgesData[i];
+    if(edge.from_id === knowledgeId || edge.to_id === knowledgeId){
+      edgesData.splice(i, 1);
+    }
+  }
+  return before - edgesData.length;
 }
 
 /** 06_GreatMind/ から実データを読み込み、greatMindData配列を丸ごと差し替える（新：独立ファイル＋idあり構造） */
@@ -3800,62 +3948,11 @@ const themeColors = {
 };
 const primaryColor = getComputedStyle(document.documentElement).getPropertyValue('--primary').trim();
 
-const graphNodes = [
-  { id:"睡眠", type:"branch", theme:"healthcare", updated:"2026-07-04" },
-  { id:"食事", type:"branch", theme:"healthcare", updated:"2026-07-02" },
-  { id:"運動", type:"branch", theme:"healthcare", updated:"2026-07-02" },
-  { id:"日光浴", type:"branch", theme:"healthcare", updated:"2026-07-04" },
-  { id:"戦略", type:"branch", theme:"business", updated:"2026-07-04" },
-  { id:"マインドセット", type:"branch", theme:"mind", updated:"2026-07-04" },
-  { id:"性格特性", type:"branch", theme:"mind", updated:"2026-07-04" },
-  { id:"学習法", type:"branch", theme:"mind", updated:"2026-07-04" },
-
-  { id:"23時就寝の実践", type:"atom", theme:"healthcare", parent:"睡眠", confidence:90, updated:"2026-07-02",
-    desc:"動画で推奨されていた23時就寝と一致していることに気づいたのが最初のきっかけ。その後、実際に60日間継続できており、以前より睡眠の質・日中パフォーマンスが向上したと実感している",
-    evidence:[
-      {date:"2026-07-02", source:"動画：15のルール", note:"動画で推奨されていた23時就寝と一致することに気づいた"},
-      {date:"2026-07-02", source:"ジャーナル：睡眠とビジネス", note:"実際に60日間継続できており、睡眠の質・日中パフォーマンスが向上したと実感"}
-    ] },
-  { id:"6.5時間睡眠を死守", type:"atom", theme:"healthcare", parent:"睡眠", confidence:75, updated:"2026-07-02", desc:"約60日継続中の睡眠ルーティン" },
-  { id:"夕食抜き×中途覚醒", type:"atom", theme:"healthcare", parent:"睡眠", confidence:30, updated:"2026-07-04", desc:"原因未特定の仮説" },
-  { id:"食事タイミング", type:"atom", theme:"healthcare", parent:"食事", confidence:65, updated:"2026-07-02", desc:"朝昼多め・夜控えめの方針" },
-  { id:"空腹の方が集中できる", type:"atom", theme:"healthcare", parent:"食事", confidence:45, updated:"2026-07-02", desc:"経験則、未検証" },
-  { id:"夕食抜き×筋トレ低下", type:"atom", theme:"healthcare", parent:"運動", confidence:35, updated:"2026-07-02", desc:"グリコーゲン不足の可能性" },
-  { id:"日焼け止めの目的", type:"atom", theme:"healthcare", parent:"日光浴", confidence:90, updated:"2026-07-04", desc:"シミ・シワ予防とムラ焼け防止" },
-  { id:"UVとビタミンD", type:"atom", theme:"healthcare", parent:"日光浴", confidence:75, updated:"2026-07-04", desc:"紫外線でビタミンD生成" },
-
-  { id:"ゴールを成功に置く", type:"atom", theme:"mind", parent:"マインドセット", confidence:70, updated:"2026-07-02", desc:"目的を見失わないための思考法" },
-  { id:"マインド→行動の順序", type:"atom", theme:"mind", parent:"マインドセット", confidence:65, updated:"2026-07-02", desc:"マインド→ライフスタイル→行動" },
-  { id:"筋を通す価値観", type:"atom", theme:"mind", parent:"マインドセット", confidence:80, updated:"2026-07-04", desc:"独立を機に強く意識" },
-  { id:"過集中の性格特性", type:"atom", theme:"mind", parent:"性格特性", confidence:85, updated:"2026-07-04", desc:"最優先タスク以外に集中できない" },
-  { id:"薄く広い曝露で定着", type:"atom", theme:"mind", parent:"学習法", confidence:50, updated:"2026-07-04", desc:"偶然の2回目の遭遇で記憶が定着する仮説" },
-
-  { id:"Audibleへシフト", type:"atom", theme:"business", parent:"戦略", confidence:55, updated:"2026-07-02", desc:"情報収集の質を上げる方針" },
-  { id:"40歳までに資産形成", type:"atom", theme:"business", parent:"戦略", confidence:55, updated:"2026-07-02", desc:"睡眠を犠牲にする戦略的判断" },
-  { id:"退職・独立の決意", type:"atom", theme:"business", parent:"戦略", confidence:95, updated:"2026-07-04", desc:"個人事業主として次の仕事を確保済み" },
-
-  { id:"パフォーマンス最適化\nのトレードオフ", type:"insight", theme:"business", occ:3, updated:"2026-07-02", desc:"3ノートで独立に出現した同型パターン" },
-  { id:"夕食抜き\n実験ログ", type:"experiment", theme:"healthcare", occ:2, updated:"2026-07-04", desc:"筋トレ低下・睡眠質低下、2件の観測" },
-];
-
-const graphLinksRaw = [
-  ["睡眠","23時就寝の実践"], ["睡眠","6.5時間睡眠を死守"], ["睡眠","夕食抜き×中途覚醒"],
-  ["食事","食事タイミング"], ["食事","空腹の方が集中できる"],
-  ["運動","夕食抜き×筋トレ低下"],
-  ["日光浴","日焼け止めの目的"], ["日光浴","UVとビタミンD"],
-  ["マインドセット","ゴールを成功に置く"], ["マインドセット","マインド→行動の順序"], ["マインドセット","筋を通す価値観"],
-  ["性格特性","過集中の性格特性"],
-  ["学習法","薄く広い曝露で定着"],
-  ["戦略","Audibleへシフト"], ["戦略","40歳までに資産形成"], ["戦略","退職・独立の決意"],
-  ["23時就寝の実践","パフォーマンス最適化\nのトレードオフ","cross"],
-  ["40歳までに資産形成","パフォーマンス最適化\nのトレードオフ","cross"],
-  ["夕食抜き×筋トレ低下","夕食抜き\n実験ログ","cross"],
-  ["夕食抜き×中途覚醒","夕食抜き\n実験ログ","cross"],
-  ["薄く広い曝露で定着","Audibleへシフト","revises"],
-];
+let graphNodes = []; // 動的データ（loadGraphData で更新、Task 157 で実データ化）
+let graphLinksRaw = []; // 動的データ（loadGraphData で更新、Task 157 で実データ化）
 
 let exploreSimulation = null;
-let currentTheme = "healthcare";
+let currentTheme = "all"; // 初期表示は「すべて」（Task 157 修正）
 let currentFocus = null; // タップ中のフォーカスノードid（nullならブランチ基準）
 let liveNodes = [], liveLinks = [], nodeSel = null, linkSel = null, zoomBehavior = null;
 
@@ -3929,7 +4026,6 @@ function buildGraph(){
   liveLinks = graphLinksRaw
     .filter(([s,t])=> nodeIds.has(s) && nodeIds.has(t))
     .map(([s,t,kind])=>({source:s, target:t, kind:kind||"hierarchy"}));
-
   const svg = d3.select("#explore-svg");
   svg.selectAll("*").remove();
   const W = 350, H = 280;
@@ -3983,18 +4079,117 @@ function buildGraph(){
         .attr("fill","#20242c").attr("stroke",col).attr("stroke-width",1.3);
     }
     // ラベルは常にDOMに用意しておき、表示/非表示だけを重みに応じて切り替える（作り直さない）
+    // Task 157 修正：title があれば優先表示（Knowledge のタイトルが「23時就寝の実践」のように表示される）
     const label = s.append("text").attr("class","node-caption").attr("text-anchor","middle").attr("font-size","8px").attr("fill","var(--ink)");
-    (d.id.split("\n")).forEach((ln,i)=> label.append("tspan").attr("x",0).attr("y", r+10+i*9).text(ln.length>10?ln.slice(0,10)+"…":ln));
+    const labelText = d.title || d.id;
+    (labelText.split("\n")).forEach((ln,i)=> label.append("tspan").attr("x",0).attr("y", r+10+i*9).text(ln.length>10?ln.slice(0,10)+"…":ln));
   });
 
   nodeSel.on("click",(event,d)=>{ focusNode(d.id); });
 
   exploreSimulation.on("tick", ()=>{
-    linkSel.attr("x1",d=>d.source.x).attr("y1",d=>d.source.y).attr("x2",d=>d.target.x).attr("y2",d=>d.target.y);
+    // Task 157 修正：線を円の中心ではなく辺から出るように（radius を考慮）
+    linkSel.each(function(d){
+      const sourceR = radiusBase(d.source);
+      const targetR = radiusBase(d.target);
+      const dx = d.target.x - d.source.x;
+      const dy = d.target.y - d.source.y;
+      const dist = Math.sqrt(dx*dx + dy*dy);
+      if(dist === 0){
+        d._x1 = d.source.x; d._y1 = d.source.y;
+        d._x2 = d.target.x; d._y2 = d.target.y;
+        return;
+      }
+      const ux = dx / dist;
+      const uy = dy / dist;
+      d._x1 = d.source.x + ux * sourceR;
+      d._y1 = d.source.y + uy * sourceR;
+      d._x2 = d.target.x - ux * targetR;
+      d._y2 = d.target.y - uy * targetR;
+    })
+    .attr("x1", d=>d._x1)
+    .attr("y1", d=>d._y1)
+    .attr("x2", d=>d._x2)
+    .attr("y2", d=>d._y2);
     nodeSel.attr("transform", d=>`translate(${d.x},${d.y}) scale(${d.emphasisScale||1})`);
   });
 
   applyWeights(); // 初期の濃淡・ラベル反映
+}
+
+/**
+ * Knowledge データから graphNodes を構築（Task 157 で追加）
+ * - atom ノードは各 Knowledge
+ * - branch ノードは Knowledge.branch を動的集計して生成
+ * @param {Array} knowledge - loadKnowledgeFromDrive() の戻り値
+ * @returns {Array} graphNodes 配列
+ */
+function buildGraphNodesFromKnowledge(knowledge){
+  const branches = new Set();
+  const atomNodes = knowledge.map(k => {
+    if(k.branch) branches.add(k.branch);
+    return {
+      id: k.id,
+      type: "atom",
+      theme: (k.themes && k.themes[0]) || "healthcare",
+      parent: k.branch || "",
+      confidence: k.confidence || 50,
+      updated: k.updated || k.created || new Date().toISOString().slice(0,10),
+      desc: k.summary || "",
+      title: k.title || k.id, // グラフ表示用タイトル（Task 157 修正）
+    };
+  });
+  const branchNodes = Array.from(branches).map(b => {
+    const sample = atomNodes.find(k => k.parent === b);
+    return {
+      id: b,
+      type: "branch",
+      theme: sample ? sample.theme : "healthcare",
+      updated: sample ? sample.updated : new Date().toISOString().slice(0,10),
+    };
+  });
+  return [...branchNodes, ...atomNodes];
+}
+
+/**
+ * edgesData から graphLinksRaw 形式のリンクを生成（Task 157 で追加）
+ * - branch → atom の hierarchy リンク（暗黙の親子関係）
+ * - edgesData の cross / revises リンク（frozen は除外）
+ * @returns {Array} graphLinksRaw 形式の [source, target, kind?] のタプル配列
+ */
+function buildGraphLinksFromEdges(){
+  const links = [];
+  // ① branch → atom の hierarchy リンク
+  for(const node of graphNodes){
+    if(node.type === "atom" && node.parent){
+      links.push([node.parent, node.id]);
+    }
+  }
+  // ② edgesData からの cross / revises リンク
+  for(const edge of edgesData){
+    if(edge.frozen) continue; // 凍結エッジは非表示
+    let kind = "cross"; // thematic は紫破線で表示
+    if(edge.type === "conflict") kind = "revises"; // conflict は橙色実線で表示
+    // abstract_link / foreshadowing は Phase 2 で実装
+    links.push([edge.from_id, edge.to_id, kind]);
+  }
+  return links;
+}
+
+/**
+ * Drive から Knowledge を読み込み、graphNodes / graphLinksRaw を動的に更新（Task 157 で追加）
+ * OAuth 認証後、または Knowledge / edges 更新後に呼び出す
+ */
+async function loadGraphData(){
+  if(!googleAccessToken) return;
+  try{
+    const knowledge = await loadKnowledgeFromDrive();
+    graphNodes = buildGraphNodesFromKnowledge(knowledge);
+    graphLinksRaw = buildGraphLinksFromEdges();
+    console.log(`グラフデータ更新: graphNodes=${graphNodes.length}件, graphLinksRaw=${graphLinksRaw.length}件`);
+  } catch(e){
+    console.error("グラフデータ読み込みエラー:", e);
+  }
 }
 
 /** フォーカス変更時はここだけ呼ぶ。シミュレーションは再構築せず、位置も動かさない */
@@ -4056,7 +4251,7 @@ function focusNode(id){
   const meta = d.confidence!==undefined ? ` ・confidence ${d.confidence}` : d.occ ? ` ・出現 ${d.occ}回` : "";
   document.getElementById("graph-info").innerHTML =
     `<b>${d.id.replace(/\n/g," ")}</b>${meta}<br>${d.desc||d.type}<br>` +
-    `<span class="focus-clear" onclick="clearFocus()">✕ 解除</span> ・ <span class="info-link" onclick="openKnowledgeDetail('${d.id.replace(/'/g,"\\'")}')">ノートを開く ›</span>`;
+    `<span class="focus-clear" onclick="clearFocus()">✕ 解除</span> ・ <span class="info-link" onclick="openKnowledgeDetail('${d.id.replace(/'/g,"\\'")}')">Knowledgeを開く ›</span>`;
 }
 
 function clearFocus(){
@@ -4079,37 +4274,45 @@ function d(offset){ const x=new Date(APP_TODAY); x.setDate(x.getDate()+offset); 
 /* ============ Explore: 意味検索（候補提示 → 選択 → 表示方法を選ぶ） ============ */
 let selectedCandidateId = null;
 
-// 検索実行（モック：実際はClaudeが質問の意図とtitle+summaryを照合し、関連度順でid配列を返す）
+// 検索実行（タイトル・テーマ・カテゴリ（branch）・タグの部分一致検索、Task 161 で実装）
 function runSearch(){
-  const query = document.getElementById("graph-search-input").value;
+  const query = document.getElementById("graph-search-input").value.trim().toLowerCase();
+  const searchResultsEl = document.getElementById("search-results");
+  const list = document.getElementById("search-results-list");
   document.getElementById("candidate-action").style.display = "none";
 
-  // デモ用の固定候補（本来はqueryの意味解釈結果）
-  const candidateIds = ["夕食抜き×中途覚醒", "夕食抜き×筋トレ低下", "夕食抜き\n実験ログ"];
-  const results = candidateIds.map(id => graphNodes.find(n=>n.id===id)).filter(Boolean);
+  // 空クエリは結果非表示で終了
+  if(!query){
+    searchResultsEl.style.display = "none";
+    list.innerHTML = "";
+    return;
+  }
 
-  const list = document.getElementById("search-results-list");
-  list.innerHTML = "";
-  results.forEach(n=>{
-    const el = document.createElement("div");
-    el.className = "search-result-item";
-    el.onclick = ()=> selectCandidate(n.id);
-    el.innerHTML = `
+  // graphNodes から title / theme / branch (parent) / tags で部分一致検索
+  const results = graphNodes.filter(n => {
+    if(n.type !== "atom") return false; // atom ノードのみ
+    const title = (n.title || n.id || "").toLowerCase();
+    const theme = (n.theme || "").toLowerCase();
+    const branch = (n.parent || "").toLowerCase();
+    const tags = (n.tags || []).map(t => t.toLowerCase()).join(" ");
+    return title.includes(query) || theme.includes(query) || branch.includes(query) || tags.includes(query);
+  });
+
+  searchResultsEl.style.display = "block";
+  if(!results.length){
+    list.innerHTML = `<div class="summary-preview-text" style="color:var(--ink-faint); padding:14px;">「${query.replace(/</g,"&lt;")}」に一致するナレッジはありません</div>`;
+    return;
+  }
+
+  list.innerHTML = results.map(n => `
+    <div class="search-result-item" onclick="selectCandidate('${n.id.replace(/'/g,"\\'")}')">
       <span class="dot" style="background:${themeColors[n.theme]||primaryColor}; margin-top:3px;"></span>
       <div class="meta">
-        <div class="title">${n.id.replace(/\n/g," ")}</div>
-        <div class="snippet">${n.desc||""}</div>
-        <div class="match">${n.type} ・ ${n.theme}${n.confidence!==undefined?" ・confidence "+n.confidence:""}</div>
-      </div>`;
-    list.appendChild(el);
-  });
-  document.getElementById("search-results").style.display = results.length ? "" : "none";
-}
-
-function voiceSearch(){
-  // 実際は音声入力→文字起こし→検索欄に反映→runSearch() を呼ぶ
-  document.getElementById("graph-search-input").value = "最近夜あまり眠れていない気がする";
-  runSearch();
+        <div class="title">${(n.title || n.id).replace(/\n/g," ")}</div>
+        <div class="snippet">${(n.desc || "").replace(/</g,"&lt;")}</div>
+        <div class="match">${n.theme || ""}${n.parent ? " ・ "+n.parent : ""}${n.confidence !== undefined ? " ・ confidence "+n.confidence : ""}</div>
+      </div>
+    </div>`).join("");
 }
 
 // 候補を選んだ（ステップ1→2）：どちらの見方で開くか選ばせる
@@ -4270,7 +4473,7 @@ function openNoteStub(noteName){
     if(!n) return "";
     return `<div class="nd-knowledge-card" onclick="openKnowledgeDetail('${id.replace(/'/g,"\\'")}')">
       <span class="dot" style="background:${themeColors[n.theme]||primaryColor}"></span>
-      <span class="title">${id.replace(/\n/g," ")}</span>
+      <span class="title">${(n.title || n.id).replace(/\n/g," ")}</span>
       <span class="chev">›</span>
     </div>`;
   }).join("");
@@ -4457,12 +4660,11 @@ function setLibBranch(branch, event){
 let driveLibraryCache = null; // Driveから読み込んだ実データのキャッシュ
 
 function renderLibrary(){
-  const q = document.getElementById("lib-search").value.trim().toLowerCase();
+  // Task 162-163 修正：lib-search 削除に伴い、クエリチェックを削除。
+  // テーマフィルタはグラフ用 currentTheme を共有（タスク 163 で統合）。
   const sourceData = driveLibraryCache || libraryData;
   const filtered = sourceData.filter(n=>
-    (libTheme==="all" || (n.themes||[]).includes(libTheme)) &&
-    (libBranch==="all" || n.branch === libBranch) &&
-    (!q || n.title.toLowerCase().includes(q) || (n.tags||[]).some(t => t.toLowerCase().includes(q)))
+    (currentTheme==="all" || (n.themes||[]).includes(currentTheme))
   );
   const label = driveLibraryCache ? `${filtered.length}件のノート（Drive実データ）` : `${filtered.length}件のノート（サンプル）`;
   document.getElementById("lib-count").textContent = label;
@@ -4956,7 +5158,7 @@ const sleepHabit = { id:"h-sleep", title:"就寝", special:"sleep", themes:["hea
 const weightHabit = { id:"h-weight", title:"ウェイトトレーニング", special:"weight_training", themes:["healthcare"], log:{} };
 
 // 起動時の renderGraph 呼び出し（wakeHabit 等宣言後。TDZ 対策）
-renderGraph("healthcare");
+renderGraph("all"); // 初期表示は「すべて」（Task 157 修正）
 
 function habitStreak(h){
   let streak = 0;
