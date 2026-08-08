@@ -1614,6 +1614,7 @@ const vaultSeedFiles = [
     <div id="explore-tab-content">
       <p class="page-sub" id="lib-count" style="margin-top:10px;">13件のノート</p>
       <div id="lib-list"></div>
+      <div id="knowledge-list"></div>
     </div>
   </div>
 
@@ -4703,6 +4704,60 @@ function renderLibrary(){
       ${tagBadges ? `<div style="margin-top:6px; display:flex; flex-wrap:wrap; gap:3px;">${tagBadges}</div>` : ""}
     </div>`;
   }).join("") || `<div class="summary-preview-text" style="color:var(--ink-faint); margin-top:12px;">見つかりませんでした</div>`;
+}
+
+/** 探索タブ「ナレッジ」：graphNodes から atom 抽出 → テーマフィルタ → 検索クエリ → focusId ソートで note-card 形式に表示（Task 172 で追加） */
+function renderKnowledgeList(focusId){
+  // 1. atom 抽出
+  let list = graphNodes.filter(n => n.type === "atom");
+
+  // 2. テーマフィルタ（currentTheme 共有、c3ce1e0 統合）
+  if(currentTheme !== "all"){
+    list = list.filter(n => n.theme === currentTheme);
+  }
+
+  // 3. 検索クエリ（graph-search-input から取得、Phase 4 の Task 178 で確定）
+  const query = document.getElementById("graph-search-input").value.trim().toLowerCase();
+  if(query){
+    list = list.filter(n => {
+      const title = (n.title || n.id).toLowerCase();
+      const theme = (n.theme || "").toLowerCase();
+      const branch = (n.parent || "").toLowerCase();
+      return title.includes(query) || theme.includes(query) || branch.includes(query);
+    });
+  }
+
+  // 4. focusId ソート（focusId を先頭に）
+  if(focusId){
+    list.sort((a, b) => {
+      if(a.id === focusId) return -1;
+      if(b.id === focusId) return 1;
+      return 0;
+    });
+  }
+
+  // 5. note-card 形式でレンダリング
+  const themeLabels = { healthcare:"Healthcare", business:"Business", mind:"Mind", relationships:"Relationships" };
+  const html = list.map(n => {
+    const borderStyle = (n.id === focusId) ? 'border:2px solid var(--primary);' : '';
+    const branchPath = n.parent
+      ? `<span class="branch-path">${themeLabels[n.theme]||n.theme} › ${n.parent}</span>`
+      : `<span class="branch-path">${themeLabels[n.theme]||n.theme}</span>`;
+    // Phase 5（Task 181-182）実装までは graphNodes に tags がないため、空配列としてフォールバック
+    const tagBadges = (n.tags || []).slice(0, 3).map(t => `<span class="tag" style="background:var(--surface2); color:var(--ink-faint); font-size:9.5px; margin-right:3px;">#${t}</span>`).join("");
+    return `
+    <div class="note-card" data-id="${n.id}" style="${borderStyle}" onclick="openKnowledgeDetail('${n.id.replace(/'/g,"\\'")}')">
+      <div class="top">
+        <span class="dot" style="background:${themeColors[n.theme]||primaryColor}"></span>
+        <span class="type-badge">KNOWLEDGE</span>
+        ${branchPath}
+      </div>
+      <div class="title">${n.title || n.id}</div>
+      <div class="date">${n.updated||""}</div>
+      ${tagBadges ? `<div style="margin-top:6px; display:flex; flex-wrap:wrap; gap:3px;">${tagBadges}</div>` : ""}
+    </div>`;
+  }).join("");
+  document.getElementById("knowledge-list").innerHTML = html || `<div class="summary-preview-text" style="color:var(--ink-faint); margin-top:12px;">見つかりませんでした</div>`;
 }
 /** Drive連携済みなら、実データを読み込んでLibraryを再描画する */
 async function refreshLibraryFromDrive(){
