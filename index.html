@@ -3740,21 +3740,32 @@ async function runInitialEdgeBackfill(){
     }
     console.log(`[Backfill] 開始: ${knowledge.length} 件の Knowledge を処理`);
     let totalAdded = 0;
+    let errorCount = 0;
     for(let i = 0; i < knowledge.length; i++){
       const k = knowledge[i];
-      console.log(`[Backfill] 処理中: ${k.id} (${i+1}/${knowledge.length})`);
-      const conflictEdges = await judgeSpecialRelations(k, "conflict");
-      for(const newEdge of conflictEdges){
-        const duplicate = edgesData.some(e =>
-          e.from_id === newEdge.from_id &&
-          e.to_id === newEdge.to_id &&
-          e.type === newEdge.type
-        );
-        if(!duplicate){
-          edgesData.push(newEdge);
-          totalAdded++;
+      try{
+        console.log(`[Backfill] 処理中: ${k.id} (${i+1}/${knowledge.length})`);
+        const conflictEdges = await judgeSpecialRelations(k, "conflict");
+        for(const newEdge of conflictEdges){
+          const duplicate = edgesData.some(e =>
+            e.from_id === newEdge.from_id &&
+            e.to_id === newEdge.to_id &&
+            e.type === newEdge.type
+          );
+          if(!duplicate){
+            edgesData.push(newEdge);
+            totalAdded++;
+          }
         }
+      } catch(e){
+        // Task 191 修正: 1件失敗でもループを継続（全体が止まらないように）
+        // 個別エラーはログ出力のみでスキップ、次件へ進む
+        errorCount++;
+        console.error(`[Backfill] エラー (${k.id}):`, e.message);
       }
+    }
+    if(errorCount > 0){
+      console.warn(`[Backfill] ${errorCount}件のエラーが発生しましたが、他 Knowledge の処理は継続しました`);
     }
     if(totalAdded > 0){
       await saveEdgesToDrive(edgesData);
