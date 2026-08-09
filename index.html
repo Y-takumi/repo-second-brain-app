@@ -4363,7 +4363,9 @@ function buildGraphLinksFromEdges(){
     if(edge.frozen) continue; // 凍結エッジは非表示
     let kind = "cross"; // thematic は紫破線で表示
     if(edge.type === "conflict") kind = "revises"; // conflict は橙色実線で表示
-    // abstract_link / foreshadowing は Phase 2 で実装
+    // Task 192: Phase 2.2/2.3 用 kind 追加（将来用、Phase 2.1 では conflict のみ使用）
+    if(edge.type === "abstract_link") kind = "abstraction"; // 抽象化の接続
+    if(edge.type === "foreshadowing") kind = "foreshadow"; // 伏線・発展
     links.push([edge.from_id, edge.to_id, kind]);
   }
   return links;
