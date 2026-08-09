@@ -3821,7 +3821,10 @@ async function addEdgesForNewKnowledge(newKnowledge){
 function freezeEdgesForKnowledge(knowledgeId){
   let frozenCount = 0;
   for(const edge of edgesData){
-    if((edge.from_id === knowledgeId || edge.to_id === knowledgeId) && !edge.frozen){
+    // Task 194: AI 判定エッジ（conflict / abstract_link / foreshadowing）は
+    // 「永続的な事実」を表すので Knowledge 更新で凍結対象外にする
+    // （凍結すると conflict 等が失われ、Knowledge の小さな編集で関連性が消えてしまう）
+    if((edge.from_id === knowledgeId || edge.to_id === knowledgeId) && !edge.frozen && !edge.ai_judged){
       edge.frozen = true;
       frozenCount++;
     }
