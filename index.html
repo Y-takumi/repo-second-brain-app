@@ -202,6 +202,10 @@
   .graph-tabs{display:flex; gap:6px; overflow-x:auto; margin-top:16px; margin-bottom:12px; padding-bottom:2px;}
   .gtab{flex-shrink:0; font-size:11.5px; padding:7px 12px; border-radius:20px; border:1px solid var(--border); color:var(--ink-dim); white-space:nowrap; cursor:pointer;}
   .gtab.active{background:var(--primary); border-color:var(--primary); color:#14101f; font-weight:600;}
+  .gtab.active[data-theme="healthcare"]{background:var(--healthcare); border-color:var(--healthcare);}
+  .gtab.active[data-theme="business"]{background:var(--business); border-color:var(--business);}
+  .gtab.active[data-theme="mind"]{background:var(--mind); border-color:var(--mind);}
+  .gtab.active[data-theme="relationships"]{background:var(--relationships); border-color:var(--relationships);}
 
   /* Explore：下部タブ（ノート / ナレッジ、Task 171 で追加、Task C で下線型に変更） */
   .explore-tabs{display:flex; gap:24px; overflow-x:auto; margin-top:8px; margin-bottom:12px; padding:0; border-bottom:1px solid var(--border);}
