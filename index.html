@@ -2868,6 +2868,12 @@ async function judgeSpecialRelations(newKnowledge, relationType, confidenceThres
         created: today,
         frozen: false,
         evidence_note_id: null,
+        // Task 190.5: AI 判定フィールドを追加（Phase 2.1 実装時の見落とし修正）
+        // freezeEdgesForKnowledge で AI 判定エッジを凍結対象外にする判定材料
+        ai_judged: true,
+        confidence: r.confidence ?? null,
+        judged_at: today,
+        model_version: "claude-sonnet-5",
       });
     }
     return edges;
