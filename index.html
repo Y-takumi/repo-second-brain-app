@@ -4348,7 +4348,35 @@ function buildGraph(){
     .attr("stroke", d=> d.kind==="cross" ? primaryColor : d.kind==="revises" ? themeColors.business : "var(--border)")
     .attr("stroke-width", d=> d.kind==="hierarchy"?1:1.3)
     .attr("stroke-dasharray", d=> d.kind==="cross"?"3,3":"none")
-    .attr("stroke-opacity", 0.7);
+    .attr("stroke-opacity", 0.7)
+    .style("cursor", d=> d.kind==="hierarchy" ? "default" : "pointer") // Task 193: hierarchy 以外クリック可
+    .on("click", (event, d)=>{ // Task 193: エッジ詳細ポップアップ
+      if(d.kind === "hierarchy") return; // hierarchy エッジは対象外
+      const fromId = typeof d.source === "object" ? d.source.id : d.source;
+      const toId = typeof d.target === "object" ? d.target.id : d.target;
+      // kind → type の逆マッピング
+      const kindToType = {
+        cross: "thematic",
+        revises: "conflict",
+        abstraction: "abstract_link",
+        foreshadow: "foreshadowing",
+      };
+      const type = kindToType[d.kind];
+      if(!type) return;
+      // edgesData から対応する edge を探す（from-to は順方向・逆方向両方チェック）
+      const edge = edgesData.find(e =>
+        !e.frozen &&
+        e.type === type &&
+        ((e.from_id === fromId && e.to_id === toId) ||
+         (e.from_id === toId && e.to_id === fromId))
+      );
+      if(!edge) return;
+      const fromNode = graphNodes.find(n => n.id === fromId);
+      const toNode = graphNodes.find(n => n.id === toId);
+      const fromTitle = fromNode?.title || fromId;
+      const toTitle = toNode?.title || toId;
+      openEdgeDetailModal({ edge, fromTitle, toTitle });
+    });
 
   nodeSel = g.selectAll(".enode").data(liveNodes).join("g")
     .call(d3.drag()
