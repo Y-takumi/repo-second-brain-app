@@ -3534,6 +3534,7 @@ async function loadKnowledgeFromDrive(){
       summary: fm.summary || "",
       themes: fm.themes || [],
       branch: fm.branch || "",
+      tags: fm.tags || [], // Task 186 修正: scoreCandidatesByRelevance がタグ重複比較に使用するため必要
       confidence: fm.confidence ?? 50,
       originNote: fm.origin_note || null,
       evidence: fm.evidence || [],
