@@ -2228,6 +2228,22 @@
   - `3afa1a7` feat(graph): エッジ詳細ポップアップのモーダル関数と CSS を追加
   - `3c180a4` feat(graph): エッジにクリックハンドラを追加
 
+### Task 191 修正: for ループ内に try-catch 追加
+- **状態**: completed
+- **完了時の評価**: 成功
+- **備考**:
+  - **背景・ユーザー手動テスト結果**：
+    - 20件 Knowledge のうち 2件目で処理停止、LocalStorage フラグ未セット
+    - グラフに conflict エッジ（橙色実線）が表示されず → Task 193 の統合テストも影響受ける
+  - **根本原因**：`judgeSpecialRelations` 内の例外（API エラー、レートリミット、トークン期限切れ等）で `runInitialEdgeBackfill` の try-catch に拾われ、関数全体が終了。for ループ内の個別 Knowledge 処理には try-catch がなかった
+  - **修正**：
+    - for ループ内に try-catch を追加
+    - 1件失敗しても他 Knowledge の処理は継続
+    - `errorCount` でエラー件数をカウント、完了時に warn ログ
+  - **既存挙動への影響**：重複チェック、saveEdgesToDrive、LocalStorage フラグセットのロジックは変更なし
+  - **透明性**：元の try-catch（関数全体）は温存、for ループ内にネストして追加
+- **関連コミット**: `6504e3c` fix(edges): runInitialEdgeBackfill の for ループ内に try-catch 追加
+
 ### 残タスク
 **Phase 2.1 関連の残タスクはすべて完了**。次の優先候補は：
 - Phase 2.2 / 2.3（abstract_link / foreshadowing 実装）
