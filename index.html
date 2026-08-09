@@ -2259,6 +2259,7 @@ async function handleGoogleAuthResult(tokenResponse){
     refreshGreatMindFromDrive();
     refreshHabitFromDrive();
     refreshEdgesFromDrive();
+    runInitialEdgeBackfill(); // Task 191: 初回起動バッチ（fire-and-forget）
     await loadGraphData();
   } catch(err){
     document.getElementById("drive-status-text").textContent = "連携済み（フォルダ確認でエラー）";
@@ -2487,6 +2488,7 @@ async function uploadVaultToDrive(){
     refreshGreatMindFromDrive();
     refreshHabitFromDrive();
     refreshEdgesFromDrive();
+    runInitialEdgeBackfill(); // Task 191: 初回起動バッチ（fire-and-forget）
     showParserSummary(resultEl);
   } catch(err){
     resultEl.textContent = `❌ エラー：${err.message}`;
@@ -3670,6 +3672,65 @@ async function refreshEdgesFromDrive(){
     console.log(`edges.json ロード成功: ${items.length}件のエッジ`);
   } catch(e){
     console.error("edges.json 読み込みエラー:", e);
+  }
+}
+
+/**
+ * 初回起動時に過去 Knowledge への conflict 判定を遡及適用（Task 191 で追加）
+ * - LocalStorage フラグ sb_initial_backfill_done で 1回だけ実行
+ * - 既に ai_judged=true のエッジがある場合はスキップ（手動 push 対策）
+ * - バックグラウンド実行、UI ブロックなし
+ * - 進捗はコンソールログのみ
+ */
+async function runInitialEdgeBackfill(){
+  if(localStorage.getItem("sb_initial_backfill_done") === "true"){
+    console.log("[Backfill] スキップ: 既に実行済み");
+    return;
+  }
+  const hasAiJudged = edgesData.some(e => e.ai_judged);
+  if(hasAiJudged){
+    console.log("[Backfill] スキップ: AI 判定エッジが既に存在");
+    localStorage.setItem("sb_initial_backfill_done", "true");
+    return;
+  }
+  if(!googleAccessToken){
+    console.log("[Backfill] スキップ: 未認証");
+    return;
+  }
+  try{
+    const knowledge = await loadKnowledgeFromDrive();
+    if(knowledge.length === 0){
+      console.log("[Backfill] スキップ: Knowledge が 0件");
+      localStorage.setItem("sb_initial_backfill_done", "true");
+      return;
+    }
+    console.log(`[Backfill] 開始: ${knowledge.length} 件の Knowledge を処理`);
+    let totalAdded = 0;
+    for(let i = 0; i < knowledge.length; i++){
+      const k = knowledge[i];
+      console.log(`[Backfill] 処理中: ${k.id} (${i+1}/${knowledge.length})`);
+      const conflictEdges = await judgeSpecialRelations(k, "conflict");
+      for(const newEdge of conflictEdges){
+        const duplicate = edgesData.some(e =>
+          e.from_id === newEdge.from_id &&
+          e.to_id === newEdge.to_id &&
+          e.type === newEdge.type
+        );
+        if(!duplicate){
+          edgesData.push(newEdge);
+          totalAdded++;
+        }
+      }
+    }
+    if(totalAdded > 0){
+      await saveEdgesToDrive(edgesData);
+      console.log(`[Backfill] 完了: ${totalAdded}件の conflict エッジを追加`);
+    } else {
+      console.log(`[Backfill] 完了: 追加エッジなし`);
+    }
+    localStorage.setItem("sb_initial_backfill_done", "true");
+  } catch(e){
+    console.error("[Backfill] エラー:", e);
   }
 }
 
