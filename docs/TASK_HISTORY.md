@@ -2157,6 +2157,67 @@
 
 ---
 
+## 2026-08-09 セッション（Phase 2.1 補完：AI 判定エッジ凍結対象外化）
+
+### セッション前提
+- 直前セッション（Phase 2.1）で残った 4 タスクのうち、推奨手順（Task 194 → Task 195）に着手
+- ユーザー選択：「案 A（Task 190.5 → 194 を 2 コミットで段階的に）」を採用
+
+### Task 190.5: judgeSpecialRelations で AI 判定フィールドを edges に追加
+- **状態**: completed
+- **完了時の評価**: 成功
+- **備考**:
+  - **背景**：Phase 2.1（Task 188）で実装された `judgeSpecialRelations` が AI 判定エッジを生成する際、`ai_judged: true` / `confidence` / `judged_at` / `model_version` を出力 edges に含めていなかった。Task 190（loadEdgesFromDrive でのデフォルト補完）は実装済みだったが、生成側でフラグを立てる処理が見落とされていた
+  - **影響範囲**：`judgeSpecialRelations`（index.html:2862-2871）の `edges.push({...})` 末尾に 4 フィールド追加
+  - **既存挙動との整合**：
+    - 既存 Phase 1 の thematic エッジは `loadEdgesFromDrive` で `ai_judged: false` デフォルト補完
+    - 新規 AI 判定エッジ（conflict 等）は `ai_judged: true` を明示 → `loadEdgesFromDrive` で上書きされる
+  - **判断**：`r.confidence ?? null` で undefined 時は null 保存（AI が confidence を返さなかった場合を許容）
+  - **model_version**：`callClaudeWorker`（index.html:3075）で使用中の `claude-sonnet-5` を文字列リテラルで保存
+- **関連コミット**: `bbfe828` feat(edges): judgeSpecialRelations で AI 判定フィールドを edges に追加
+
+### Task 194: freezeEdgesForKnowledge で thematic のみ凍結
+- **状態**: completed
+- **完了時の評価**: 成功
+- **備考**:
+  - **背景・ユーザーFB**：「AI 判定エッジ（conflict / abstract_link / foreshadowing）も凍結対象に含めますか？」
+  - **ユーザー選択**：「含めない（推奨）」を選択
+  - **判断根拠**：
+    - conflict: 過去の自分と今の自分の対立 → 時間が経っても解消されない「永続的な事実」
+    - abstract_link: 抽象的パターン → 具体的な出来事の変化に依存しない
+    - foreshadowing: 発展関係 → Knowledge 全体の意味が変わらない限り保持
+    - thematic: 機械判定（テーマ・タグ一致）→ 再計算が妥当
+  - **実装**：`freezeEdgesForKnowledge`（index.html:3821）の if 条件に `&& !edge.ai_judged` を 1 条件追加
+  - **透明性**：Knowledge 本文の小さな編集（誤字修正、表現変更）で永続的な事実まで消えるとユーザー体験として不自然。thematic のみ凍結する設計で「機械判定は最新を保つ」「永続的事実は保持」の両立を実現
+  - **既存挙動の維持**：thematic エッジ（ai_judged=false）は従来通り凍結。Phase 1 で構築された動作を破壊しない
+- **関連コミット**: `b2dcf48` feat(edges): freezeEdgesForKnowledge で thematic のみ凍結
+
+### Task 195: 仕様書 2.14.5 節に凍結対象エッジの方針を追記
+- **状態**: completed
+- **完了時の評価**: 成功
+- **備考**:
+  - **背景**：Task 190.5 / 194 の判断をドキュメントに反映。仕様書は「設計判断の経緯」を残す役割
+  - **追記内容**：
+    - 「AI 判定エッジの凍結挙動（2026-08-09 確定 / Task 194）」サブセクションを 2.14.5 節に追加
+    - エッジ種別ごとの frozen 対象テーブル（thematic / conflict / abstract_link / foreshadowing）
+    - 判断根拠 4 点
+    - 関連コミット（bbfe828, b2dcf48）への参照
+  - **最終更新日付**：仕様書冒頭を「2026-08-07」→「2026-08-09（Task 194 + 190.5）」に更新
+- **関連コミット**: `c966049` docs(仕様書): 2.14.5 節に AI 判定エッジの凍結挙動を追記
+
+### 残タスク（2 個）
+| Task | 内容 | 影響範囲 |
+|---|---|---|
+| 191 | runInitialEdgeBackfill() 初回起動バッチ | 過去 Knowledge への遡及適用（Task 190.5 完了で準備完了、新規 Knowledge 作成時のフローで順次適用されるため、初回起動バッチの優先度は低） |
+| 193 | エッジ詳細ポップアップ UI | グラフ UX（エッジタップで reason 表示） |
+
+### セッション備考
+- エンコーディング問題：PowerShell の `node --check index.html` が ERR_UNKNOWN_FILE_EXTENSION で失敗。Python + `re.findall` で `<script>` 部分抽出 → 一時 `.js` ファイル書き出し → `node --check` の手法も、HTML 内文字列リテラルの Shift-JIS/UTF-8 問題で mojibake エラー
+- **対策**：Edit ツールが成功している + Read で変更内容を確認 + 構文的に単純な変更（オブジェクトリテラル末尾のフィールド追加 / if 条件の 1 条件追加）のため、構文チェックをスキップしてコミット
+- **教訓**：HTML ファイル全体の構文チェックは困難。代わりに該当関数のみ Read で確認する方針が効率的
+
+---
+
 ## 関連ドキュメント
 
 - `docs/OAUTH_AND_STORAGE.md`：OAuth・LocalStorage・データアクセス権限
