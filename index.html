@@ -215,6 +215,12 @@
   /* Explore：上部（検索窓 + タブ）を sticky 化（Task 183 で追加） */
   .explore-sticky-header{position:sticky; top:0; background:var(--bg); z-index:10; padding-bottom:8px; margin-bottom:12px; border-bottom:1px solid var(--border);}
 
+  /* Explore：テーマフィルタ + 探索タブを sticky 化（Task E で追加）。
+     グラフをスクロールアウトさせた後、検索窓の直下から引き続き表示される。*/
+  .explore-sticky-bottom{position:sticky; top:61px; background:var(--bg); z-index:9; padding:0; margin-bottom:12px; border-bottom:1px solid var(--border);}
+  .explore-sticky-bottom > .graph-tabs{margin-top:0; margin-bottom:0;}
+  .explore-sticky-bottom > .explore-tabs{margin-top:0; margin-bottom:0;}
+
   /* Explore：意味検索 */
   .search-row{display:flex; gap:8px; align-items:center;}
   .search-row .url-input{flex:1;}
@@ -1584,20 +1590,24 @@ const vaultSeedFiles = [
     <div class="graph-container">
       <svg id="explore-svg" viewBox="0 0 350 300"></svg>
     </div>
-    <div class="graph-tabs">
-      <div class="gtab active" data-theme="all" onclick="renderGraph('all', event)">すべて</div>
-      <div class="gtab" data-theme="healthcare" onclick="renderGraph('healthcare', event)">Health</div>
-      <div class="gtab" data-theme="business" onclick="renderGraph('business', event)">Business</div>
-      <div class="gtab" data-theme="mind" onclick="renderGraph('mind', event)">Mind</div>
-      <div class="gtab" data-theme="relationships" onclick="renderGraph('relationships', event)">Relations</div>
-    </div>
 
-    <!-- タブコンテンツ（Task 185 で explore-tabs をここに移動、graph-info カード削除） -->
-    <div id="explore-tab-content">
+    <!-- Task E：テーマフィルタ + 探索タブ（ノート / ナレッジ）をまとめて sticky 化 -->
+    <div class="explore-sticky-bottom">
+      <div class="graph-tabs">
+        <div class="gtab active" data-theme="all" onclick="renderGraph('all', event)">すべて</div>
+        <div class="gtab" data-theme="healthcare" onclick="renderGraph('healthcare', event)">Health</div>
+        <div class="gtab" data-theme="business" onclick="renderGraph('business', event)">Business</div>
+        <div class="gtab" data-theme="mind" onclick="renderGraph('mind', event)">Mind</div>
+        <div class="gtab" data-theme="relationships" onclick="renderGraph('relationships', event)">Relations</div>
+      </div>
       <div class="explore-tabs">
         <div class="explore-tab active" data-tab="note" onclick="switchExploreTab('note')">ノート</div>
         <div class="explore-tab" data-tab="knowledge" onclick="switchExploreTab('knowledge')">ナレッジ</div>
       </div>
+    </div>
+
+    <!-- タブコンテンツ（Task E で explore-tabs を外に出した） -->
+    <div id="explore-tab-content">
       <p class="page-sub" id="lib-count" style="margin-top:10px;">13件のノート</p>
       <div id="lib-list"></div>
       <div id="knowledge-list"></div>
