@@ -3624,7 +3624,16 @@ async function loadEdgesFromDrive(){
   const { frontmatter: fm, body } = parseFrontmatter(raw);
   try{
     const parsed = JSON.parse(body);
-    return parsed.edges || [];
+    const edges = parsed.edges || [];
+    // Task 190: Phase 2 - AI 判定フィールドのデフォルト補完（後方互換）
+    // 既存 Phase 1 の thematic エッジは ai_judged: false として読み込まれる
+    return edges.map(e => ({
+      ai_judged: false,
+      confidence: null,
+      judged_at: null,
+      model_version: null,
+      ...e,
+    }));
   } catch(e){
     console.error("edges.json パースエラー:", e);
     return [];
