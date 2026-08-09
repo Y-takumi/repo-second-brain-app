@@ -3745,6 +3745,7 @@ function computeBasicEdges(newKnowledge, existingKnowledge){
 
 /**
  * 新規Knowledge作成時に、既存Knowledgeとの基本の関連性を edges.json に追加（Task 155 で追加）
+ * Task 189：thematic 追加後に conflict 判定（特別の関連性）も実行
  * @param {Object} newKnowledge - 新規作成されたKnowledge（id, themes, branch, tags など）
  */
 async function addEdgesForNewKnowledge(newKnowledge){
@@ -3767,6 +3768,29 @@ async function addEdgesForNewKnowledge(newKnowledge){
     if(addedCount > 0){
       await saveEdgesToDrive(edgesData);
       console.log(`edges.json 更新: 新規エッジ ${addedCount}件を追加`);
+    }
+
+    // Task 189: Phase 2 - conflict 判定（特別の関連性、AI 判定）
+    try{
+      const conflictEdges = await judgeSpecialRelations(newKnowledge, "conflict");
+      let conflictAddedCount = 0;
+      for(const newEdge of conflictEdges){
+        const duplicate = edgesData.some(e =>
+          e.from_id === newEdge.from_id &&
+          e.to_id === newEdge.to_id &&
+          e.type === newEdge.type
+        );
+        if(!duplicate){
+          edgesData.push(newEdge);
+          conflictAddedCount++;
+        }
+      }
+      if(conflictAddedCount > 0){
+        await saveEdgesToDrive(edgesData);
+        console.log(`edges.json 更新: conflict エッジ ${conflictAddedCount}件を追加`);
+      }
+    } catch(e){
+      console.error("conflict エッジ生成エラー:", e);
     }
   } catch(e){
     console.error("エッジ自動生成エラー:", e);
