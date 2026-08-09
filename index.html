@@ -2814,6 +2814,69 @@ ${typeDescription}
 ${candidateBlock || "（候補なし）"}`;
 }
 
+/**
+ * 特別の関連性（conflict / abstract_link / foreshadowing）を Claude API で判定（Task 188）
+ * scoreCandidatesByRelevance で候補を絞込 → buildSpecialRelationPrompt → callClaudeWorker → JSON 抽出 → edges 変換
+ * Phase 2.1 は conflict のみ使用
+ * @param {Object} newKnowledge - 新規 Knowledge（id, themes, branch, tags, title, summary, confidence など）
+ * @param {string} relationType - "conflict" | "abstract_link" | "foreshadowing"
+ * @param {number} confidenceThreshold - 信頼度閾値（これ未満は edges に追加しない、デフォルト 0.7）
+ * @returns {Promise<Array>} 生成されたエッジの配列
+ */
+async function judgeSpecialRelations(newKnowledge, relationType, confidenceThreshold){
+  const threshold = confidenceThreshold || 0.7;
+  try{
+    if(!googleAccessToken) return [];
+    const existingKnowledge = await loadKnowledgeFromDrive();
+    const candidates = scoreCandidatesByRelevance(newKnowledge, existingKnowledge, 30);
+    if(candidates.length === 0) return [];
+
+    const prompt = buildSpecialRelationPrompt(newKnowledge, candidates, relationType);
+    const raw = await callClaudeWorker(prompt, 4000);
+
+    // JSON 抽出（既存パターン：index.html:2870-2873）
+    let parsed;
+    try{
+      const start = raw.indexOf("{");
+      const end = raw.lastIndexOf("}");
+      if(start === -1 || end === -1 || end < start) throw new Error("JSON部分が見つかりませんでした");
+      parsed = JSON.parse(raw.slice(start, end + 1));
+    } catch(e){
+      console.error("judgeSpecialRelations: JSON解析エラー", e, "raw:", raw.slice(0, 500));
+      return [];
+    }
+
+    const relations = parsed.relations || [];
+    const today = new Date().toISOString().slice(0,10);
+    const edges = [];
+    for(const r of relations){
+      if(!r.relation_found) continue;
+      if((r.confidence || 0) < threshold) continue;
+
+      const otherId = r.candidate_id;
+      // from_id < to_id で 1 方向に統一（無向グラフ、Phase 1 と整合）
+      const [fromId, toId] = newKnowledge.id < otherId
+        ? [newKnowledge.id, otherId]
+        : [otherId, newKnowledge.id];
+
+      edges.push({
+        from_id: fromId,
+        to_id: toId,
+        type: relationType,
+        reason: r.reason || "",
+        strength: r.confidence || 0.7,
+        created: today,
+        frozen: false,
+        evidence_note_id: null,
+      });
+    }
+    return edges;
+  } catch(e){
+    console.error("judgeSpecialRelations error:", e);
+    return [];
+  }
+}
+
 /** CORS プロキシ経由でURLから記事本文（HTML）を取得 */
 async function fetchArticleContent(url){
   // 複数のCORSプロキシを順に試す（可用性対策）
