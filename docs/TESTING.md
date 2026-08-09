@@ -1,6 +1,6 @@
 # 動作テスト計画
 
-最終更新：2026-07-28
+最終更新：2026-08-09（Phase 2.1 テスト項目追加）
 
 ## 目的
 
@@ -222,10 +222,157 @@ Playwright で自動テストを再開するには、以下を実施：
 3. GSI は Google ドメインのため、テスト時はモック化 or スキップ
 4. OAuth 認証画面を含むテストは手動のまま（自動テスト困難）
 
+## Phase 2.1: Knowledge 間関連性 Phase 2.1（2026-08-09 実装）
+
+**概要**：AI 判定による特別の関連性（conflict）を新規 Knowledge 作成時に自動検出する Phase 2.1 を実装。7 コミット（Task 186, 186.5, 187, 188, 189, 190, 192）で end-to-end 完成。
+
+**実装コミット**：
+- `c7e97e9` Task 186 scoreCandidatesByRelevance()
+- `4362b7c` Task 187 buildSpecialRelationPrompt()
+- `392ad59` Task 186.5 loadKnowledgeFromDrive tags 修正
+- `d161b29` Task 188 judgeSpecialRelations()
+- `1e8ee4f` Task 189 addEdgesForNewKnowledge conflict 統合
+- `633e841` Task 190 edges.json スキーマ拡張（後方互換）
+- `cc5302f` Task 192 buildGraphLinksFromEdges kind 追加
+
+**前提条件**：
+- OAuth 認証済み
+- 既存 Knowledge 2 件以上（conflict 判定の比較対象）
+- ローカルサーバー起動済み（`node .tmp-http-server.js` → `http://localhost:8000/`）
+
+### T1: loadKnowledgeFromDrive に tags 追加（Task 186.5 修正の検証）
+
+1. アプリ起動 → OAuth 認証
+2. 開発者コンソール（F12）を開く
+3. 実行：
+   ```javascript
+   const k = await loadKnowledgeFromDrive();
+   console.log(k[0]);
+   ```
+4. **期待結果**：返り値に `tags: []`（または実タグ）が含まれる
+5. ❌ `tags` フィールドがない → Task 186.5 が反映されていない
+
+### T2: scoreCandidatesByRelevance() 動作確認
+
+1. 実行：
+   ```javascript
+   const k = await loadKnowledgeFromDrive();
+   const candidates = scoreCandidatesByRelevance({
+     id: "test", tags: ["a"], themes: ["healthcare"], confidence: 80
+   }, k, 5);
+   console.log(candidates.map(c => c.id));
+   ```
+2. **期待結果**：上位 5 件の id 配列が返る
+3. ❌ エラー → Task 186 が反映されていない
+
+### T3: buildSpecialRelationPrompt() 動作確認
+
+1. 実行：
+   ```javascript
+   const prompt = buildSpecialRelationPrompt(
+     {id: "test", title: "新Knowledge", summary: "...", themes: ["healthcare"], branch: "test", tags: []},
+     [{id: "k1", title: "既存", themes: ["healthcare"], branch: "test", summary: "..."}],
+     "conflict"
+   );
+   console.log(prompt.length);
+   ```
+2. **期待結果**：数百〜数千文字のプロンプト文字列が返る（実測 780 文字）
+3. ❌ エラー → Task 187 が反映されていない
+
+### T4: judgeSpecialRelations() 動作確認
+
+1. 実行：
+   ```javascript
+   const edges = await judgeSpecialRelations({
+     id: "test-" + Date.now(), title: "テスト", summary: "テスト",
+     themes: ["healthcare"], branch: "test", tags: ["テスト"], confidence: 80
+   }, "conflict");
+   console.log(edges);
+   ```
+2. **期待結果**：
+   - 空配列、または conflict エッジの配列が返る
+   - コンソールに「judgeSpecialRelations: JSON解析エラー」が出ていない
+3. ❌ JSON 解析エラー → JSON 抽出ロジック確認
+
+### T5: 新規 Knowledge 作成 → 自動 conflict 判定（**最重要**）
+
+1. 入力タブ → ジャーナル入力
+2. テーマが明確な内容を入力（healthcare / business / mind / relations 関連）
+3. **保存**
+4. **確認項目**：
+   - コンソールに `conflict エッジ N件を追加` ログ（または thematic のみ）
+   - `10_Edges/edges.json` を Drive Web UI で開く
+   - `type: "conflict"` のエッジが存在する（または thematic のみ）
+5. ❌ エラー → Task 189 が反映されていない
+
+### T6: グラフで conflict がオレンジ色実線で表示
+
+1. 探索タブ → グラフ
+2. **確認項目**：
+   - 既存 thematic エッジ：紫破線（cross kind）
+   - 新規 conflict エッジ：橙色実線（revises kind）
+3. ❌ 全エッジが同じ色 → Task 192 が反映されていない
+4. **実データがない場合**：T5 を繰り返し conflict 判定が出やすい Knowledge を投入して確認
+
+### T7: 既存 edges.json の後方互換性（Task 190 検証）
+
+1. F5 でページをリロード
+2. OAuth 認証（既に認証済みなら不要）
+3. アプリ初期化完了を待つ
+4. 開発者コンソール（F12）を開く
+5. 実行：
+   ```javascript
+   await refreshEdgesFromDrive();
+   console.log("edgesData.length:", edgesData.length);
+   console.log(JSON.stringify(edgesData[0], null, 2));
+   ```
+6. **期待結果**：
+   - `edgesData.length`: 1 以上
+   - 4 つの AI 判定フィールドが補完されている：
+     - `ai_judged: false`
+     - `confidence: null`
+     - `judged_at: null`
+     - `model_version: null`
+7. ❌ 上記フィールドが undefined → Task 190 が反映されていない
+8. ❌ `length: 0` → `loadEdgesFromDrive` 失敗（10_Edges フォルダや edges.json を確認）
+
+### T8: 信頼度 0.7 未満の conflict は追加されない
+
+1. 実行（閾値 0.99 で、結果が出にくくする）：
+   ```javascript
+   const edges = await judgeSpecialRelations({
+     id: "test-" + Date.now(), title: "テスト", summary: "...",
+     themes: ["healthcare"], branch: "test", tags: [], confidence: 50
+   }, "conflict", 0.99);
+   console.log(edges.length);
+   ```
+2. **期待結果**：`0`（閾値 0.99 で通る判定は稀）
+3. ❌ 0 以外で多数 → 閾値ロジック確認
+
+### 動作テスト共通のチェックリスト（Phase 2.1 追加）
+
+- [ ] `loadKnowledgeFromDrive` の返り値に `tags` フィールドが含まれる
+- [ ] `edgesData[0]` に `ai_judged`, `confidence`, `judged_at`, `model_version` フィールドが補完されている
+- [ ] 新規 Knowledge 保存時にコンソールに `edges.json 更新: 新規エッジ N件を追加` ログが出る
+- [ ] 既存 Knowledge との conflict 関係が edges.json に保存される
+- [ ] グラフで thematic と conflict が異なる kind で描画される
+
+### Phase 2.1 トラブルシューティング
+
+**`loadKnowledgeFromDrive is not defined`**：関数が存在しない → Task 186.5 適用確認（F5 リロード）
+
+**JSON 抽出エラー頻発**：Claude 応答が長い場合は、prompt の文字数を減らす or candidates 数を `scoreCandidatesByRelevance` の `topN` パラメータで減らす
+
+**edges が空**：既存 Knowledge 不足 or テーマ不一致 → 既存 Knowledge の themes / tags を確認
+
+**`edgesData.length` が 0**：F5 リロード → OAuth 認証 → `await refreshEdgesFromDrive()` 実行で復旧
+
 ## 関連ドキュメント
 
 - `docs/IMPLEMENTATION_PLAN.md`：実装プラン
 - `00_処理ロジック仕様書.md` 2.10.5 節：習慣記録フロー設計ビジョン
 - `00_処理ロジック仕様書.md` 2.11 / 2.12 節：既存 Habit 仕様
+- `00_処理ロジック仕様書.md` 2.14 節：Knowledge 間関連性データモデル
 - `memory/second-brain-2026-07-28-youtube-test-blocked.md`：CDN ブロックの詳細
-- `memory/second-brain-2026-07-28-habit-vision.md`：本セッションのメモリ
+- `memory/second-brain-2026-07-28-habit-vision.md`：習慣セッションのメモリ
+- `memory/second-brain-2026-08-09-phase2-1.md`：本セッション（Phase 2.1）のメモリ
