@@ -2760,6 +2760,60 @@ URL: ${articleMeta?.url || "（不明）"}
 ${articleText}`;
 }
 
+/**
+ * 特別の関連性（conflict / abstract_link / foreshadowing）判定用プロンプト生成（Task 187）
+ * Phase 2.1 では conflict のみ対応、abstract_link / foreshadowing は将来拡張
+ * @param {Object} newKnowledge - 新規 Knowledge（id, title, summary, themes, branch, tags）
+ * @param {Array} candidates - 既存 Knowledge 候補配列（scoreCandidatesByRelevance で絞り込んだもの）
+ * @param {string} relationType - "conflict" | "abstract_link" | "foreshadowing"（Phase 2.1 は conflict のみ）
+ * @returns {string} Claude API へのプロンプト
+ */
+function buildSpecialRelationPrompt(newKnowledge, candidates, relationType){
+  const candidateBlock = (candidates||[]).map(c =>
+    `- id: ${c.id} / title: ${c.title} / themes: ${(c.themes||[]).join(",")} / branch: ${c.branch} / summary: ${c.summary}`
+  ).join("\n");
+
+  const typeDescription = relationType === "conflict"
+    ? "**葛藤（conflict）**：過去の自分と今の自分で考えが対立している、2 つの Knowledge が異なる結論・異なる意見を持っている"
+    : relationType === "abstract_link"
+    ? "**抽象化の接続（abstract_link）**：別々の具体的出来事の裏に、同じ抽象的パターン・信念が潜んでいる"
+    : "**伏線・発展（foreshadowing）**：過去の記録が今の記録の『答え合わせ』や『続き』になっている";
+
+  return `あなたは「第二の脳」という個人用ナレッジ管理システムの思考分析アシスタントです。
+新規 Knowledge と既存 Knowledge 候補を比較し、**${relationType}** 関係を判定してください。
+
+# 判定タイプ
+${typeDescription}
+
+# 重要な判定方針
+- タグ・テーマ・キーワードの近いだけで「関連あり」と判定しないでください
+- 表面的な類似ではなく、**思考の構造的なつながり**を探してください
+- 「関連あり」と確信できない場合は「関連なし」と判定してください（無理に何かを見つけようとしないでください）
+- 信頼度 0.7 未満の判定は edges に保存されないので、**0.7 以上の強い確信がある場合のみ**判定してください
+
+# 出力JSON形式
+{
+  "relations": [
+    {
+      "candidate_id": "（既存Knowledge の id）",
+      "relation_found": true または false,
+      "reason": "（そう判断した根拠を1〜2文で）",
+      "confidence": 0.0 から 1.0
+    }
+  ]
+}
+
+# 新規 Knowledge
+- id: ${newKnowledge.id}
+- title: ${newKnowledge.title}
+- themes: ${(newKnowledge.themes||[]).join(",")}
+- branch: ${newKnowledge.branch}
+- summary: ${newKnowledge.summary}
+
+# 既存 Knowledge 候補（${(candidates||[]).length}件）
+${candidateBlock || "（候補なし）"}`;
+}
+
 /** CORS プロキシ経由でURLから記事本文（HTML）を取得 */
 async function fetchArticleContent(url){
   // 複数のCORSプロキシを順に試す（可用性対策）
