@@ -3541,6 +3541,31 @@ async function refreshEdgesFromDrive(){
 }
 
 /**
+ * Knowledge 間の関連性候補をスコアリングして上位 N 件を返す（Task 186 で追加）
+ * スコア計算：タグ重複数 × 3 + テーマ重複数 × 2 + 信頼度 × 1
+ * Phase 2 で AI 判定（conflict / abstract_link / foreshadowing）する際の候補絞り込みに使用
+ * @param {Object} newKnowledge - 新規 Knowledge（id, themes, tags, confidence を持つ）
+ * @param {Array} existingKnowledge - 既存 Knowledge 全件
+ * @param {number} topN - 上位何件返すか（デフォルト 30）
+ * @returns {Array} スコア上位 N 件の Knowledge 配列
+ */
+function scoreCandidatesByRelevance(newKnowledge, existingKnowledge, topN){
+  const N = topN || 30;
+  const scored = (existingKnowledge||[])
+    .filter(k => k.id !== newKnowledge.id) // 自分自身は除外
+    .map(k => {
+      const tagOverlap = (newKnowledge.tags||[]).filter(t => (k.tags||[]).includes(t)).length;
+      const themeOverlap = (newKnowledge.themes||[]).filter(t => (k.themes||[]).includes(t)).length;
+      const confidence = ((newKnowledge.confidence||50) + (k.confidence||50)) / 200;
+      return { k, score: tagOverlap*3 + themeOverlap*2 + confidence*1 };
+    });
+  return scored
+    .sort((a,b) => b.score - a.score)
+    .slice(0, N)
+    .map(s => s.k);
+}
+
+/**
  * 基本の関連性を機械的に判定する（テーマ + タグ + branch の一致、Task 154 で追加）
  * 判定ロジック：(テーマ一致) AND (branch一致 OR 1つ以上のタグ共通)
  * @param {Object} newKnowledge - 新規または更新されたKnowledge（id, themes, branch, tags を持つ）
