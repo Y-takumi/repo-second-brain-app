@@ -2157,6 +2157,85 @@
 
 ---
 
+## 2026-08-09 夜セッション（残タスク完了：Task 191 / 193）
+
+### Task 191: runInitialEdgeBackfill 初回起動バッチの実装
+- **状態**: completed
+- **完了時の評価**: 成功（Playwright 単体テスト + ユーザー手動テスト推奨）
+- **備考**:
+  - **背景**：Phase 2.1 で残った 4 タスクのうち、メモリ（[[second-brain-2026-08-09-phase2-1]]）記載通り Task 191 に着手
+  - **ユーザー選択した設計判断**：
+    - 起動タイミング：初回起動のみ（LocalStorage フラグ sb_initial_backfill_done）
+    - UI 振る舞い：バックグラウンド実行（fire-and-forget）
+    - バッチサイズ：全件一度に処理（Knowledge 数 30 想定）
+  - **実装**：
+    - `runInitialEdgeBackfill()` 関数（index.html:3682）を新規追加
+    - OAuth 認証後（2257-2261）と Vault シード後（2486-2489）の 2 箇所で fire-and-forget 呼び出し
+    - 既存 Knowledge 全件を順次 `judgeSpecialRelations(k, "conflict")` で処理
+    - 重複チェック：`edgesData.some(e => e.from_id === ... && e.to_id === ... && e.type === ...)` で既存パターン踏襲
+    - スキップ条件：フラグ true / ai_judged エッジ存在 / 未認証 / Knowledge 0件
+  - **冪等性**：LocalStorage フラグ + ai_judged エッジ存在チェック + edgesData 重複チェックの三重防御
+  - **Playwright テスト結果**：
+    - ✅ 関数存在確認
+    - ✅ googleAccessToken なし → 早期 return
+    - ✅ ai_judged エッジ存在 → フラグセット + スキップ
+    - ✅ フラグ true → 冪等性保証
+    - ⚠️ 重複防止ロジックは `addEdgesForNewKnowledge` と同じパターン（コード解析で担保）
+  - **環境制約**：`judgeSpecialRelations` は function declaration なので `window.judgeSpecialRelations = mock` で上書き不可。直接テストではなくロジックパターン解析で担保
+  - **OAuth 必須の正常系テスト**：ユーザー手動テスト推奨
+- **関連コミット**: `05c653a` feat(edges): runInitialEdgeBackfill 初回起動バッチを実装
+
+### Task 193: エッジ詳細ポップアップ UI の実装
+- **状態**: completed
+- **完了時の評価**: 成功（Playwright 単体テスト全成功）
+- **備考**:
+  - **背景**：Phase 2.1 で残った 4 タスクのうち、Task 193 に着手
+  - **ユーザー選択した設計判断**：
+    - トリガー：クリックのみ（誤動作リスクなし）
+    - モーダルパターン：既存 `openConfirmModal` を踏襲、confirm/cancel ボタンなしの「表示のみ」モーダル
+    - frozen エッジ：クリック不可（buildGraphLinksFromEdges で非表示なので通常到達しない）
+  - **実装（2 コミットに分割）**：
+    - コミット 1（`3afa1a7`）：モーダル関数 + CSS
+      - `openEdgeDetailModal({ edge, fromTitle, toTitle })` 関数追加
+      - `closeEdgeDetailModal()` 関数追加
+      - `_edgeDetailEscapeHandler` グローバル変数追加
+      - `.edge-detail-*` CSS クラス追加（既存 `.modal-card` パターン踏襲、最大幅 380px）
+    - コミット 2（`3c180a4`）：クリックハンドラ統合
+      - `buildGraph()` の linkSel に `.style("cursor", ...)` と `.on("click", ...)` 追加
+      - kind → type 逆マッピング（cross → thematic、revises → conflict など）
+      - hierarchy エッジは対象外（branch → atom の構造リンク）
+      - edgesData から対応する edge を検索（順方向・逆方向両方チェック）
+  - **モーダル表示内容**：
+    - タイトル：「エッジの詳細」
+    - 種別バッジ（基本の関連性 / 葛藤 / 抽象化の接続 / 伏線・発展）
+    - 関連性強度（strength）
+    - 判定理由（reason、AI 判定時）
+    - AI 判定情報（信頼度・判定日・モデル）← ai_judged=true の時のみ
+    - 関連 Knowledge（from / to のタイトル）
+  - **閉じる方法**：
+    - 「閉じる」ボタン
+    - 背景タップ
+    - ESC キー
+  - **Playwright テスト結果（全成功）**：
+    - ✅ 関数存在確認（openEdgeDetailModal, closeEdgeDetailModal）
+    - ✅ CSS 適用確認（.edge-detail-card max-width: 380px）
+    - ✅ conflict エッジ表示（タイトル、種別「葛藤 (conflict)」、理由、AI 情報、Knowledge）
+    - ✅ thematic エッジ表示（種別「基本の関連性」、AI 判定情報なし、判定理由 + 関連 Knowledge のみ）
+    - ✅ 閉じるボタンで閉じる
+    - ✅ XSS エスケープ（`<script>` / `<b>` が `&lt;script&gt;` / `&lt;b&gt;` として表示）
+  - **OAuth 必須の統合テスト**：ユーザー手動テスト推奨（グラフ画面でエッジクリック → ポップアップ表示）
+- **関連コミット**:
+  - `3afa1a7` feat(graph): エッジ詳細ポップアップのモーダル関数と CSS を追加
+  - `3c180a4` feat(graph): エッジにクリックハンドラを追加
+
+### 残タスク
+**Phase 2.1 関連の残タスクはすべて完了**。次の優先候補は：
+- Phase 2.2 / 2.3（abstract_link / foreshadowing 実装）
+- 仕様書 2.14.6 節「埋め込みベクトルによる意味検索」
+- Insights 検出バッチ処理（2.14 節ロードマップ）
+
+---
+
 ## 2026-08-09 セッション（Phase 2.1 補完：AI 判定エッジ凍結対象外化）
 
 ### セッション前提
