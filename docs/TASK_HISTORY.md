@@ -2313,6 +2313,47 @@
 
 ---
 
+## 2026-08-10 セッション（direction 実装：案 A1 + Task 191 削除）
+
+### セッション概要
+前セッション（2026-08-09 深夜）の設計振り返りで確定した「**案 A1：direction フィールド追加 + Task 191 削除**」に着手。
+- direction: `thematic=neutral` / `conflict=past_to_present|present_to_past` / `abstract_link=AI判定` / `foreshadowing=AI判定`
+- conflict の direction は AI 判定させず、id の先頭 8 桁（YYYYMMDD）で機械判定（案 A1）
+
+### Task 196: runInitialEdgeBackfill の削除
+- **状態**: completed
+- **完了評価**: 成功
+- **備考**: 関数本体（69行）+ 呼び出し 2 箇所 + LocalStorage フラグ sb_initial_backfill_done を削除。新規 Knowledge 作成フローで累積的に全網羅されるため不要（Knowledge N件作成後の累積判定 = N(N-1)/2 = C(N,2)）
+- **削除範囲**:
+  - `runInitialEdgeBackfill` 関数 + JSDoc（index.html:3712-3780）
+  - 呼び出し: `handleGoogleAuthResult` (line 2296), `uploadVaultToDrive` (line 2525)
+- **コミット**: （本セッションで push 予定）
+
+### Task 197: direction フィールドの実装
+- **状態**: completed
+- **完了評価**: 成功（Playwright localhost ブロック継続中のため、ユニット動作は関数単位の Read で確認）
+- **備考**: Knowledge 間のエッジに `direction` フィールドを追加。type 別の値は以下の通り：
+  - `thematic`: `"neutral"`（固定、`computeBasicEdges` で出力）
+  - `conflict`: `"past_to_present"` / `"present_to_past"`（`created` タイムスタンプから機械判定、`addEdgesForNewKnowledge` で実装）
+  - `abstract_link`: `"abstract_to_specific"` / `"specific_to_abstract"`（AI 判定、`judgeSpecialRelations` のプロンプトに追加）
+  - `foreshadowing`: `"foreshadow_to_resolution"` / `"resolution_to_foreshadow"`（AI 判定）
+- **実装箇所**:
+  - 仕様書 `00_処理ロジック仕様書.md` 2.14.2 節: スキーマに `direction` 追加
+  - 仕様書 2.14.5 節: direction 仕様セクション新設
+  - `loadEdgesFromDrive` (index.html:3656): `direction: "neutral"` デフォルト補完（後方互換）
+  - `computeBasicEdges` (index.html:3751): thematic に `direction: "neutral"` 出力
+  - `addEdgesForNewKnowledge` (index.html:3811): conflict エッジの direction を id.slice(0,8) で機械判定
+  - `buildSpecialRelationPrompt` (index.html:2805): abstract_link / foreshadowing の direction 判定指示追加
+  - `judgeSpecialRelations` (index.html:2863): エッジオブジェクトに `direction: r.direction || null` 追加（conflict は null のまま push、呼び出し側で上書き）
+- **設計判断**: `from_id < to_id` ソートは現状維持（重複防止用）。direction は意味情報として別途保存。Phase 2 のグラフ描画で活用予定
+- **コミット**: （本セッションで push 予定）
+
+### 設計振り返りポイント
+- **conflict の direction は本質的に時間順序のみ**: 「どちらが正しいか」は後知恵でしか判定できないため、AI 判定させてもコストの無駄。created から機械判定が最適
+- **「順序の情報はぜひ残したい」**: ユーザー発言（2026-08-10）。今は UI で活用しないが、将来のグラフ描画（過去→現在の可視化）で使う
+
+---
+
 ## 関連ドキュメント
 
 - `docs/OAUTH_AND_STORAGE.md`：OAuth・LocalStorage・データアクセス権限
