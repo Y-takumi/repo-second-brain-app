@@ -2293,7 +2293,6 @@ async function handleGoogleAuthResult(tokenResponse){
     refreshGreatMindFromDrive();
     refreshHabitFromDrive();
     refreshEdgesFromDrive();
-    runInitialEdgeBackfill(); // Task 191: 初回起動バッチ（fire-and-forget）
     await loadGraphData();
   } catch(err){
     document.getElementById("drive-status-text").textContent = "連携済み（フォルダ確認でエラー）";
@@ -2522,7 +2521,6 @@ async function uploadVaultToDrive(){
     refreshGreatMindFromDrive();
     refreshHabitFromDrive();
     refreshEdgesFromDrive();
-    runInitialEdgeBackfill(); // Task 191: 初回起動バッチ（fire-and-forget）
     showParserSummary(resultEl);
   } catch(err){
     resultEl.textContent = `❌ エラー：${err.message}`;
@@ -2810,10 +2808,10 @@ function buildSpecialRelationPrompt(newKnowledge, candidates, relationType){
   ).join("\n");
 
   const typeDescription = relationType === "conflict"
-    ? "**葛藤（conflict）**：過去の自分と今の自分で考えが対立している、2 つの Knowledge が異なる結論・異なる意見を持っている"
+    ? "**葛藤（conflict）**：過去の自分と今の自分で考えが対立している、2 つの Knowledge が異なる結論・異なる意見を持っている\n（direction は呼び出し側で created タイムスタンプから自動判定するので、判定不要・null を返してください）"
     : relationType === "abstract_link"
-    ? "**抽象化の接続（abstract_link）**：別々の具体的出来事の裏に、同じ抽象的パターン・信念が潜んでいる"
-    : "**伏線・発展（foreshadowing）**：過去の記録が今の記録の『答え合わせ』や『続き』になっている";
+    ? "**抽象化の接続（abstract_link）**：別々の具体的出来事の裏に、同じ抽象的パターン・信念が潜んでいる\n**direction** を判定してください：「abstract_to_specific」（具体的な出来事→抽象的パターン発見）か「specific_to_abstract」（抽象的概念→具体例）"
+    : "**伏線・発展（foreshadowing）**：過去の記録が今の記録の『答え合わせ』や『続き』になっている\n**direction** を判定してください：「foreshadow_to_resolution」（伏線→解決）か「resolution_to_foreshadow」（解決後に過去の記録が伏線だと気づく）";
 
   return `あなたは「第二の脳」という個人用ナレッジ管理システムの思考分析アシスタントです。
 新規 Knowledge と既存 Knowledge 候補を比較し、**${relationType}** 関係を判定してください。
@@ -2834,10 +2832,13 @@ ${typeDescription}
       "candidate_id": "（既存Knowledge の id）",
       "relation_found": true または false,
       "reason": "（そう判断した根拠を1〜2文で）",
-      "confidence": 0.0 から 1.0
+      "confidence": 0.0 から 1.0,
+      "direction": "abstract_to_specific" / "specific_to_abstract" / "foreshadow_to_resolution" / "resolution_to_foreshadow" / null
     }
   ]
 }
+※ conflict の direction は呼び出し側で created タイムスタンプから自動判定するので null を返してください
+※ abstract_link / foreshadowing の direction は必ず判定してください
 
 # 新規 Knowledge
 - id: ${newKnowledge.id}
@@ -2899,6 +2900,9 @@ async function judgeSpecialRelations(newKnowledge, relationType, confidenceThres
         from_id: fromId,
         to_id: toId,
         type: relationType,
+        // Task 197: direction フィールドを追加
+        // abstract_link / foreshadowing は AI 判定、conflict は呼び出し側で created から機械判定（null のまま push）
+        direction: r.direction || null,
         reason: r.reason || "",
         strength: r.confidence || 0.7,
         created: today,
@@ -3669,11 +3673,14 @@ async function loadEdgesFromDrive(){
     const edges = parsed.edges || [];
     // Task 190: Phase 2 - AI 判定フィールドのデフォルト補完（後方互換）
     // 既存 Phase 1 の thematic エッジは ai_judged: false として読み込まれる
+    // Task 197: direction フィールドのデフォルト補完（後方互換）
+    // direction なし → "neutral"（thematic 相当）として扱う
     return edges.map(e => ({
       ai_judged: false,
       confidence: null,
       judged_at: null,
       model_version: null,
+      direction: "neutral",
       ...e,
     }));
   } catch(e){
@@ -3706,76 +3713,6 @@ async function refreshEdgesFromDrive(){
     console.log(`edges.json ロード成功: ${items.length}件のエッジ`);
   } catch(e){
     console.error("edges.json 読み込みエラー:", e);
-  }
-}
-
-/**
- * 初回起動時に過去 Knowledge への conflict 判定を遡及適用（Task 191 で追加）
- * - LocalStorage フラグ sb_initial_backfill_done で 1回だけ実行
- * - 既に ai_judged=true のエッジがある場合はスキップ（手動 push 対策）
- * - バックグラウンド実行、UI ブロックなし
- * - 進捗はコンソールログのみ
- */
-async function runInitialEdgeBackfill(){
-  if(localStorage.getItem("sb_initial_backfill_done") === "true"){
-    console.log("[Backfill] スキップ: 既に実行済み");
-    return;
-  }
-  const hasAiJudged = edgesData.some(e => e.ai_judged);
-  if(hasAiJudged){
-    console.log("[Backfill] スキップ: AI 判定エッジが既に存在");
-    localStorage.setItem("sb_initial_backfill_done", "true");
-    return;
-  }
-  if(!googleAccessToken){
-    console.log("[Backfill] スキップ: 未認証");
-    return;
-  }
-  try{
-    const knowledge = await loadKnowledgeFromDrive();
-    if(knowledge.length === 0){
-      console.log("[Backfill] スキップ: Knowledge が 0件");
-      localStorage.setItem("sb_initial_backfill_done", "true");
-      return;
-    }
-    console.log(`[Backfill] 開始: ${knowledge.length} 件の Knowledge を処理`);
-    let totalAdded = 0;
-    let errorCount = 0;
-    for(let i = 0; i < knowledge.length; i++){
-      const k = knowledge[i];
-      try{
-        console.log(`[Backfill] 処理中: ${k.id} (${i+1}/${knowledge.length})`);
-        const conflictEdges = await judgeSpecialRelations(k, "conflict");
-        for(const newEdge of conflictEdges){
-          const duplicate = edgesData.some(e =>
-            e.from_id === newEdge.from_id &&
-            e.to_id === newEdge.to_id &&
-            e.type === newEdge.type
-          );
-          if(!duplicate){
-            edgesData.push(newEdge);
-            totalAdded++;
-          }
-        }
-      } catch(e){
-        // Task 191 修正: 1件失敗でもループを継続（全体が止まらないように）
-        // 個別エラーはログ出力のみでスキップ、次件へ進む
-        errorCount++;
-        console.error(`[Backfill] エラー (${k.id}):`, e.message);
-      }
-    }
-    if(errorCount > 0){
-      console.warn(`[Backfill] ${errorCount}件のエラーが発生しましたが、他 Knowledge の処理は継続しました`);
-    }
-    if(totalAdded > 0){
-      await saveEdgesToDrive(edgesData);
-      console.log(`[Backfill] 完了: ${totalAdded}件の conflict エッジを追加`);
-    } else {
-      console.log(`[Backfill] 完了: 追加エッジなし`);
-    }
-    localStorage.setItem("sb_initial_backfill_done", "true");
-  } catch(e){
-    console.error("[Backfill] エラー:", e);
   }
 }
 
@@ -3853,6 +3790,8 @@ function computeBasicEdges(newKnowledge, existingKnowledge){
       from_id: fromId,
       to_id: toId,
       type: "thematic",
+      // Task 197: thematic は無向（双方向）なので direction は "neutral" 固定
+      direction: "neutral",
       reason: `テーマ「${matchedTheme}」で一致${branchMatch ? `・同じ branch「${newBranch}」` : ""}${tagsMatch ? "・タグ共通" : ""}`,
       strength: Math.min(strength, 1.0),
       created: today,
@@ -3896,6 +3835,13 @@ async function addEdgesForNewKnowledge(newKnowledge){
       const conflictEdges = await judgeSpecialRelations(newKnowledge, "conflict");
       let conflictAddedCount = 0;
       for(const newEdge of conflictEdges){
+        // Task 197: conflict の direction を created から機械判定（案 A1）
+        // AI 判定させず、id のタイムスタンプ部分（先頭 8 桁 = YYYYMMDD）で比較
+        const otherId = newEdge.from_id === newKnowledge.id ? newEdge.to_id : newEdge.from_id;
+        const newCreated = (newKnowledge.id || "").slice(0, 8);
+        const otherCreated = (otherId || "").slice(0, 8);
+        newEdge.direction = (newCreated >= otherCreated) ? "past_to_present" : "present_to_past";
+
         const duplicate = edgesData.some(e =>
           e.from_id === newEdge.from_id &&
           e.to_id === newEdge.to_id &&
