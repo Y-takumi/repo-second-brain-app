@@ -3861,6 +3861,34 @@ async function addEdgesForNewKnowledge(newKnowledge){
     } catch(e){
       console.error("conflict エッジ生成エラー:", e);
     }
+
+    // Phase 2.2 (2026-08-12): abstract_link / foreshadowing 判定を追加
+    // 抽象化の接続 / 伏線・発展 を AI 判定。direction は AI 判定値を採用
+    // （judgeSpecialRelations 内で null → "neutral" フォールバック済み）
+    // 各 type ごとに独立した try-catch で、1 type 失敗しても他 type は継続
+    for(const relType of ["abstract_link", "foreshadowing"]){
+      try{
+        const aiEdges = await judgeSpecialRelations(newKnowledge, relType);
+        let aiAddedCount = 0;
+        for(const newEdge of aiEdges){
+          const duplicate = edgesData.some(e =>
+            e.from_id === newEdge.from_id &&
+            e.to_id === newEdge.to_id &&
+            e.type === newEdge.type
+          );
+          if(!duplicate){
+            edgesData.push(newEdge);
+            aiAddedCount++;
+          }
+        }
+        if(aiAddedCount > 0){
+          await saveEdgesToDrive(edgesData);
+          console.log(`edges.json 更新: ${relType} エッジ ${aiAddedCount}件を追加`);
+        }
+      } catch(e){
+        console.error(`${relType} エッジ生成エラー:`, e);
+      }
+    }
   } catch(e){
     console.error("エッジ自動生成エラー:", e);
   }
