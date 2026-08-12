@@ -367,6 +367,120 @@ Playwright で自動テストを再開するには、以下を実施：
 
 **`edgesData.length` が 0**：F5 リロード → OAuth 認証 → `await refreshEdgesFromDrive()` 実行で復旧
 
+## Phase 2.2: abstract_link + foreshadowing 実装（2026-08-12 実装）
+
+**概要**：Phase 2.1（conflict）に続く Phase 2.2 として、abstract_link（抽象化の接続）と foreshadowing（伏線・発展）を **まとめて実装**。3 コミット（Task A・B・C+D）で end-to-end 完成。
+
+**実装コミット**：
+- `28891b1` Task A refactor(edges): judgeSpecialRelations で direction null を "neutral" にフォールバック
+- `5a18094` Task B feat(edges): addEdgesForNewKnowledge に abstract_link / foreshadowing 判定を追加（Phase 2.2）
+- `da9c1b7` Task C+D feat(graph): buildGraph に abstraction / foreshadow の色・線種を追加
+
+**ユーザー方針**（AskUserQuestion で確認済み）：
+- Phase 2.2（abstract_link）と Phase 2.3（foreshadowing）は**まとめて着手**
+- API 呼び出し回数 3 倍（conflict + abstract_link + foreshadowing）を**許容**（並列化なし、各 type 順次実行）
+- direction が AI 判定で `null` の時は **`"neutral"` にフォールバック**
+
+**前提条件**：
+- OAuth 認証済み
+- 既存 Knowledge 2 件以上（抽象化の接続 / 伏線・発展の判定対象）
+- ローカルサーバー起動済み
+
+### T9: direction null フォールバック（Task A の検証）
+
+1. アプリ起動 → OAuth 認証
+2. 開発者コンソール（F12）を開く
+3. AI が `direction` を判定しなかったケースをシミュレート：
+   ```javascript
+   // judgeSpecialRelations のロジックを手動検証
+   // direction フィールドが null の場合、"neutral" にフォールバックされる
+   const testEdge = { direction: null };
+   console.log(testEdge.direction || "neutral");  // "neutral"
+   ```
+4. **期待結果**：`"neutral"` が返る
+5. ❌ `null` のまま → Task A が反映されていない（F5 リロード）
+
+### T10: addEdgesForNewKnowledge に 2 type 呼び出し追加（Task B の検証）
+
+1. 既存 Knowledge が 3 件以上あることを確認（抽象化の接続や伏線が成立するペア）
+2. 新規 Knowledge を 1 件作成（既存と意味的なつながりがありそうな内容）
+3. コンソールログ確認：
+   - `edges.json 更新: 新規エッジ N件を追加`（thematic）
+   - `edges.json 更新: conflict エッジ N件を追加`（conflict）
+   - `edges.json 更新: abstract_link エッジ N件を追加`（abstract_link）
+   - `edges.json 更新: foreshadowing エッジ N件を追加`（foreshadowing）
+4. **期待結果**：4 種類のログが出力される
+5. ❌ abstract_link / foreshadowing のログが出ない → Task B が反映されていない
+
+### T11: edges.json に abstract_link / foreshadowing エッジが保存されるか
+
+1. Drive Web UI で `10_Edges/edges.json` を開く
+2. 確認項目：
+   - `type: "abstract_link"` のエッジが存在
+   - `type: "foreshadowing"` のエッジが存在
+   - 各エッジに `ai_judged: true` / `confidence` / `judged_at` / `model_version` / `direction` が含まれている
+   - direction が `"abstract_to_specific"` / `"specific_to_abstract"` / `"foreshadow_to_resolution"` / `"resolution_to_foreshadow"` / `"neutral"` のいずれか
+3. ❌ 4 type いずれかが欠落 → Task B 確認
+
+### T12: グラフ描画で 4 kind が判別できる（Task C+D の検証）
+
+1. 探索タブ → ナレッジ → グラフ画面でナレッジノードが複数あることを確認
+2. 4 種類（紫破線 / 橙実線 / 薄紫実線 / ピンク破線）が表示されるか確認
+3. **期待される表示**：
+   - cross（thematic）→ `--primary` 紫 + 破線 3,3
+   - revises（conflict）→ `--business` 橙 + 実線
+   - **abstraction（abstract_link）→ `--mind` 薄紫 + 実線**（Phase 2.2）
+   - **foreshadow（foreshadowing）→ `--relationships` ピンク + 破線 5,3**（Phase 2.2）
+4. ❌ abstraction / foreshadow が灰色（`--border`）で表示 → Task C が反映されていない
+
+### T13: computeWeights の hasCross 動作確認（Task D の検証）
+
+1. 開発者コンソールで実行：
+   ```javascript
+   const nodes = graphNodes.slice(0, 5);
+   const links = buildGraphLinksFromEdges(edgesData);
+   // liveLinks に変換
+   const liveLinks = links.filter(([s,t])=> nodes.some(n=>n.id===s) && nodes.some(n=>n.id===t))
+                          .map(([s,t,kind])=>({source:s, target:t, kind}));
+   computeWeights(nodes, liveLinks, null);
+   console.log(nodes.map(n=>n.weight));
+   ```
+2. **期待結果**：abstraction / foreshadow エッジを持つノードの weight が +12 されている
+3. ❌ +12 されていない → Task D が反映されていない
+
+### T14: エッジ詳細ポップアップで 4 type のラベル表示（Task 193 + Phase 2.2 の検証）
+
+1. 探索タブ → ナレッジ → グラフ画面で各 kind のエッジをクリック
+2. **期待されるラベル表示**：
+   - `thematic` → 「基本の関連性」
+   - `conflict` → 「葛藤」
+   - `abstract_link` → 「抽象化の接続」
+   - `foreshadowing` → 「伏線・発展」
+3. ❌ 4 種類のいずれかが「不明」表示 → Task 193 / Phase 2.2 の typeLabel 確認
+
+### Phase 2.2 動作テスト共通のチェックリスト
+
+- [ ] direction null → `"neutral"` フォールバックが動作する
+- [ ] 新規 Knowledge 作成時に 4 type（thematic / conflict / abstract_link / foreshadowing）すべてが edges.json に追加される
+- [ ] abstract_link / foreshadowing エッジに `ai_judged: true` が含まれている
+- [ ] グラフ画面で 4 kind が色・線種で判別できる
+- [ ] エッジ詳細ポップアップで 4 type すべて正しいラベルが表示される
+- [ ] computeWeights で abstraction / foreshadow が weight +12 ボーナスを受ける
+
+### Phase 2.2 トラブルシューティング
+
+**`judgeSpecialRelations is not defined`**：関数が存在しない → Task B 適用確認（F5 リロード）
+
+**abstract_link / foreshadowing が 1 度も生成されない**：
+- 既存 Knowledge 不足 → 既存 Knowledge の themes / tags / content を確認
+- プロンプトの信頼度閾値 0.7 が高すぎる可能性 → 一時的に 0.5 に下げて検証
+- 候補スコアリングの上位 30 件に含まれていない可能性 → `scoreCandidatesByRelevance` のスコア計算を確認
+
+**3 つの type 呼び出しで API エラーが多発**：
+- レートリミットに達している可能性 → 1 件ずつ時間をおいて作成
+- トークン期限切れ → OAuth 再認証
+- Claude API 側の障害 → Cloudflare Worker ログを確認
+
 ## 関連ドキュメント
 
 - `docs/IMPLEMENTATION_PLAN.md`：実装プラン

@@ -4,7 +4,7 @@
 
 別のセッションで作業中に問題が発生した場合、このファイルを開いて **直近のタスク実施状況** を確認することで、類似の問題や関連する変更を把握できます。
 
-最終更新：2026-08-07（処理ボタン非活性化 / Task 151）
+最終更新：2026-08-12（Phase 2.2 完了: abstract_link + foreshadowing 実装）
 
 ---
 
@@ -2351,6 +2351,151 @@
 ### 設計振り返りポイント
 - **conflict の direction は本質的に時間順序のみ**: 「どちらが正しいか」は後知恵でしか判定できないため、AI 判定させてもコストの無駄。created から機械判定が最適
 - **「順序の情報はぜひ残したい」**: ユーザー発言（2026-08-10）。今は UI で活用しないが、将来のグラフ描画（過去→現在の可視化）で使う
+
+---
+
+## 2026-08-12 セッション：Task 197（direction フィールド）の動作検証
+
+### セッション概要
+前セッション（2026-08-10）で実装した Task 197（`direction` フィールド）の動作検証。`loadEdgesFromDrive` のデフォルト補完と、`addEdgesForNewKnowledge` での thematic / conflict エッジ方向出力が想定通り動作することを確認した。
+
+### 検証 1：本番URLで既存 edges が `"neutral"` として読み込まれるか
+- **状態**: completed
+- **完了評価**: 成功
+- **備考**:
+  - 本番URL https://Y-takumi.github.io/repo-second-brain-app/ で確認
+  - `loadEdgesFromDrive` (index.html:3678-3685) の `direction: "neutral"` デフォルト補完が機能
+  - 検証結果:
+    - `edgesData.length`: 8
+    - `edgesData.filter(e => !e.direction).length`: 0（全て補完済み）
+    - direction 内訳: `{neutral: 8}`
+  - **結論**: Phase 1 で生成された既存 thematic / conflict エッジ 8件すべてに `direction: "neutral"` が補完されている。後方互換性確保成功
+- **関連コミット**: 既存 944d1f9（feat edges direction）
+
+### 検証 2：thematic / conflict エッジに `direction` が出力されるか
+- **状態**: completed
+- **完了評価**: 成功
+- **備考**:
+  - 入力タブ経由では Claude 抽出判断に依存するため、`addEdgesForNewKnowledge` をコンソールから直接呼び出して検証
+  - **パターン A（支持関係）**：`title: "集中力は訓練で誰でも向上できる"` → 既存 Knowledge と支持関係 → thematic 1件、conflict 0件
+  - **パターン B（対立関係）** ⭐：`title: "マルチタスクは生産性を上げる"` → 既存 Knowledge と真逆 → thematic 1件、conflict 1件
+  - 検証結果（パターン B）:
+    - thematic: `direction: "neutral"` ✅（`computeBasicEdges` line 3794 で固定出力）
+    - conflict: `direction: "past_to_present"` ✅（`addEdgesForNewKnowledge` line 3841-3843 で `id.slice(0,8)` 比較）
+    - conflict confidence: 0.85（閾値 0.7 を超えて追加）
+  - **結論**: `direction` フィールドの実装（Task 197）は完全に機能している
+- **関連コミット**: 既存 944d1f9
+
+### 発見した残課題（マイナー）
+- **状態**: pending
+- **完了評価**: 保留
+- **備考**:
+  - `addEdgesForNewKnowledge` で生成された thematic エッジの `ai_judged: undefined` / `confidence: undefined`
+  - `loadEdgesFromDrive` のデフォルト補完はリロード時に走るが、新規作成直後のメモリ上データは補完されない
+  - **影響**: 機能影響は小さい（リロードで補完される）が、**明示的にデフォルト値を設定する方が望ましい**
+  - **修正案**: `computeBasicEdges` (index.html:3788-3800) で `ai_judged: false`、`confidence: null` を明示
+  - **関連コミット**: なし
+  - **次のセッションで修正判断**
+
+### 検証データのクリーンアップ（要対応）
+- **状態**: pending
+- **備考**:
+  - 検証で追加されたモック Knowledge と edges が Production に残存
+  - edges.json に 4件のモック（atom-6666, 7777, 8888, 9999）関連エッジが残存
+  - 08_Knowledge/ に 4件のモック Knowledge ファイルが残存
+  - **クリーンアップ手順**:
+    1. コンソールでモック関連 edges を `edgesData` から削除 → `saveEdgesToDrive`
+    2. Drive Web UI で `08_Knowledge/20260811-atom-{6666,7777,8888,9999}.md` を手動削除
+  - **次のセッションで実施予定**
+
+### 残タスク
+| Task | 内容 | 優先度 |
+|---|---|---|
+| 検証データクリーンアップ | edges.json + 08_Knowledge のモック削除 | 高（次セッション最初） |
+| thematic の ai_judged/confidence デフォルト補完 | `computeBasicEdges` で明示的デフォルト追加 | 中 |
+| 仕様書 2.14 節ロードマップ整備 | Phase 2.2/2.3、Phase 3-7 の進捗可視化 | 中 |
+| Phase 2.2 着手 | `abstract_link` / `foreshadowing` 実装 | 中 |
+| Phase 3-7（Tasks 170-185）目視確認 | 2026-08-08 復元後の動作確認 | 低（Playwright localhost ブロック継続中） |
+
+### セッション備考
+- ユーザー環境での本番検証で、Task 197 の実装が想定通り動作することを確認
+- 検証2で対立 Knowledge を作成することで conflict が発生することを確認。support 関係では発生しない（confidence 0.7 未満で弾かれる）
+- 残課題（thematic の ai_judged）は機能影響が小さく、修正コストも低いため、まとめて次のセッションで判断
+- 検証用モックデータが Production に残ったため、次のセッションで必ずクリーンアップを実施する
+
+---
+
+## 2026-08-12 セッション（Phase 2.2: abstract_link + foreshadowing 実装）
+
+### タスク前提
+- 2026-08-12 朝のセッションで Task 197（direction フィールド）の動作検証が完了済み
+- ユーザー指示：「Phase 2.2 進めましょう！！」
+- 既存実装で `judgeSpecialRelations` / `buildSpecialRelationPrompt` / 凍結挙動 / UI レンダリング分岐は **4 type すべてに対応済み**（Phase 2.1 で先行実装）
+- Phase 2.2 で本質的に必要なのは `addEdgesForNewKnowledge`（index.html:3811）に 2 つの呼び出しを追加するだけ
+
+### Task A: direction null → "neutral" フォールバック
+- **状態**: completed
+- **完了評価**: 成功
+- **備考**:
+  - `judgeSpecialRelations`（index.html:2907）で `direction: r.direction || null` → `direction: r.direction || "neutral"` に変更
+  - **理由**: AI が direction を判定しない（または `null` を返す）場合のフォールバック
+  - conflict は呼び出し側で `addEdgesForNewKnowledge:3845` で上書きされるため影響なし
+  - abstract_link / foreshadowing が「方向不明」のときは無向（neutral）として保存
+- **コミット**: `28891b1` refactor(edges): judgeSpecialRelations で direction null を "neutral" にフォールバック
+
+### Task B: addEdgesForNewKnowledge に 2 type 呼び出し追加
+- **状態**: completed
+- **完了評価**: 成功
+- **備考**:
+  - **ユーザー方針（AskUserQuestion 確認）**: Phase 2.2 + Phase 2.3 をまとめて着手、API 3 倍許容、direction null → "neutral" フォールバック
+  - `addEdgesForNewKnowledge`（index.html:3869 直後）に `for (const relType of ["abstract_link", "foreshadowing"])` ループを追加
+  - 各 type ごとに独立した try-catch で 1 type 失敗しても他 type は継続
+  - 重複チェック（from_id + to_id + type）→ edgesData.push は既存パターン踏襲
+  - `saveEdgesToDrive` は追加があった場合のみ呼ぶ（既存パターン）
+- **コミット**: `5a18094` feat(edges): addEdgesForNewKnowledge に abstract_link / foreshadowing 判定を追加（Phase 2.2）
+
+### Task C+D: グラフ描画の色・線種マッピング追加 + computeWeights の hasCross 更新
+- **状態**: completed
+- **完了評価**: 成功
+- **備考**:
+  - `buildGraph`（index.html:4335-4341）の linkSel に `abstraction` / `foreshadow` の色・線種マッピングを追加
+  - **配色**:
+    - `abstraction`（abstract_link）→ `themeColors.mind`（薄紫）+ 実線
+    - `foreshadow`（foreshadowing）→ `themeColors.relationships`（ピンク）+ 破線 5,3（時間発展を視覚化）
+  - **修正前の問題**: `abstraction` / `foreshadow` が `--border`（灰）+ 実線で `hierarchy` と同色で判別不能だった
+  - `computeWeights`（index.html:4283）の `hasCross` 条件に `abstraction` / `foreshadow` を追加（+12 ボーナス）
+  - **理由**: ノード表示濃度・ラベル表示の計算で新 kind も含める
+- **コミット**: `da9c1b7` feat(graph): buildGraph に abstraction / foreshadow の色・線種を追加
+
+### Task E: ドキュメント更新
+- **状態**: completed
+- **完了評価**: 成功
+- **備考**:
+  - **00_処理ロジック仕様書.md**:
+    - 冒頭の最終更新日を「2026-08-12（Phase 2.2 完了）」に更新
+    - 2.14 節冒頭に Phase 2.1/2.2/2.3 対応表を新設
+    - line 999 の「過去Knowledgeへの遡及適用」を Task 196 の関数削除済みの現状に合わせて修正
+    - line 1048 のコミット hash を `<Task 197 着手時に追加>` → `944d1f9` に更新
+    - 2.14.5 節に「Phase 2.2 完了記録（2026-08-12 / abstract_link + foreshadowing 実装）」セクションを新設
+  - **docs/TESTING.md**:
+    - 「Phase 2.2: abstract_link + foreshadowing 実装」セクションを新規追加
+    - T9-T14 テスト 6 件 + 動作テスト共通チェックリスト + トラブルシューティングを追加
+  - **docs/TASK_HISTORY.md**: 本セッション記録（Task A・B・C+D・E）
+
+### セッション備考
+- プランは Plan モードで 3 つの Explore エージェント（Phase 2.1 コード / 仕様書 2.14 節 / テスト・メモリ・コミット履歴）を並列調査 → AskUserQuestion でユーザー方針確認 → ExitPlanMode で承認後に実装
+- **実装内容は 3 コミット + 1 ドキュメントコミット（4 コミット）**で CLAUDE.md「1 機能 = 1 commit」遵守
+- API コスト影響: 新規 Knowledge 1 件作成で Claude API **3 回**呼び出し（conflict + abstract_link + foreshadowing）
+- 既存 Knowledge への影響: **遡及適用しない**（runInitialEdgeBackfill は Task 196 で削除済みのため）
+- Playwright localhost ブロック継続中 → **OAuth 必須のためユーザー手動テスト推奨**（既存運用と同じ）
+- ユーザー手動テスト手順:
+  1. `node .tmp-http-server.js` → `http://localhost:8000/` を開く
+  2. OAuth 認証
+  3. 新規 Knowledge を作成（既存と意味的につながりのある内容）
+  4. コンソールログで `edges.json 更新: abstract_link エッジ N件を追加` / `foreshadowing エッジ N件を追加` を確認
+  5. Drive Web UI で `10_Edges/edges.json` を開いて 4 type 確認
+  6. 探索タブ → ナレッジ → グラフ画面で 4 種類の色・線種を確認
+  7. 各エッジをクリックしてラベル（「基本の関連性」「葛藤」「抽象化の接続」「伏線・発展」）を確認
 
 ---
 
