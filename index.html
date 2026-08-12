@@ -4280,8 +4280,8 @@ function computeWeights(nodes, links, focusId){
       w += Math.max(0, 16 - days * 1.2); // ③更新日の新しさ：直近ほど重い、時間で減衰
     }
 
-    const hasCross = (adj[n.id]||[]).some(x=>x.kind==="cross"||x.kind==="revises");
-    if(hasCross) w += 12; // ④テーマ横断・revisesの橋渡し役は底上げ
+    const hasCross = (adj[n.id]||[]).some(x=>x.kind==="cross"||x.kind==="revises"||x.kind==="abstraction"||x.kind==="foreshadow");
+    if(hasCross) w += 12; // ④テーマ横断・revises・abstraction・foreshadow の橋渡し役は底上げ
 
     if(focusId===n.id) w += 999; // フォーカス中心自身は常に最大表示
     n.weight = w;
@@ -4332,9 +4332,15 @@ function buildGraph(){
     .force("focusY", d3.forceY(H/2).strength(d=> d.id===currentFocus ? 0.22 : 0));
 
   linkSel = g.selectAll(".elink").data(liveLinks).join("line")
-    .attr("stroke", d=> d.kind==="cross" ? primaryColor : d.kind==="revises" ? themeColors.business : "var(--border)")
+    .attr("stroke", d=> d.kind==="cross" ? primaryColor
+                       : d.kind==="revises" ? themeColors.business
+                       : d.kind==="abstraction" ? themeColors.mind          // Phase 2.2: 抽象化の接続（薄紫）
+                       : d.kind==="foreshadow" ? themeColors.relationships  // Phase 2.2: 伏線・発展（ピンク）
+                       : "var(--border)")
     .attr("stroke-width", d=> d.kind==="hierarchy"?1:1.3)
-    .attr("stroke-dasharray", d=> d.kind==="cross"?"3,3":"none")
+    .attr("stroke-dasharray", d=> d.kind==="cross"?"3,3"
+                               : d.kind==="foreshadow"?"5,3"                  // Phase 2.2: 発展関係を破線で視覚化
+                               :"none")
     .attr("stroke-opacity", 0.7)
     .style("cursor", d=> d.kind==="hierarchy" ? "default" : "pointer") // Task 193: hierarchy 以外クリック可
     .on("click", (event, d)=>{ // Task 193: エッジ詳細ポップアップ
