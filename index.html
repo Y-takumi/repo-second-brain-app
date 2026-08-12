@@ -2902,7 +2902,9 @@ async function judgeSpecialRelations(newKnowledge, relationType, confidenceThres
         type: relationType,
         // Task 197: direction フィールドを追加
         // abstract_link / foreshadowing は AI 判定、conflict は呼び出し側で created から機械判定（null のまま push）
-        direction: r.direction || null,
+        // Phase 2.2 (2026-08-12): AI が direction を判定しなかった場合は "neutral" にフォールバック
+        // conflict は呼び出し側（addEdgesForNewKnowledge）で上書きするため影響なし
+        direction: r.direction || "neutral",
         reason: r.reason || "",
         strength: r.confidence || 0.7,
         created: today,
